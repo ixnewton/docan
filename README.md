@@ -42,7 +42,15 @@ Docan is a beautiful, cross-platform AI chat application that brings together mu
 
 ## Screenshots
 
-*Coming soon*
+<p align="center">
+  <img src="assests/desktop.png" alt="Docan Desktop" width="800"><br>
+  <em>Desktop Layout</em>
+</p>
+
+<p align="center">
+  <img src="assests/mobile.png" alt="Docan Mobile" width="300"><br>
+  <em>Mobile Layout</em>
+</p>
 
 ## Installation
 

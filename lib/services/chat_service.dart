@@ -165,12 +165,19 @@ class ChatService extends ChangeNotifier {
 
   /// Send a message
   Future<void> sendMessage(String content) async {
-    if (content.trim().isEmpty) return;
+    debugPrint('[ChatService] sendMessage called');
+    debugPrint('[ChatService] Provider: ${_selectedProvider.name}, Model: $selectedModel');
+    
+    if (content.trim().isEmpty) {
+      debugPrint('[ChatService] Empty message, returning');
+      return;
+    }
 
     _error = null;
     
     // Create conversation if needed
     if (_currentConversation == null) {
+      debugPrint('[ChatService] Creating new conversation');
       createConversation();
     }
 
@@ -192,6 +199,11 @@ class ChatService extends ChangeNotifier {
       final history = _currentConversation!.messages
           .where((m) => m.id != placeholderMessage.id)
           .toList();
+      
+      debugPrint('[ChatService] Starting stream request');
+      debugPrint('[ChatService] History messages: ${history.length}');
+      debugPrint('[ChatService] System prompt: ${systemPrompt != null ? 'yes' : 'no'}');
+      debugPrint('[ChatService] Temperature: $_temperature, MaxTokens: $_maxTokens');
 
       // Use streaming
       final stream = currentService.sendMessageStream(
@@ -234,7 +246,9 @@ class ChatService extends ChangeNotifier {
         );
       }
 
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[ChatService] ERROR: $e');
+      debugPrint('[ChatService] Stack trace: $stackTrace');
       final errorMessage = placeholderMessage.copyWith(
         content: '',
         isStreaming: false,

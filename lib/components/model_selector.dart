@@ -92,21 +92,42 @@ class ModelSelector extends StatelessWidget {
               ),
             ),
             const Divider(height: 1),
-            ...AIProvider.values.map((provider) => ListTile(
-                  leading: Icon(
-                    provider.icon,
-                    color: provider.color,
+            ...AIProvider.values.map((provider) {
+              final isConfigured = _isProviderConfigured(provider);
+              return ListTile(
+                leading: Icon(
+                  provider.icon,
+                  color: isConfigured ? provider.color : Colors.grey,
+                ),
+                title: Text(
+                  provider.displayName,
+                  style: TextStyle(
+                    color: isConfigured ? null : Colors.grey,
                   ),
-                  title: Text(provider.displayName),
-                  subtitle: Text(provider.description),
-                  trailing: provider == selectedProvider
-                      ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                      : null,
-                  onTap: () {
-                    onProviderChanged(provider);
-                    Navigator.pop(context);
-                  },
-                )),
+                ),
+                subtitle: Text(
+                  isConfigured 
+                      ? provider.description 
+                      : 'Not configured - add API key in Settings',
+                  style: TextStyle(
+                    color: isConfigured ? null : Colors.grey.shade500,
+                    fontSize: 12,
+                  ),
+                ),
+                trailing: provider == selectedProvider
+                    ? Icon(Icons.check, color: Theme.of(context).primaryColor)
+                    : !isConfigured
+                        ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18)
+                        : null,
+                enabled: isConfigured,
+                onTap: isConfigured
+                    ? () {
+                        onProviderChanged(provider);
+                        Navigator.pop(context);
+                      }
+                    : null,
+              );
+            }),
             const SizedBox(height: AppConstants.spacingM),
           ],
         ),

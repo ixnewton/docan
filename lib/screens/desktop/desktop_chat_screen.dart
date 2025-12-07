@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants.dart';
+import '../../models/ai_provider.dart';
 import '../../services/chat_service.dart';
 import '../../components/chat_message_bubble.dart';
 import '../../components/chat_input.dart';
@@ -24,6 +25,23 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
+  Map<AIProvider, bool> _configuredProviders = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfiguredProviders();
+  }
+
+  Future<void> _loadConfiguredProviders() async {
+    final chatService = context.read<ChatService>();
+    final configured = await chatService.getConfiguredProviders();
+    if (mounted) {
+      setState(() {
+        _configuredProviders = configured;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -211,6 +229,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             selectedModel: chatService.selectedModel,
             onProviderChanged: chatService.setProvider,
             onModelChanged: chatService.setModel,
+            configuredProviders: _configuredProviders,
           ),
           
           const SizedBox(width: AppConstants.spacingM),

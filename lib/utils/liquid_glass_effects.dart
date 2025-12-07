@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
-import '../config/themes.dart';
 
 /// Liquid Glass elastic animation curve
 class LiquidGlassCurves {

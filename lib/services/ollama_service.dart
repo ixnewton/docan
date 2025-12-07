@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
@@ -42,23 +43,31 @@ class OllamaService implements AIService {
 
   @override
   Future<List<String>> getAvailableModels() async {
+    debugPrint('[Ollama] getAvailableModels called');
+    debugPrint('[Ollama] Base URL: $_baseUrl');
     try {
       final url = Uri.parse('$_baseUrl/api/tags');
       final response = await http.get(url);
+      debugPrint('[Ollama] Models response status: ${response.statusCode}');
 
       if (response.statusCode != 200) {
+        debugPrint('[Ollama] Failed to get models, using defaults');
         return AIProvider.ollama.availableModels;
       }
 
       final data = jsonDecode(response.body);
       final models = data['models'] as List<dynamic>?;
+      debugPrint('[Ollama] Found ${models?.length ?? 0} models');
       
       if (models == null || models.isEmpty) {
         return AIProvider.ollama.availableModels;
       }
 
-      return models.map((m) => m['name'] as String).toList();
+      final modelNames = models.map((m) => m['name'] as String).toList();
+      debugPrint('[Ollama] Available models: $modelNames');
+      return modelNames;
     } catch (e) {
+      debugPrint('[Ollama] Error getting models: $e');
       return AIProvider.ollama.availableModels;
     }
   }
@@ -84,7 +93,13 @@ class OllamaService implements AIService {
     double temperature = 0.7,
     int maxTokens = 2048,
   }) async {
+    debugPrint('[Ollama] sendMessage called');
+    debugPrint('[Ollama] Model: $_modelId, Base URL: $_baseUrl');
+    debugPrint('[Ollama] Message length: ${message.length}');
+    debugPrint('[Ollama] History count: ${history.length}');
+    
     final url = Uri.parse('$_baseUrl/api/chat');
+    debugPrint('[Ollama] URL: $url');
     final messages = _buildMessages(message, history, systemPrompt);
 
     final body = jsonEncode({
@@ -97,18 +112,23 @@ class OllamaService implements AIService {
       },
     });
 
+    debugPrint('[Ollama] Sending request...');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
       body: body,
     );
+    debugPrint('[Ollama] Response status: ${response.statusCode}');
 
     if (response.statusCode != 200) {
+      debugPrint('[Ollama] ERROR: ${response.body}');
       throw Exception('Ollama API error: ${response.statusCode}');
     }
 
     final data = jsonDecode(response.body);
-    return data['message']?['content'] ?? '';
+    final content = data['message']?['content'] ?? '';
+    debugPrint('[Ollama] Response length: ${content.length}');
+    return content;
   }
 
   @override
@@ -119,7 +139,11 @@ class OllamaService implements AIService {
     double temperature = 0.7,
     int maxTokens = 2048,
   }) async* {
+    debugPrint('[Ollama] sendMessageStream called');
+    debugPrint('[Ollama] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens');
+    
     final url = Uri.parse('$_baseUrl/api/chat');
+    debugPrint('[Ollama] Stream URL: $url');
     final messages = _buildMessages(message, history, systemPrompt);
 
     final body = jsonEncode({
@@ -136,12 +160,16 @@ class OllamaService implements AIService {
     request.headers['Content-Type'] = 'application/json';
     request.body = body;
 
+    debugPrint('[Ollama] Sending stream request...');
     final streamedResponse = await http.Client().send(request);
+    debugPrint('[Ollama] Stream response status: ${streamedResponse.statusCode}');
 
     if (streamedResponse.statusCode != 200) {
+      debugPrint('[Ollama] Stream ERROR: ${streamedResponse.statusCode}');
       throw Exception('Ollama streaming error: ${streamedResponse.statusCode}');
     }
 
+    int chunkCount = 0;
     await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
       final lines = chunk.split('\n');
       for (final line in lines) {
@@ -150,11 +178,17 @@ class OllamaService implements AIService {
         try {
           final data = jsonDecode(line);
           final content = data['message']?['content'] as String?;
+          final done = data['done'] as bool? ?? false;
           if (content != null && content.isNotEmpty) {
+            chunkCount++;
+            if (chunkCount <= 3) debugPrint('[Ollama] Chunk $chunkCount received');
             yield content;
           }
+          if (done) {
+            debugPrint('[Ollama] Stream complete. Total chunks: $chunkCount');
+          }
         } catch (e) {
-          // Skip malformed JSON
+          debugPrint('[Ollama] JSON parse error: $e');
         }
       }
     }

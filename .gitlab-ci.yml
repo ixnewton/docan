@@ -184,6 +184,7 @@ build_release_linux:
   variables:
     GIT_STRATEGY: fetch
     GIT_DEPTH: 1
+    PUB_CACHE: "$CI_PROJECT_DIR/.pub-cache"
   cache:
     key: "linux-deps-$CI_COMMIT_REF_SLUG-v3"
     paths:
@@ -194,21 +195,24 @@ build_release_linux:
     - apt-get update -qq
     - apt-get install -y -qq clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
     # Install AppImage and .deb packaging dependencies
-    - apt-get install -y -qq libfuse2 patchelf locate libsecret-1-dev libjsoncpp-dev rpm fuse file dpkg-dev
+    - apt-get install -y -qq libfuse2 patchelf locate libsecret-1-dev libjsoncpp-dev rpm fuse file dpkg-dev squashfs-tools zsync
     - rm -rf build/ .dart_tool/ .flutter-plugins-dependencies || true
     # Install flutter_distributor (fastforge)
     - dart pub global activate flutter_distributor
-    - export PATH="$PATH":"$HOME/.pub-cache/bin"
   script:
-    - export PATH="$PATH":"$HOME/.pub-cache/bin"
     - flutter config --enable-linux-desktop
     - flutter pub get --no-precompile
-    # Build AppImage
-    - flutter_distributor package --platform linux --targets appimage --skip-clean
-    # Build .deb package
-    - flutter_distributor package --platform linux --targets deb --skip-clean
+    # Build Linux release first
+    - flutter build linux --release
+    # Package as AppImage using full path to flutter_distributor
+    - $PUB_CACHE/bin/flutter_distributor package --platform linux --targets appimage --skip-clean
+    # Package as .deb
+    - $PUB_CACHE/bin/flutter_distributor package --platform linux --targets deb --skip-clean
+    # Also create a zip of the raw build
+    - cd build/linux/x64/release/bundle && zip -r $CI_PROJECT_DIR/dist/docan-linux-x64.zip . && cd $CI_PROJECT_DIR
   artifacts:
     paths:
       - dist/
+      - build/linux/x64/release/bundle/
     expire_in: 1 week
   timeout: 30m

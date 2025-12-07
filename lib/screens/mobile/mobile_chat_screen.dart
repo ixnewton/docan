@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants.dart';
-import '../../models/conversation.dart';
 import '../../services/chat_service.dart';
 import '../../components/chat_message_bubble.dart';
 import '../../components/chat_input.dart';

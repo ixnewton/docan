@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
@@ -60,11 +61,18 @@ class OpenAIService implements AIService {
     double temperature = 0.7,
     int maxTokens = 2048,
   }) async {
+    debugPrint('[OpenAI] sendMessage called');
+    debugPrint('[OpenAI] Model: $_modelId');
+    debugPrint('[OpenAI] Message length: ${message.length}');
+    debugPrint('[OpenAI] History count: ${history.length}');
+    
     if (_apiKey.isEmpty) {
+      debugPrint('[OpenAI] ERROR: API key not set');
       throw Exception('OpenAI API key not set');
     }
 
     final url = Uri.parse('${AppConstants.openAIBaseUrl}/chat/completions');
+    debugPrint('[OpenAI] URL: $url');
     final messages = _buildMessages(message, history, systemPrompt);
 
     final body = jsonEncode({
@@ -74,6 +82,7 @@ class OpenAIService implements AIService {
       'max_tokens': maxTokens,
     });
 
+    debugPrint('[OpenAI] Sending request...');
     final response = await http.post(
       url,
       headers: {
@@ -82,14 +91,17 @@ class OpenAIService implements AIService {
       },
       body: body,
     );
+    debugPrint('[OpenAI] Response status: ${response.statusCode}');
 
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
+      debugPrint('[OpenAI] ERROR: ${response.body}');
       throw Exception(error['error']?['message'] ?? 'OpenAI API error');
     }
 
     final data = jsonDecode(response.body);
     final choices = data['choices'] as List<dynamic>;
+    debugPrint('[OpenAI] Choices count: ${choices.length}');
     
     if (choices.isEmpty) {
       throw Exception('No response from OpenAI');
@@ -106,11 +118,16 @@ class OpenAIService implements AIService {
     double temperature = 0.7,
     int maxTokens = 2048,
   }) async* {
+    debugPrint('[OpenAI] sendMessageStream called');
+    debugPrint('[OpenAI] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens');
+    
     if (_apiKey.isEmpty) {
+      debugPrint('[OpenAI] ERROR: API key not set');
       throw Exception('OpenAI API key not set');
     }
 
     final url = Uri.parse('${AppConstants.openAIBaseUrl}/chat/completions');
+    debugPrint('[OpenAI] Stream URL: $url');
     final messages = _buildMessages(message, history, systemPrompt);
 
     final body = jsonEncode({
@@ -126,18 +143,25 @@ class OpenAIService implements AIService {
     request.headers['Authorization'] = 'Bearer $_apiKey';
     request.body = body;
 
+    debugPrint('[OpenAI] Sending stream request...');
     final streamedResponse = await http.Client().send(request);
+    debugPrint('[OpenAI] Stream response status: ${streamedResponse.statusCode}');
 
     if (streamedResponse.statusCode != 200) {
+      debugPrint('[OpenAI] Stream ERROR: ${streamedResponse.statusCode}');
       throw Exception('OpenAI streaming error: ${streamedResponse.statusCode}');
     }
 
+    int chunkCount = 0;
     await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
       final lines = chunk.split('\n');
       for (final line in lines) {
         if (line.startsWith('data: ')) {
           final jsonStr = line.substring(6).trim();
-          if (jsonStr == '[DONE]') continue;
+          if (jsonStr == '[DONE]') {
+            debugPrint('[OpenAI] Stream complete. Total chunks: $chunkCount');
+            continue;
+          }
           if (jsonStr.isEmpty) continue;
           
           try {
@@ -147,6 +171,8 @@ class OpenAIService implements AIService {
               final delta = choices[0]['delta'];
               final content = delta?['content'] as String?;
               if (content != null && content.isNotEmpty) {
+                chunkCount++;
+                if (chunkCount <= 3) debugPrint('[OpenAI] Chunk $chunkCount received');
                 yield content;
               }
             }

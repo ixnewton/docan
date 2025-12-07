@@ -1,4 +1,4 @@
-package com.example.docan
+package gitlab.openlyst.docan
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -725,4 +725,83 @@ class _SettingsFormState extends State<SettingsForm> {
       ),
     );
   }
+
+  void _showLicenseDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.gavel, color: Theme.of(context).primaryColor),
+            const SizedBox(width: AppConstants.spacingS),
+            const Text('License'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'GNU General Public License v3.0',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Docan is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.',
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.',
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'See the GNU General Public License for more details.',
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 16),
+              Text(
+                '📜 Permissions:',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+              ),
+              SizedBox(height: 4),
+              Text(
+                '• Commercial use\n'
+                '• Distribution\n'
+                '• Modification\n'
+                '• Patent use\n'
+                '• Private use',
+                style: TextStyle(fontSize: 13, color: Colors.green),
+              ),
+              SizedBox(height: 12),
+              Text(
+                '⚠️ Conditions:',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+              ),
+              SizedBox(height: 4),
+              Text(
+                '• Disclose source\n'
+                '• License and copyright notice\n'
+                '• Same license\n'
+                '• State changes',
+                style: TextStyle(fontSize: 13, color: Colors.orange),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => _launchUrl('https://www.gnu.org/licenses/gpl-3.0.en.html'),
+            child: const Text('View Full License'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 }

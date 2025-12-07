@@ -221,28 +221,68 @@ class ChatService extends ChangeNotifier {
       debugPrint('[ChatService] System prompt: ${systemPrompt != null ? 'yes' : 'no'}');
       debugPrint('[ChatService] Temperature: $_temperature, MaxTokens: $_maxTokens');
 
-      // Use streaming
-      final stream = currentService.sendMessageStream(
-        content,
-        history,
-        systemPrompt: systemPrompt,
-        temperature: _temperature,
-        maxTokens: _maxTokens,
-      );
-
       String fullResponse = '';
-      await for (final chunk in stream) {
-        fullResponse += chunk;
-        final updatedMessage = placeholderMessage.copyWith(
-          content: fullResponse,
-          isStreaming: true,
-        );
-        _currentConversation = _currentConversation!.updateMessage(
-          placeholderMessage.id,
-          updatedMessage,
-        );
-        _updateConversationInList();
-        notifyListeners();
+      bool success = false;
+      String? lastError;
+      
+      // Try current model first, then fallback models on 429
+      final modelsToTry = [_selectedModel, ..._getFallbackModels(_selectedProvider, _selectedModel)];
+      
+      for (final modelToTry in modelsToTry) {
+        try {
+          debugPrint('[ChatService] Trying model: $modelToTry');
+          currentService.setModel(modelToTry);
+          
+          // Use streaming
+          final stream = currentService.sendMessageStream(
+            content,
+            history,
+            systemPrompt: systemPrompt,
+            temperature: _temperature,
+            maxTokens: _maxTokens,
+          );
+
+          fullResponse = '';
+          await for (final chunk in stream) {
+            fullResponse += chunk;
+            final updatedMessage = placeholderMessage.copyWith(
+              content: fullResponse,
+              isStreaming: true,
+              modelId: modelToTry,
+            );
+            _currentConversation = _currentConversation!.updateMessage(
+              placeholderMessage.id,
+              updatedMessage,
+            );
+            _updateConversationInList();
+            notifyListeners();
+          }
+          
+          success = true;
+          // Update selected model if we had to fallback
+          if (modelToTry != _selectedModel) {
+            debugPrint('[ChatService] Successfully fell back to model: $modelToTry');
+            _selectedModel = modelToTry;
+          }
+          break; // Success, exit loop
+          
+        } catch (e) {
+          lastError = e.toString();
+          debugPrint('[ChatService] Model $modelToTry failed: $e');
+          
+          // Check if it's a rate limit error (429)
+          if (_isRateLimitError(e)) {
+            debugPrint('[ChatService] Rate limit hit, trying next model...');
+            continue; // Try next model
+          } else {
+            // For other errors, don't retry with different models
+            rethrow;
+          }
+        }
+      }
+      
+      if (!success) {
+        throw Exception(lastError ?? 'All models failed due to rate limiting. Please try again later.');
       }
 
       // Finalize message
@@ -287,6 +327,23 @@ class ChatService extends ChangeNotifier {
   String _generateTitle(String firstMessage) {
     final words = firstMessage.split(' ').take(5).join(' ');
     return words.length > 30 ? '${words.substring(0, 30)}...' : words;
+  }
+
+  /// Check if error is a rate limit (429) error
+  bool _isRateLimitError(Object error) {
+    final errorStr = error.toString().toLowerCase();
+    return errorStr.contains('429') || 
+           errorStr.contains('rate limit') ||
+           errorStr.contains('too many requests') ||
+           errorStr.contains('quota exceeded') ||
+           errorStr.contains('resource exhausted');
+  }
+
+  /// Get fallback models for a provider when rate limited
+  List<String> _getFallbackModels(AIProvider provider, String currentModel) {
+    final allModels = provider.availableModels;
+    // Return all models except the current one, prioritizing similar tier models
+    return allModels.where((m) => m != currentModel).toList();
   }
 
   /// Update conversation in list

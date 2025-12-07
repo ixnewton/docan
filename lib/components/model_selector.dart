@@ -10,6 +10,7 @@ class ModelSelector extends StatelessWidget {
   final ValueChanged<AIProvider> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final bool compact;
+  final Map<AIProvider, bool>? configuredProviders;
 
   const ModelSelector({
     super.key,
@@ -18,7 +19,13 @@ class ModelSelector extends StatelessWidget {
     required this.onProviderChanged,
     required this.onModelChanged,
     this.compact = false,
+    this.configuredProviders,
   });
+
+  bool _isProviderConfigured(AIProvider provider) {
+    if (configuredProviders == null) return true;
+    return configuredProviders![provider] ?? false;
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -5,10 +5,3 @@ priority: optional
 section: utils
 essential: false
 icon: web/icons/Icon-512.png
-keywords:
-  - ai
-  - chat
-  - gemini
-  - openai
-  - claude
-  - ollama

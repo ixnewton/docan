@@ -1,0 +1,189 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../config/constants.dart';
+import '../utils/liquid_glass_effects.dart';
+
+/// Liquid Glass styled chat input field
+class ChatInput extends StatefulWidget {
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final VoidCallback? onSend;
+  final ValueChanged<String>? onChanged;
+  final bool enabled;
+  final bool isLoading;
+  final String hintText;
+
+  const ChatInput({
+    super.key,
+    required this.controller,
+    this.focusNode,
+    this.onSend,
+    this.onChanged,
+    this.enabled = true,
+    this.isLoading = false,
+    this.hintText = 'Message...',
+  });
+
+  @override
+  State<ChatInput> createState() => _ChatInputState();
+}
+
+class _ChatInputState extends State<ChatInput> {
+  late FocusNode _focusNode;
+  bool _isFocused = false;
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = widget.focusNode ?? FocusNode();
+    _focusNode.addListener(_handleFocusChange);
+    widget.controller.addListener(_handleTextChange);
+    _hasText = widget.controller.text.isNotEmpty;
+  }
+
+  @override
+  void dispose() {
+    if (widget.focusNode == null) {
+      _focusNode.dispose();
+    }
+    widget.controller.removeListener(_handleTextChange);
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    setState(() => _isFocused = _focusNode.hasFocus);
+  }
+
+  void _handleTextChange() {
+    final hasText = widget.controller.text.isNotEmpty;
+    if (hasText != _hasText) {
+      setState(() => _hasText = hasText);
+    }
+    widget.onChanged?.call(widget.controller.text);
+  }
+
+  void _handleSend() {
+    if (widget.controller.text.trim().isEmpty) return;
+    if (widget.isLoading) return;
+    widget.onSend?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.all(AppConstants.spacingM),
+      child: LiquidGlassContainer(
+        borderRadius: AppConstants.radiusNavBar,
+        padding: EdgeInsets.zero,
+        blurIntensity: 25,
+        animateOnHover: false,
+        child: AnimatedContainer(
+          duration: AppConstants.hoverDuration,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
+            border: Border.all(
+              color: _isFocused
+                  ? theme.primaryColor.withValues(alpha: 0.5)
+                  : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Attachment button (future feature)
+              IconButton(
+                icon: Icon(
+                  Icons.add_circle_outline,
+                  color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+                ),
+                onPressed: () {
+                  // Future: file attachment
+                },
+              ),
+              
+              // Text field
+              Expanded(
+                child: KeyboardListener(
+                  focusNode: FocusNode(),
+                  onKeyEvent: (event) {
+                    // Desktop: Enter to send, Shift+Enter for newline
+                    if (event is KeyDownEvent &&
+                        event.logicalKey == LogicalKeyboardKey.enter &&
+                        !HardwareKeyboard.instance.isShiftPressed) {
+                      _handleSend();
+                    }
+                  },
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: _focusNode,
+                    enabled: widget.enabled,
+                    maxLines: 5,
+                    minLines: 1,
+                    textInputAction: TextInputAction.newline,
+                    style: theme.textTheme.bodyLarge,
+                    decoration: InputDecoration(
+                      hintText: widget.hintText,
+                      hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppConstants.spacingS,
+                        vertical: AppConstants.spacingM,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Send button
+              Padding(
+                padding: const EdgeInsets.only(
+                  right: AppConstants.spacingS,
+                  bottom: AppConstants.spacingS,
+                ),
+                child: AnimatedContainer(
+                  duration: AppConstants.hoverDuration,
+                  child: widget.isLoading
+                      ? SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                theme.primaryColor,
+                              ),
+                            ),
+                          ),
+                        )
+                      : LiquidGlassButton(
+                          onPressed: _hasText && widget.enabled ? _handleSend : null,
+                          backgroundColor: _hasText
+                              ? theme.primaryColor
+                              : (isDark
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : Colors.black.withValues(alpha: 0.05)),
+                          borderRadius: 20,
+                          padding: const EdgeInsets.all(10),
+                          child: Icon(
+                            Icons.arrow_upward_rounded,
+                            color: _hasText ? Colors.white : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.3),
+                            size: 20,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

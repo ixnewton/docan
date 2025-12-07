@@ -54,6 +54,22 @@ class ChatService extends ChangeNotifier {
 
   AIService get currentService => _services[_selectedProvider]!;
 
+  /// Get map of configured providers (has API key or Ollama URL)
+  Future<Map<AIProvider, bool>> getConfiguredProviders() async {
+    final result = <AIProvider, bool>{};
+    for (final provider in AIProvider.values) {
+      if (provider == AIProvider.ollama) {
+        // For Ollama, check if it's reachable
+        final isConnected = await testConnection(provider);
+        result[provider] = isConnected;
+      } else {
+        final hasKey = await _storage.hasApiKey(provider);
+        result[provider] = hasKey;
+      }
+    }
+    return result;
+  }
+
   /// Initialize the chat service
   Future<void> initialize() async {
     // Load conversations

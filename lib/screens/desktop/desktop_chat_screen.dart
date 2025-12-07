@@ -379,11 +379,13 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
     _inputFocusNode.requestFocus();
   }
 
-  void _openSettings(BuildContext context) {
-    showDialog(
+  void _openSettings(BuildContext context) async {
+    await showDialog(
       context: context,
       builder: (context) => const DesktopSettingsScreen(),
     );
+    // Refresh configured providers when settings dialog closes
+    _loadConfiguredProviders();
   }
 }
 

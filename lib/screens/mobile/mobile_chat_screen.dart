@@ -134,6 +134,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
             onProviderChanged: chatService.setProvider,
             onModelChanged: chatService.setModel,
             compact: true,
+            configuredProviders: _configuredProviders,
           ),
           
           const SizedBox(width: AppConstants.spacingS),

@@ -16,7 +16,7 @@ class AppConstants {
   static const String ollamaDefaultUrl = 'http://localhost:11434';
 
   // Default Models
-  static const String defaultGeminiModel = 'gemini-2.0-flash-exp';
+  static const String defaultGeminiModel = 'gemini-2.5-flash';
   static const String defaultOpenAIModel = 'gpt-4o';
   static const String defaultClaudeModel = 'claude-sonnet-4-20250514';
   static const String defaultOllamaModel = 'llama3.2';

@@ -333,13 +333,15 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
     );
   }
 
-  void _openSettings(BuildContext context) {
-    Navigator.push(
+  void _openSettings(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const MobileSettingsScreen(),
       ),
     );
+    // Refresh configured providers when returning from settings
+    _loadConfiguredProviders();
   }
 }
 

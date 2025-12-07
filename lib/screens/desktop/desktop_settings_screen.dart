@@ -19,7 +19,7 @@ class DesktopSettingsScreen extends StatefulWidget {
 class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   Map<AIProvider, String> _apiKeys = {};
   String _ollamaUrl = AppConstants.ollamaDefaultUrl;
-  Map<AIProvider, bool> _connectionStatus = {};
+  final Map<AIProvider, bool> _connectionStatus = {};
   bool _isLoading = true;
 
   @override

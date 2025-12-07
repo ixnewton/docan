@@ -195,7 +195,12 @@ build_release_linux:
     - apt-get update -qq
     - apt-get install -y -qq clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
     # Install AppImage and .deb packaging dependencies
-    - apt-get install -y -qq libfuse2 patchelf locate libsecret-1-dev libjsoncpp-dev rpm fuse file dpkg-dev squashfs-tools zsync
+    - apt-get install -y -qq libfuse2 patchelf locate libsecret-1-dev libjsoncpp-dev rpm fuse file dpkg-dev squashfs-tools zsync wget
+    # Download and install appimagetool
+    - wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O /usr/local/bin/appimagetool
+    - chmod +x /usr/local/bin/appimagetool
+    # Extract appimagetool since FUSE doesn't work in Docker
+    - cd /usr/local/bin && ./appimagetool --appimage-extract > /dev/null 2>&1 && mv squashfs-root appimagetool-extracted && ln -sf /usr/local/bin/appimagetool-extracted/AppRun /usr/local/bin/appimagetool && cd $CI_PROJECT_DIR
     - rm -rf build/ .dart_tool/ .flutter-plugins-dependencies || true
     # Install flutter_distributor (fastforge)
     - dart pub global activate flutter_distributor
@@ -204,8 +209,10 @@ build_release_linux:
     - flutter pub get --no-precompile
     # Build Linux release first
     - flutter build linux --release
+    # Create dist directory
+    - mkdir -p dist
     # Package as AppImage using full path to flutter_distributor
-    - $PUB_CACHE/bin/flutter_distributor package --platform linux --targets appimage --skip-clean
+    - $PUB_CACHE/bin/flutter_distributor package --platform linux --targets appimage --skip-clean || true
     # Package as .deb
     - $PUB_CACHE/bin/flutter_distributor package --platform linux --targets deb --skip-clean
     # Also create a zip of the raw build

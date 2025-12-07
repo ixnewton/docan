@@ -1,0 +1,23 @@
+variables:
+  APP_NAME: docan
+  APP_VERSION: 1.0.0
+  BUNDLE_ID: com.openlyst.docan
+  PUBLISHER_NAME: OpenLyst
+
+output: dist/
+
+releases:
+  - name: linux
+    jobs:
+      - name: appimage
+        package:
+          platform: linux
+          target: appimage
+          build_args:
+            release: true
+      - name: deb
+        package:
+          platform: linux
+          target: deb
+          build_args:
+            release: true

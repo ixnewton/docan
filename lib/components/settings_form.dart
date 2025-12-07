@@ -482,4 +482,241 @@ class _SettingsFormState extends State<SettingsForm> {
       ],
     );
   }
+
+  Widget _buildAboutSection() {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Version
+        _buildAboutRow(
+          context,
+          icon: Icons.tag,
+          title: 'Version',
+          subtitle: AppConstants.appVersion,
+        ),
+        const SizedBox(height: AppConstants.spacingM),
+        
+        // GitLab
+        _buildAboutRow(
+          context,
+          icon: Icons.code,
+          title: 'Source Code',
+          subtitle: 'GitLab Repository',
+          onTap: () => _launchUrl('https://gitlab.com/Openlyst/docan'),
+        ),
+        const SizedBox(height: AppConstants.spacingM),
+        
+        // Website
+        _buildAboutRow(
+          context,
+          icon: Icons.language,
+          title: 'Website',
+          subtitle: 'openlyst.onrender.com',
+          onTap: () => _launchUrl('https://openlyst.onrender.com/'),
+        ),
+        const SizedBox(height: AppConstants.spacingM),
+        
+        const Divider(height: 1),
+        const SizedBox(height: AppConstants.spacingM),
+        
+        // Privacy Policy
+        _buildAboutRow(
+          context,
+          icon: Icons.privacy_tip_outlined,
+          title: 'Privacy Policy',
+          subtitle: 'Your data stays on your device',
+          onTap: () => _showPrivacyDialog(context),
+        ),
+        const SizedBox(height: AppConstants.spacingM),
+        
+        // Terms of Service
+        _buildAboutRow(
+          context,
+          icon: Icons.description_outlined,
+          title: 'Terms of Service',
+          subtitle: 'No data collection',
+          onTap: () => _showTosDialog(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAboutRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+  }) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppConstants.radiusS),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingXS),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: theme.primaryColor),
+            const SizedBox(width: AppConstants.spacingM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.5),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _showPrivacyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.privacy_tip_outlined, color: Theme.of(context).primaryColor),
+            const SizedBox(width: AppConstants.spacingS),
+            const Text('Privacy Policy'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Docan Privacy Policy',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 16),
+              Text(
+                '🔒 We don\'t collect any data at all',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '🚫 We don\'t track anything',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '💻 Everything is stored locally on your device',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Your API keys, conversations, and settings are stored only on your device. We have no servers that collect or store your data. All AI requests go directly from your device to the respective AI provider (Google, OpenAI, Anthropic, or your local Ollama instance).',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTosDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.description_outlined, color: theme.primaryColor),
+            const SizedBox(width: AppConstants.spacingS),
+            const Text('Terms of Service'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Docan Terms of Service',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 16),
+              Text(
+                '🔒 We don\'t collect any data at all',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '🚫 We don\'t track anything',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '💻 Everything is local',
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'By using Docan, you agree that:',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '• You are responsible for your own API keys and their usage\n'
+                '• You will comply with the terms of service of the AI providers you use (Google, OpenAI, Anthropic)\n'
+                '• This app is provided "as is" without warranty of any kind\n'
+                '• We are not responsible for any content generated by AI providers',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Docan is open source software. You can view and contribute to the source code on GitLab.',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 }

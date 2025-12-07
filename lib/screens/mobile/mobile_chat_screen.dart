@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants.dart';
+import '../../models/ai_provider.dart';
 import '../../services/chat_service.dart';
 import '../../components/chat_message_bubble.dart';
 import '../../components/chat_input.dart';
@@ -23,6 +24,23 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  Map<AIProvider, bool> _configuredProviders = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfiguredProviders();
+  }
+
+  Future<void> _loadConfiguredProviders() async {
+    final chatService = context.read<ChatService>();
+    final configured = await chatService.getConfiguredProviders();
+    if (mounted) {
+      setState(() {
+        _configuredProviders = configured;
+      });
+    }
+  }
 
   @override
   void dispose() {

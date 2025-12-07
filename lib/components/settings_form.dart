@@ -484,8 +484,6 @@ class _SettingsFormState extends State<SettingsForm> {
   }
 
   Widget _buildAboutSection() {
-    final theme = Theme.of(context);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

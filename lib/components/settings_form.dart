@@ -537,6 +537,16 @@ class _SettingsFormState extends State<SettingsForm> {
           subtitle: 'No data collection',
           onTap: () => _showTosDialog(context),
         ),
+        const SizedBox(height: AppConstants.spacingM),
+        
+        // License
+        _buildAboutRow(
+          context,
+          icon: Icons.gavel,
+          title: 'License',
+          subtitle: 'GNU General Public License v3.0',
+          onTap: () => _showLicenseDialog(context),
+        ),
       ],
     );
   }

@@ -12,6 +12,7 @@ class StorageService {
   static StorageService? _instance;
   static SharedPreferences? _prefs;
   static FlutterSecureStorage? _secureStorage;
+  static bool _secureStorageAvailable = true;
 
   StorageService._();
 
@@ -22,26 +23,65 @@ class StorageService {
       _secureStorage = const FlutterSecureStorage(
         aOptions: AndroidOptions(encryptedSharedPreferences: true),
         iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+        lOptions: LinuxOptions(),
       );
+      
+      // Test if secure storage is available
+      try {
+        await _secureStorage?.read(key: '_test_key');
+        _secureStorageAvailable = true;
+      } catch (e) {
+        debugPrint('Secure storage not available, falling back to shared preferences: $e');
+        _secureStorageAvailable = false;
+      }
     }
     return _instance!;
   }
 
-  // API Keys (Secure Storage)
+  // API Keys (Secure Storage with fallback)
 
   Future<void> setApiKey(AIProvider provider, String key) async {
     final storageKey = _getApiKeyStorageKey(provider);
-    await _secureStorage?.write(key: storageKey, value: key);
+    if (_secureStorageAvailable) {
+      try {
+        await _secureStorage?.write(key: storageKey, value: key);
+        return;
+      } catch (e) {
+        debugPrint('Secure storage write failed, using fallback: $e');
+        _secureStorageAvailable = false;
+      }
+    }
+    // Fallback to shared preferences (less secure but works)
+    await _prefs?.setString('_api_$storageKey', key);
   }
 
   Future<String?> getApiKey(AIProvider provider) async {
     final storageKey = _getApiKeyStorageKey(provider);
-    return await _secureStorage?.read(key: storageKey);
+    if (_secureStorageAvailable) {
+      try {
+        return await _secureStorage?.read(key: storageKey);
+      } catch (e) {
+        debugPrint('Secure storage read failed, using fallback: $e');
+        _secureStorageAvailable = false;
+      }
+    }
+    // Fallback to shared preferences
+    return _prefs?.getString('_api_$storageKey');
   }
 
   Future<void> deleteApiKey(AIProvider provider) async {
     final storageKey = _getApiKeyStorageKey(provider);
-    await _secureStorage?.delete(key: storageKey);
+    if (_secureStorageAvailable) {
+      try {
+        await _secureStorage?.delete(key: storageKey);
+        return;
+      } catch (e) {
+        debugPrint('Secure storage delete failed, using fallback: $e');
+        _secureStorageAvailable = false;
+      }
+    }
+    // Fallback to shared preferences
+    await _prefs?.remove('_api_$storageKey');
   }
 
   Future<bool> hasApiKey(AIProvider provider) async {

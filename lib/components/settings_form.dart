@@ -364,7 +364,7 @@ class _SettingsFormState extends State<SettingsForm> {
           spacing: AppConstants.spacingS,
           runSpacing: AppConstants.spacingS,
           children: LiquidGlassColors.accentColors.map((color) {
-            final isSelected = color.value == widget.accentColor.value;
+            final isSelected = color.toARGB32() == widget.accentColor.toARGB32();
             return GestureDetector(
               onTap: () => widget.onAccentColorChanged(color),
               child: AnimatedContainer(

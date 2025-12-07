@@ -1,7 +1,17 @@
 display_name: Docan
 package_name: docan
-maintainer: OpenLyst <contact@openlyst.com>
+maintainer:
+  name: OpenLyst
+  email: contact@openlyst.com
 priority: optional
 section: utils
 essential: false
+installed_size: 50000
 icon: web/icons/Icon-512.png
+keywords:
+  - ai
+  - chat
+  - gemini
+categories:
+  - Utility
+startup_notify: true

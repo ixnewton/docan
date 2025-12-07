@@ -7,7 +7,7 @@ priority: optional
 section: utils
 essential: false
 installed_size: 50000
-icon: web/icons/Icon-512.png
+icon: assets/icon_1024.png
 keywords:
   - ai
   - chat

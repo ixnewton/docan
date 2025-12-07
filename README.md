@@ -1,6 +1,10 @@
 # Docan
 
 <p align="center">
+  <img src="assets/icon_1024.png" alt="Docan Logo" width="128" height="128">
+</p>
+
+<p align="center">
   <strong>Universal AI Chat Application</strong><br>
   iOS 26 / macOS Tahoe Native with Liquid Glass Design
 </p>

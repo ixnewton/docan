@@ -185,21 +185,28 @@ build_release_linux:
     GIT_STRATEGY: fetch
     GIT_DEPTH: 1
   cache:
-    key: "linux-deps-$CI_COMMIT_REF_SLUG-v2"
+    key: "linux-deps-$CI_COMMIT_REF_SLUG-v3"
     paths:
       - .pub-cache/
     policy: pull-push
   before_script:
-    # Install dependencies more efficiently
+    # Install dependencies for Linux build and packaging
     - apt-get update -qq
     - apt-get install -y -qq clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+    # Install AppImage and .deb packaging dependencies
+    - apt-get install -y -qq libfuse2 patchelf locate libsecret-1-dev libjsoncpp-dev rpm fuse
     - rm -rf build/ .dart_tool/ .flutter-plugins-dependencies || true
+    # Install flutter_distributor (fastforge)
+    - dart pub global activate flutter_distributor
+    - export PATH="$PATH:$HOME/.pub-cache/bin"
   script:
     - flutter config --enable-linux-desktop
     - flutter pub get --no-precompile
-    - flutter build linux --release --build-number=$CI_PIPELINE_ID
+    # Build with flutter_distributor for AppImage and .deb
+    - flutter_distributor package --platform linux --targets appimage,deb
   artifacts:
     paths:
+      - dist/
       - build/linux/x64/release/bundle/
     expire_in: 30m
-  timeout: 15m
+  timeout: 20m

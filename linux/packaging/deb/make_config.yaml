@@ -1,10 +1,10 @@
 display_name: Docan
 package_name: docan
-publisher_name: OpenLyst
-app_description: Universal AI Chat Application with Liquid Glass design
-icon: web/icons/Icon-512.png
 maintainer: OpenLyst <contact@openlyst.com>
-homepage: https://openlyst.onrender.com/
+priority: optional
+section: utils
+essential: false
+icon: web/icons/Icon-512.png
 keywords:
   - ai
   - chat
@@ -12,11 +12,4 @@ keywords:
   - openai
   - claude
   - ollama
-categories:
-  - Utility
-  - Chat
-section: utils
-priority: optional
-installed_size: 50000
-essential: false
 postinstall_scripts: []

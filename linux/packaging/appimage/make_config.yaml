@@ -1,0 +1,17 @@
+display_name: Docan
+package_name: docan
+publisher_name: OpenLyst
+app_description: Universal AI Chat Application with Liquid Glass design
+icon: linux/icon.png
+keywords:
+  - ai
+  - chat
+  - gemini
+  - openai
+  - claude
+  - ollama
+categories:
+  - Utility
+  - Chat
+generic_name: AI Chat
+startup_notify: true

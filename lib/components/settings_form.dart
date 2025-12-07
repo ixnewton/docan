@@ -653,14 +653,12 @@ class _SettingsFormState extends State<SettingsForm> {
   }
 
   void _showTosDialog(BuildContext context) {
-    final theme = Theme.of(context);
-    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.description_outlined, color: theme.primaryColor),
+            Icon(Icons.description_outlined, color: Theme.of(context).primaryColor),
             const SizedBox(width: AppConstants.spacingS),
             const Text('Terms of Service'),
           ],

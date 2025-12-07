@@ -113,6 +113,18 @@ class _SettingsFormState extends State<SettingsForm> {
             _buildMaxTokensSlider(),
           ],
         ),
+
+        const SizedBox(height: AppConstants.spacingL),
+
+        // About Section
+        _buildSection(
+          context,
+          title: 'About',
+          icon: Icons.info_outline,
+          children: [
+            _buildAboutSection(),
+          ],
+        ),
       ],
     );
   }

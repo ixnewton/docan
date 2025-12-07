@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
@@ -60,11 +61,18 @@ class ClaudeService implements AIService {
     double temperature = 0.7,
     int maxTokens = 2048,
   }) async {
+    debugPrint('[Claude] sendMessage called');
+    debugPrint('[Claude] Model: $_modelId');
+    debugPrint('[Claude] Message length: ${message.length}');
+    debugPrint('[Claude] History count: ${history.length}');
+    
     if (_apiKey.isEmpty) {
+      debugPrint('[Claude] ERROR: API key not set');
       throw Exception('Claude API key not set');
     }
 
     final url = Uri.parse('${AppConstants.claudeBaseUrl}/messages');
+    debugPrint('[Claude] URL: $url');
     final messages = _buildMessages(message, history);
 
     final body = <String, dynamic>{
@@ -77,6 +85,7 @@ class ClaudeService implements AIService {
       body['system'] = systemPrompt;
     }
 
+    debugPrint('[Claude] Sending request...');
     final response = await http.post(
       url,
       headers: {
@@ -86,14 +95,17 @@ class ClaudeService implements AIService {
       },
       body: jsonEncode(body),
     );
+    debugPrint('[Claude] Response status: ${response.statusCode}');
 
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
+      debugPrint('[Claude] ERROR: ${response.body}');
       throw Exception(error['error']?['message'] ?? 'Claude API error');
     }
 
     final data = jsonDecode(response.body);
     final content = data['content'] as List<dynamic>;
+    debugPrint('[Claude] Content blocks: ${content.length}');
     
     if (content.isEmpty) {
       throw Exception('No response from Claude');
@@ -113,11 +125,16 @@ class ClaudeService implements AIService {
     double temperature = 0.7,
     int maxTokens = 2048,
   }) async* {
+    debugPrint('[Claude] sendMessageStream called');
+    debugPrint('[Claude] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens');
+    
     if (_apiKey.isEmpty) {
+      debugPrint('[Claude] ERROR: API key not set');
       throw Exception('Claude API key not set');
     }
 
     final url = Uri.parse('${AppConstants.claudeBaseUrl}/messages');
+    debugPrint('[Claude] Stream URL: $url');
     final messages = _buildMessages(message, history);
 
     final body = <String, dynamic>{
@@ -137,12 +154,16 @@ class ClaudeService implements AIService {
     request.headers['anthropic-version'] = '2023-06-01';
     request.body = jsonEncode(body);
 
+    debugPrint('[Claude] Sending stream request...');
     final streamedResponse = await http.Client().send(request);
+    debugPrint('[Claude] Stream response status: ${streamedResponse.statusCode}');
 
     if (streamedResponse.statusCode != 200) {
+      debugPrint('[Claude] Stream ERROR: ${streamedResponse.statusCode}');
       throw Exception('Claude streaming error: ${streamedResponse.statusCode}');
     }
 
+    int chunkCount = 0;
     await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
       final lines = chunk.split('\n');
       for (final line in lines) {
@@ -158,11 +179,15 @@ class ClaudeService implements AIService {
               final delta = data['delta'];
               final text = delta?['text'] as String?;
               if (text != null && text.isNotEmpty) {
+                chunkCount++;
+                if (chunkCount <= 3) debugPrint('[Claude] Chunk $chunkCount received');
                 yield text;
               }
+            } else if (type == 'message_stop') {
+              debugPrint('[Claude] Stream complete. Total chunks: $chunkCount');
             }
           } catch (e) {
-            // Skip malformed JSON
+            debugPrint('[Claude] JSON parse error: $e');
           }
         }
       }

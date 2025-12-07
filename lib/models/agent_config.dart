@@ -132,7 +132,7 @@ Provide clear and concise responses while being helpful and informative.''',
       'modelId': modelId,
       'temperature': temperature,
       'iconCodePoint': icon.codePoint,
-      'accentColorValue': accentColor.value,
+      'accentColorValue': accentColor.toARGB32(),
     };
   }
 

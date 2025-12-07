@@ -2,7 +2,7 @@ display_name: Docan
 package_name: docan
 publisher_name: OpenLyst
 app_description: Universal AI Chat Application with Liquid Glass design
-icon: linux/icon.png
+icon: web/icons/Icon-512.png
 maintainer: OpenLyst <contact@openlyst.com>
 homepage: https://openlyst.onrender.com/
 keywords:

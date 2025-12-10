@@ -212,9 +212,12 @@ class ChatService extends ChangeNotifier {
 
     try {
       final systemPrompt = _selectedAgent?.systemPrompt;
-      final history = _currentConversation!.messages
-          .where((m) => m.id != placeholderMessage.id)
+      // Get history excluding the placeholder AND the current user message
+      // (current message is passed separately to sendMessageStream)
+      final allMessages = _currentConversation!.messages
+          .where((m) => m.id != placeholderMessage.id && m.id != userMessage.id)
           .toList();
+      final history = allMessages;
       
       debugPrint('[ChatService] Starting stream request');
       debugPrint('[ChatService] History messages: ${history.length}');

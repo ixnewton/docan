@@ -1,7 +1,7 @@
 name: docan
 description: "Universal AI chat application with Liquid Glass design"
 publish_to: 'none'
-version: 1.0.0
+version: 2.0.0
 
 environment:
   sdk: ^3.10.3

@@ -203,6 +203,8 @@ class ClaudeService implements AIService {
     // Add conversation history (Claude doesn't support system role in messages)
     for (final msg in history) {
       if (msg.role == MessageRole.system) continue;
+      // Skip error messages and empty content
+      if (msg.error != null || msg.content.trim().isEmpty) continue;
       messages.add({
         'role': msg.role == MessageRole.user ? 'user' : 'assistant',
         'content': msg.content,

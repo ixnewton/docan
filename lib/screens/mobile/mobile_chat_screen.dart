@@ -193,71 +193,73 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
   Widget _buildEmptyState(BuildContext context, ChatService chatService) {
     final theme = Theme.of(context);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.spacingXL),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 64,
-              color: theme.primaryColor.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: AppConstants.spacingL),
-            Text(
-              'Welcome to ${AppConstants.appName}',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.spacingXL),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 64,
+                color: theme.primaryColor.withValues(alpha: 0.5),
               ),
-            ),
-            const SizedBox(height: AppConstants.spacingS),
-            Text(
-              'Start a conversation with AI',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.textTheme.bodySmall?.color,
+              const SizedBox(height: AppConstants.spacingL),
+              Text(
+                'Welcome to ${AppConstants.appName}',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppConstants.spacingXL),
-            
-            // Quick prompts
-            Wrap(
-              spacing: AppConstants.spacingS,
-              runSpacing: AppConstants.spacingS,
-              alignment: WrapAlignment.center,
-              children: [
-                _QuickPromptChip(
-                  label: '💡 Explain a concept',
-                  onTap: () => _sendQuickPrompt(
-                    chatService,
-                    'Can you explain a complex concept in simple terms?',
-                  ),
+              const SizedBox(height: AppConstants.spacingS),
+              Text(
+                'Start a conversation with AI',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.textTheme.bodySmall?.color,
                 ),
-                _QuickPromptChip(
-                  label: '💻 Write code',
-                  onTap: () => _sendQuickPrompt(
-                    chatService,
-                    'Help me write some code',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppConstants.spacingXL),
+              
+              // Quick prompts
+              Wrap(
+                spacing: AppConstants.spacingS,
+                runSpacing: AppConstants.spacingS,
+                alignment: WrapAlignment.center,
+                children: [
+                  _QuickPromptChip(
+                    label: '💡 Explain a concept',
+                    onTap: () => _sendQuickPrompt(
+                      chatService,
+                      'Can you explain a complex concept in simple terms?',
+                    ),
                   ),
-                ),
-                _QuickPromptChip(
-                  label: '✍️ Help me write',
-                  onTap: () => _sendQuickPrompt(
-                    chatService,
-                    'Help me write something',
+                  _QuickPromptChip(
+                    label: '💻 Write code',
+                    onTap: () => _sendQuickPrompt(
+                      chatService,
+                      'Help me write some code',
+                    ),
                   ),
-                ),
-                _QuickPromptChip(
-                  label: '🔍 Research a topic',
-                  onTap: () => _sendQuickPrompt(
-                    chatService,
-                    'Help me research a topic',
+                  _QuickPromptChip(
+                    label: '✍️ Help me write',
+                    onTap: () => _sendQuickPrompt(
+                      chatService,
+                      'Help me write something',
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  _QuickPromptChip(
+                    label: '🔍 Research a topic',
+                    onTap: () => _sendQuickPrompt(
+                      chatService,
+                      'Help me research a topic',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

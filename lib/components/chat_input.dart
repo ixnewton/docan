@@ -44,18 +44,21 @@ class _ChatInputState extends State<ChatInput> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    widget.controller.removeListener(_handleTextChange);
     if (widget.focusNode == null) {
       _focusNode.dispose();
     }
-    widget.controller.removeListener(_handleTextChange);
     super.dispose();
   }
 
   void _handleFocusChange() {
+    if (!mounted) return;
     setState(() => _isFocused = _focusNode.hasFocus);
   }
 
   void _handleTextChange() {
+    if (!mounted) return;
     final hasText = widget.controller.text.isNotEmpty;
     if (hasText != _hasText) {
       setState(() => _hasText = hasText);
@@ -206,7 +209,6 @@ class _ChatInputState extends State<ChatInput> {
           ),
         ),
       ),
-    ),
     );
   }
 }

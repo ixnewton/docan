@@ -109,103 +109,110 @@ class _ChatInputState extends State<ChatInput> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.08),
+                      color: theme.textTheme.bodyMedium?.color
+                          ?.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: IconButton(
                       padding: EdgeInsets.zero,
                       icon: Icon(
                         Icons.add,
-                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: isDisabled ? 0.3 : 0.6),
+                        color: theme.textTheme.bodyMedium?.color
+                            ?.withValues(alpha: isDisabled ? 0.3 : 0.6),
                         size: 20,
                       ),
-                      onPressed: isDisabled ? null : () {
-                        // Future: file attachment
-                      },
+                      onPressed: isDisabled
+                          ? null
+                          : () {
+                              // Future: file attachment
+                            },
                     ),
                   ),
                 ),
-              
-              // Text field
-              Expanded(
-                child: KeyboardListener(
-                  focusNode: FocusNode(),
-                  onKeyEvent: (event) {
-                    // Desktop: Enter to send, Shift+Enter for newline
-                    if (event is KeyDownEvent &&
-                        event.logicalKey == LogicalKeyboardKey.enter &&
-                        !HardwareKeyboard.instance.isShiftPressed) {
-                      _handleSend();
-                    }
-                  },
-                  child: TextField(
-                    controller: widget.controller,
-                    focusNode: _focusNode,
-                    enabled: widget.enabled,
-                    maxLines: 5,
-                    minLines: 1,
-                    textInputAction: TextInputAction.newline,
-                    style: theme.textTheme.bodyLarge,
-                    decoration: InputDecoration(
-                      hintText: widget.hintText,
-                      hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppConstants.spacingS,
-                        vertical: AppConstants.spacingM,
+                // Text field
+                Expanded(
+                  child: KeyboardListener(
+                    focusNode: FocusNode(),
+                    onKeyEvent: (event) {
+                      // Desktop: Enter to send, Shift+Enter for newline
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.enter &&
+                          !HardwareKeyboard.instance.isShiftPressed) {
+                        _handleSend();
+                      }
+                    },
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focusNode,
+                      enabled: widget.enabled,
+                      maxLines: 5,
+                      minLines: 1,
+                      textInputAction: TextInputAction.newline,
+                      style: theme.textTheme.bodyLarge,
+                      decoration: InputDecoration(
+                        hintText: widget.hintText,
+                        hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.textTheme.bodyMedium?.color
+                              ?.withValues(alpha: 0.5),
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppConstants.spacingS,
+                          vertical: AppConstants.spacingM,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-
-              // Send button
-              Padding(
-                padding: const EdgeInsets.only(
-                  right: AppConstants.spacingXS,
-                ),
-                child: AnimatedContainer(
-                  duration: AppConstants.hoverDuration,
-                  child: widget.isLoading
-                      ? SizedBox(
-                          width: 36,
-                          height: 36,
-                          child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                theme.primaryColor,
+                // Send button
+                Padding(
+                  padding: const EdgeInsets.only(
+                    right: AppConstants.spacingXS,
+                  ),
+                  child: AnimatedContainer(
+                    duration: AppConstants.hoverDuration,
+                    child: widget.isLoading
+                        ? SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  theme.primaryColor,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: _hasText
+                                  ? theme.primaryColor
+                                  : theme.textTheme.bodyMedium?.color
+                                      ?.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              onPressed:
+                                  _hasText && widget.enabled ? _handleSend : null,
+                              icon: Icon(
+                                Icons.arrow_upward_rounded,
+                                color: _hasText
+                                    ? Colors.white
+                                    : theme.textTheme.bodyMedium?.color
+                                        ?.withValues(alpha: 0.4),
+                                size: 20,
                               ),
                             ),
                           ),
-                        )
-                      : Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: _hasText
-                                ? theme.primaryColor
-                                : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            onPressed: _hasText && widget.enabled ? _handleSend : null,
-                            icon: Icon(
-                              Icons.arrow_upward_rounded,
-                              color: _hasText 
-                                  ? Colors.white 
-                                  : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.4),
-                              size: 20,
-                            ),
-                          ),
-                        ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

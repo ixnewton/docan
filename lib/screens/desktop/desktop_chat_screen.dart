@@ -379,6 +379,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             ],
           ),
         ),
+      ),
     );
   }
 

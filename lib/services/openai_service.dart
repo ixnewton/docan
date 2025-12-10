@@ -201,6 +201,8 @@ class OpenAIService implements AIService {
 
     // Add conversation history
     for (final msg in history) {
+      // Skip error messages and empty content
+      if (msg.error != null || msg.content.trim().isEmpty) continue;
       String role;
       switch (msg.role) {
         case MessageRole.user:

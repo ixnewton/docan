@@ -72,7 +72,6 @@ class _ChatInputState extends State<ChatInput> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
       padding: const EdgeInsets.all(AppConstants.spacingM),
@@ -93,17 +92,32 @@ class _ChatInputState extends State<ChatInput> {
             ),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Attachment button (future feature)
-              IconButton(
-                icon: Icon(
-                  Icons.add_circle_outline,
-                  color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: AppConstants.spacingXS,
                 ),
-                onPressed: () {
-                  // Future: file attachment
-                },
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      Icons.add,
+                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      // Future: file attachment
+                    },
+                  ),
+                ),
               ),
               
               // Text field
@@ -144,17 +158,16 @@ class _ChatInputState extends State<ChatInput> {
               // Send button
               Padding(
                 padding: const EdgeInsets.only(
-                  right: AppConstants.spacingS,
-                  bottom: AppConstants.spacingS,
+                  right: AppConstants.spacingXS,
                 ),
                 child: AnimatedContainer(
                   duration: AppConstants.hoverDuration,
                   child: widget.isLoading
                       ? SizedBox(
-                          width: 40,
-                          height: 40,
+                          width: 36,
+                          height: 36,
                           child: Padding(
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(8),
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
@@ -163,19 +176,25 @@ class _ChatInputState extends State<ChatInput> {
                             ),
                           ),
                         )
-                      : LiquidGlassButton(
-                          onPressed: _hasText && widget.enabled ? _handleSend : null,
-                          backgroundColor: _hasText
-                              ? theme.primaryColor
-                              : (isDark
-                                  ? Colors.white.withValues(alpha: 0.1)
-                                  : Colors.black.withValues(alpha: 0.05)),
-                          borderRadius: 20,
-                          padding: const EdgeInsets.all(10),
-                          child: Icon(
-                            Icons.arrow_upward_rounded,
-                            color: _hasText ? Colors.white : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.3),
-                            size: 20,
+                      : Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: _hasText
+                                ? theme.primaryColor
+                                : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            onPressed: _hasText && widget.enabled ? _handleSend : null,
+                            icon: Icon(
+                              Icons.arrow_upward_rounded,
+                              color: _hasText 
+                                  ? Colors.white 
+                                  : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.4),
+                              size: 20,
+                            ),
                           ),
                         ),
                 ),

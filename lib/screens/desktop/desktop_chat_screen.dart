@@ -106,17 +106,24 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                         ),
                         
                         // Input
-                        ChatInput(
-                          controller: _inputController,
-                          focusNode: _inputFocusNode,
-                          isLoading: chatService.isLoading,
-                          onSend: () async {
-                            final message = _inputController.text.trim();
-                            if (message.isNotEmpty) {
-                              _inputController.clear();
-                              await chatService.sendMessage(message);
-                              _scrollToBottom();
-                            }
+                        Builder(
+                          builder: (context) {
+                            final hasApiKey = _configuredProviders[chatService.selectedProvider] ?? false;
+                            return ChatInput(
+                              controller: _inputController,
+                              focusNode: _inputFocusNode,
+                              isLoading: chatService.isLoading,
+                              enabled: hasApiKey,
+                              hintText: hasApiKey ? 'Message...' : 'Add API key in settings to start chatting',
+                              onSend: () async {
+                                final message = _inputController.text.trim();
+                                if (message.isNotEmpty) {
+                                  _inputController.clear();
+                                  await chatService.sendMessage(message);
+                                  _scrollToBottom();
+                                }
+                              },
+                            );
                           },
                         ),
                       ],

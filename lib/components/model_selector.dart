@@ -92,42 +92,44 @@ class ModelSelector extends StatelessWidget {
               ),
             ),
             const Divider(height: 1),
-            ...AIProvider.values.map((provider) {
-              final isConfigured = _isProviderConfigured(provider);
+            ...AIProvider.values
+                .where((provider) => _isProviderConfigured(provider))
+                .map((provider) {
               return ListTile(
                 leading: Icon(
                   provider.icon,
-                  color: isConfigured ? provider.color : Colors.grey,
+                  color: provider.color,
                 ),
                 title: Text(
                   provider.displayName,
-                  style: TextStyle(
-                    color: isConfigured ? null : Colors.grey,
-                  ),
                 ),
                 subtitle: Text(
-                  isConfigured 
-                      ? provider.description 
-                      : 'Not configured - add API key in Settings',
-                  style: TextStyle(
-                    color: isConfigured ? null : Colors.grey.shade500,
+                  provider.description,
+                  style: const TextStyle(
                     fontSize: 12,
                   ),
                 ),
                 trailing: provider == selectedProvider
                     ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                    : !isConfigured
-                        ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18)
-                        : null,
-                enabled: isConfigured,
-                onTap: isConfigured
-                    ? () {
-                        onProviderChanged(provider);
-                        Navigator.pop(context);
-                      }
                     : null,
+                onTap: () {
+                  onProviderChanged(provider);
+                  Navigator.pop(context);
+                },
               );
             }),
+            // Show message if no providers configured
+            if (AIProvider.values.where((p) => _isProviderConfigured(p)).isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(AppConstants.spacingL),
+                child: Center(
+                  child: Text(
+                    'No providers configured.\nAdd API keys in Settings.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ),
             const SizedBox(height: AppConstants.spacingM),
           ],
         ),

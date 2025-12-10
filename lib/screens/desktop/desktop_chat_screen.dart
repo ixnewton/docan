@@ -296,88 +296,89 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
   Widget _buildEmptyState(BuildContext context, ChatService chatService) {
     final theme = Theme.of(context);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.spacingXL),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 80,
-              color: theme.primaryColor.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: AppConstants.spacingL),
-            Text(
-              'Welcome to ${AppConstants.appName}',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.spacingXL),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 80,
+                color: theme.primaryColor.withValues(alpha: 0.5),
               ),
-            ),
-            const SizedBox(height: AppConstants.spacingS),
-            Text(
-              'Start a conversation with AI or select one from the sidebar',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.textTheme.bodySmall?.color,
+              const SizedBox(height: AppConstants.spacingL),
+              Text(
+                'Welcome to ${AppConstants.appName}',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppConstants.spacingXL),
-            
-            // Quick prompts
-            SizedBox(
-              width: 600,
-              child: Wrap(
-                spacing: AppConstants.spacingS,
-                runSpacing: AppConstants.spacingS,
-                alignment: WrapAlignment.center,
-                children: [
-                  _QuickPromptCard(
-                    icon: Icons.lightbulb_outline,
-                    title: 'Explain a concept',
-                    subtitle: 'Break down complex ideas simply',
-                    onTap: () => _sendQuickPrompt(
-                      'Can you explain a complex concept in simple terms?',
-                    ),
-                  ),
-                  _QuickPromptCard(
-                    icon: Icons.code,
-                    title: 'Write code',
-                    subtitle: 'Generate code snippets',
-                    onTap: () => _sendQuickPrompt(
-                      'Help me write some code',
-                    ),
-                  ),
-                  _QuickPromptCard(
-                    icon: Icons.edit_note,
-                    title: 'Help me write',
-                    subtitle: 'Draft emails, essays, and more',
-                    onTap: () => _sendQuickPrompt(
-                      'Help me write something',
-                    ),
-                  ),
-                  _QuickPromptCard(
-                    icon: Icons.search,
-                    title: 'Research a topic',
-                    subtitle: 'Deep dive into any subject',
-                    onTap: () => _sendQuickPrompt(
-                      'Help me research a topic',
-                    ),
-                  ),
-                ],
+              const SizedBox(height: AppConstants.spacingS),
+              Text(
+                'Start a conversation with AI or select one from the sidebar',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.textTheme.bodySmall?.color,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            
-            const SizedBox(height: AppConstants.spacingXL),
-            
-            // Keyboard shortcuts hint
-            Text(
-              'Pro tip: Press ⌘N for new chat, ⌘, for settings',
-              style: theme.textTheme.bodySmall,
-            ),
-          ],
+              const SizedBox(height: AppConstants.spacingXL),
+              
+              // Quick prompts
+              SizedBox(
+                width: 600,
+                child: Wrap(
+                  spacing: AppConstants.spacingS,
+                  runSpacing: AppConstants.spacingS,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    _QuickPromptCard(
+                      icon: Icons.lightbulb_outline,
+                      title: 'Explain a concept',
+                      subtitle: 'Break down complex ideas simply',
+                      onTap: () => _sendQuickPrompt(
+                        'Can you explain a complex concept in simple terms?',
+                      ),
+                    ),
+                    _QuickPromptCard(
+                      icon: Icons.code,
+                      title: 'Write code',
+                      subtitle: 'Generate code snippets',
+                      onTap: () => _sendQuickPrompt(
+                        'Help me write some code',
+                      ),
+                    ),
+                    _QuickPromptCard(
+                      icon: Icons.edit_note,
+                      title: 'Help me write',
+                      subtitle: 'Draft emails, essays, and more',
+                      onTap: () => _sendQuickPrompt(
+                        'Help me write something',
+                      ),
+                    ),
+                    _QuickPromptCard(
+                      icon: Icons.search,
+                      title: 'Research a topic',
+                      subtitle: 'Deep dive into any subject',
+                      onTap: () => _sendQuickPrompt(
+                        'Help me research a topic',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: AppConstants.spacingXL),
+              
+              // Keyboard shortcuts hint
+              Text(
+                'Pro tip: Press ⌘N for new chat, ⌘, for settings',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
-      ),
     );
   }
 

@@ -217,6 +217,8 @@ class GeminiService implements AIService {
     // Add conversation history
     for (final msg in history) {
       if (msg.role == MessageRole.system) continue;
+      // Skip error messages and empty content
+      if (msg.error != null || msg.content.trim().isEmpty) continue;
       contents.add({
         'role': msg.role == MessageRole.user ? 'user' : 'model',
         'parts': [{'text': msg.content}],

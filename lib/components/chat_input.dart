@@ -72,53 +72,56 @@ class _ChatInputState extends State<ChatInput> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDisabled = !widget.enabled;
 
-    return Padding(
-      padding: const EdgeInsets.all(AppConstants.spacingM),
-      child: LiquidGlassContainer(
-        borderRadius: AppConstants.radiusNavBar,
-        padding: EdgeInsets.zero,
-        blurIntensity: 25,
-        animateOnHover: false,
-        child: AnimatedContainer(
-          duration: AppConstants.hoverDuration,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
-            border: Border.all(
-              color: _isFocused
-                  ? theme.primaryColor.withValues(alpha: 0.5)
-                  : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Attachment button (future feature)
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: AppConstants.spacingXS,
-                ),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: Icon(
-                      Icons.add,
-                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
-                      size: 20,
-                    ),
-                    onPressed: () {
-                      // Future: file attachment
-                    },
-                  ),
-                ),
+    return Opacity(
+      opacity: isDisabled ? 0.5 : 1.0,
+      child: Padding(
+        padding: const EdgeInsets.all(AppConstants.spacingM),
+        child: LiquidGlassContainer(
+          borderRadius: AppConstants.radiusNavBar,
+          padding: EdgeInsets.zero,
+          blurIntensity: 25,
+          animateOnHover: false,
+          child: AnimatedContainer(
+            duration: AppConstants.hoverDuration,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
+              border: Border.all(
+                color: _isFocused && !isDisabled
+                    ? theme.primaryColor.withValues(alpha: 0.5)
+                    : Colors.transparent,
+                width: 2,
               ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Attachment button (future feature)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: AppConstants.spacingXS,
+                  ),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
+                        Icons.add,
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: isDisabled ? 0.3 : 0.6),
+                        size: 20,
+                      ),
+                      onPressed: isDisabled ? null : () {
+                        // Future: file attachment
+                      },
+                    ),
+                  ),
+                ),
               
               // Text field
               Expanded(

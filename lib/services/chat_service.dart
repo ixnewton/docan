@@ -24,6 +24,11 @@ class ChatService extends ChangeNotifier {
   String? _error;
   double _temperature = 0.7;
   int _maxTokens = 2048;
+  
+  // Stream cancellation
+  StreamSubscription<String>? _activeStreamSubscription;
+  bool _isCancelled = false;
+  String? _currentStreamingMessageId;
 
   // AI Services
   final Map<AIProvider, AIService> _services = {};

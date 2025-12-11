@@ -44,7 +44,7 @@ class ClaudeService implements AIService {
   @override
   Future<bool> testConnection() async {
     if (_apiKey.isEmpty) return false;
-    
+
     try {
       final response = await sendMessage('Hello', []);
       return response.isNotEmpty;
@@ -65,7 +65,7 @@ class ClaudeService implements AIService {
     debugPrint('[Claude] Model: $_modelId');
     debugPrint('[Claude] Message length: ${message.length}');
     debugPrint('[Claude] History count: ${history.length}');
-    
+
     if (_apiKey.isEmpty) {
       debugPrint('[Claude] ERROR: API key not set');
       throw Exception('Claude API key not set');
@@ -106,7 +106,7 @@ class ClaudeService implements AIService {
     final data = jsonDecode(response.body);
     final content = data['content'] as List<dynamic>;
     debugPrint('[Claude] Content blocks: ${content.length}');
-    
+
     if (content.isEmpty) {
       throw Exception('No response from Claude');
     }
@@ -126,8 +126,10 @@ class ClaudeService implements AIService {
     int maxTokens = 2048,
   }) async* {
     debugPrint('[Claude] sendMessageStream called');
-    debugPrint('[Claude] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens');
-    
+    debugPrint(
+      '[Claude] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
+    );
+
     if (_apiKey.isEmpty) {
       debugPrint('[Claude] ERROR: API key not set');
       throw Exception('Claude API key not set');
@@ -155,42 +157,66 @@ class ClaudeService implements AIService {
     request.body = jsonEncode(body);
 
     debugPrint('[Claude] Sending stream request...');
-    final streamedResponse = await http.Client().send(request);
-    debugPrint('[Claude] Stream response status: ${streamedResponse.statusCode}');
+    final client = http.Client();
+    try {
+      final streamedResponse = await client.send(request);
+      debugPrint(
+        '[Claude] Stream response status: ${streamedResponse.statusCode}',
+      );
 
-    if (streamedResponse.statusCode != 200) {
-      debugPrint('[Claude] Stream ERROR: ${streamedResponse.statusCode}');
-      throw Exception('Claude streaming error: ${streamedResponse.statusCode}');
-    }
+      if (streamedResponse.statusCode != 200) {
+        debugPrint('[Claude] Stream ERROR: ${streamedResponse.statusCode}');
+        throw Exception(
+          'Claude streaming error: ${streamedResponse.statusCode}',
+        );
+      }
 
-    int chunkCount = 0;
-    await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
-      final lines = chunk.split('\n');
-      for (final line in lines) {
-        if (line.startsWith('data: ')) {
-          final jsonStr = line.substring(6).trim();
-          if (jsonStr.isEmpty) continue;
-          
-          try {
-            final data = jsonDecode(jsonStr);
-            final type = data['type'] as String?;
-            
-            if (type == 'content_block_delta') {
-              final delta = data['delta'];
-              final text = delta?['text'] as String?;
-              if (text != null && text.isNotEmpty) {
-                chunkCount++;
-                if (chunkCount <= 3) debugPrint('[Claude] Chunk $chunkCount received');
-                yield text;
+      int chunkCount = 0;
+      String buffer = ''; // Buffer for incomplete SSE lines
+
+      await for (final chunk in streamedResponse.stream.transform(
+        utf8.decoder,
+      )) {
+        // Append new data to buffer
+        buffer += chunk;
+
+        // Process complete lines from buffer
+        while (buffer.contains('\n')) {
+          final newlineIndex = buffer.indexOf('\n');
+          final line = buffer.substring(0, newlineIndex).trim();
+          buffer = buffer.substring(newlineIndex + 1);
+
+          if (line.startsWith('data: ')) {
+            final jsonStr = line.substring(6).trim();
+            if (jsonStr.isEmpty) continue;
+
+            try {
+              final data = jsonDecode(jsonStr);
+              final type = data['type'] as String?;
+
+              if (type == 'content_block_delta') {
+                final delta = data['delta'];
+                final text = delta?['text'] as String?;
+                if (text != null && text.isNotEmpty) {
+                  chunkCount++;
+                  if (chunkCount <= 3)
+                    debugPrint('[Claude] Chunk $chunkCount received');
+                  yield text;
+                }
+              } else if (type == 'message_stop') {
+                debugPrint(
+                  '[Claude] Stream complete. Total chunks: $chunkCount',
+                );
               }
-            } else if (type == 'message_stop') {
-              debugPrint('[Claude] Stream complete. Total chunks: $chunkCount');
+            } catch (e) {
+              debugPrint('[Claude] JSON parse error: $e');
             }
-          } catch (e) {
-            debugPrint('[Claude] JSON parse error: $e');
           }
         }
       }
+      debugPrint('[Claude] Stream finished. Total chunks: $chunkCount');
+    } finally {
+      client.close();
     }
   }
 
@@ -212,10 +238,7 @@ class ClaudeService implements AIService {
     }
 
     // Add current message
-    messages.add({
-      'role': 'user',
-      'content': message,
-    });
+    messages.add({'role': 'user', 'content': message});
 
     return messages;
   }

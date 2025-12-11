@@ -44,7 +44,7 @@ class GeminiService implements AIService {
   @override
   Future<bool> testConnection() async {
     if (_apiKey.isEmpty) return false;
-    
+
     try {
       final response = await sendMessage('Hello', []);
       return response.isNotEmpty;
@@ -65,7 +65,7 @@ class GeminiService implements AIService {
     debugPrint('[Gemini] Model: $_modelId');
     debugPrint('[Gemini] Message length: ${message.length}');
     debugPrint('[Gemini] History count: ${history.length}');
-    
+
     if (_apiKey.isEmpty) {
       debugPrint('[Gemini] ERROR: API key not set');
       throw Exception('Gemini API key not set');
@@ -105,14 +105,14 @@ class GeminiService implements AIService {
     final data = jsonDecode(response.body);
     final candidates = data['candidates'] as List<dynamic>?;
     debugPrint('[Gemini] Candidates count: ${candidates?.length ?? 0}');
-    
+
     if (candidates == null || candidates.isEmpty) {
       throw Exception('No response from Gemini');
     }
 
     final content = candidates[0]['content'];
     final parts = content['parts'] as List<dynamic>;
-    
+
     return parts.map((p) => p['text'] ?? '').join('');
   }
 
@@ -125,8 +125,10 @@ class GeminiService implements AIService {
     int maxTokens = 2048,
   }) async* {
     debugPrint('[Gemini] sendMessageStream called');
-    debugPrint('[Gemini] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens');
-    
+    debugPrint(
+      '[Gemini] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
+    );
+
     if (_apiKey.isEmpty) {
       debugPrint('[Gemini] ERROR: API key not set');
       throw Exception('Gemini API key not set');
@@ -135,7 +137,9 @@ class GeminiService implements AIService {
     final url = Uri.parse(
       '${AppConstants.geminiBaseUrl}/models/$_modelId:streamGenerateContent?key=$_apiKey&alt=sse',
     );
-    debugPrint('[Gemini] Stream URL: ${url.toString().replaceAll(_apiKey, '***')}');
+    debugPrint(
+      '[Gemini] Stream URL: ${url.toString().replaceAll(_apiKey, '***')}',
+    );
 
     final contents = _buildContents(message, history, systemPrompt);
 
@@ -154,23 +158,67 @@ class GeminiService implements AIService {
     request.body = body;
 
     debugPrint('[Gemini] Sending stream request...');
-    final streamedResponse = await http.Client().send(request);
-    debugPrint('[Gemini] Stream response status: ${streamedResponse.statusCode}');
+    final client = http.Client();
+    try {
+      final streamedResponse = await client.send(request);
+      debugPrint(
+        '[Gemini] Stream response status: ${streamedResponse.statusCode}',
+      );
 
-    if (streamedResponse.statusCode != 200) {
-      debugPrint('[Gemini] Stream ERROR: ${streamedResponse.statusCode}');
-      throw Exception('Gemini streaming error: ${streamedResponse.statusCode}');
-    }
+      if (streamedResponse.statusCode != 200) {
+        debugPrint('[Gemini] Stream ERROR: ${streamedResponse.statusCode}');
+        throw Exception(
+          'Gemini streaming error: ${streamedResponse.statusCode}',
+        );
+      }
 
-    int chunkCount = 0;
-    await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
-      // Parse SSE data
-      final lines = chunk.split('\n');
-      for (final line in lines) {
-        if (line.startsWith('data: ')) {
-          final jsonStr = line.substring(6);
-          if (jsonStr.trim().isEmpty) continue;
-          
+      int chunkCount = 0;
+      String buffer = ''; // Buffer for incomplete SSE lines
+
+      await for (final chunk in streamedResponse.stream.transform(
+        utf8.decoder,
+      )) {
+        // Append new data to buffer
+        buffer += chunk;
+
+        // Process complete lines from buffer
+        while (buffer.contains('\n')) {
+          final newlineIndex = buffer.indexOf('\n');
+          final line = buffer.substring(0, newlineIndex).trim();
+          buffer = buffer.substring(newlineIndex + 1);
+
+          if (line.startsWith('data: ')) {
+            final jsonStr = line.substring(6);
+            if (jsonStr.trim().isEmpty) continue;
+
+            try {
+              final data = jsonDecode(jsonStr);
+              final candidates = data['candidates'] as List<dynamic>?;
+              if (candidates != null && candidates.isNotEmpty) {
+                final content = candidates[0]['content'];
+                final parts = content?['parts'] as List<dynamic>?;
+                if (parts != null && parts.isNotEmpty) {
+                  final text = parts[0]['text'] ?? '';
+                  if (text.isNotEmpty) {
+                    chunkCount++;
+                    if (chunkCount <= 3)
+                      debugPrint('[Gemini] Chunk $chunkCount received');
+                    yield text;
+                  }
+                }
+              }
+            } catch (e) {
+              debugPrint('[Gemini] JSON parse error for line: $line');
+              debugPrint('[Gemini] Error: $e');
+            }
+          }
+        }
+      }
+
+      // Process any remaining data in buffer (in case stream ended without final newline)
+      if (buffer.trim().isNotEmpty && buffer.startsWith('data: ')) {
+        final jsonStr = buffer.substring(6).trim();
+        if (jsonStr.isNotEmpty) {
           try {
             final data = jsonDecode(jsonStr);
             final candidates = data['candidates'] as List<dynamic>?;
@@ -181,18 +229,21 @@ class GeminiService implements AIService {
                 final text = parts[0]['text'] ?? '';
                 if (text.isNotEmpty) {
                   chunkCount++;
-                  if (chunkCount <= 3) debugPrint('[Gemini] Chunk $chunkCount received');
+                  debugPrint('[Gemini] Final buffer chunk received');
                   yield text;
                 }
               }
             }
           } catch (e) {
-            debugPrint('[Gemini] JSON parse error: $e');
+            debugPrint('[Gemini] JSON parse error for final buffer: $e');
           }
         }
       }
+
+      debugPrint('[Gemini] Stream complete. Total chunks: $chunkCount');
+    } finally {
+      client.close();
     }
-    debugPrint('[Gemini] Stream complete. Total chunks: $chunkCount');
   }
 
   List<Map<String, dynamic>> _buildContents(
@@ -206,11 +257,15 @@ class GeminiService implements AIService {
     if (systemPrompt != null && systemPrompt.isNotEmpty) {
       contents.add({
         'role': 'user',
-        'parts': [{'text': 'System: $systemPrompt'}],
+        'parts': [
+          {'text': 'System: $systemPrompt'},
+        ],
       });
       contents.add({
         'role': 'model',
-        'parts': [{'text': 'Understood. I will follow these instructions.'}],
+        'parts': [
+          {'text': 'Understood. I will follow these instructions.'},
+        ],
       });
     }
 
@@ -221,14 +276,18 @@ class GeminiService implements AIService {
       if (msg.error != null || msg.content.trim().isEmpty) continue;
       contents.add({
         'role': msg.role == MessageRole.user ? 'user' : 'model',
-        'parts': [{'text': msg.content}],
+        'parts': [
+          {'text': msg.content},
+        ],
       });
     }
 
     // Add current message
     contents.add({
       'role': 'user',
-      'parts': [{'text': message}],
+      'parts': [
+        {'text': message},
+      ],
     });
 
     return contents;

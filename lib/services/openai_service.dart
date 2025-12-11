@@ -44,7 +44,7 @@ class OpenAIService implements AIService {
   @override
   Future<bool> testConnection() async {
     if (_apiKey.isEmpty) return false;
-    
+
     try {
       final response = await sendMessage('Hello', []);
       return response.isNotEmpty;
@@ -65,7 +65,7 @@ class OpenAIService implements AIService {
     debugPrint('[OpenAI] Model: $_modelId');
     debugPrint('[OpenAI] Message length: ${message.length}');
     debugPrint('[OpenAI] History count: ${history.length}');
-    
+
     if (_apiKey.isEmpty) {
       debugPrint('[OpenAI] ERROR: API key not set');
       throw Exception('OpenAI API key not set');
@@ -102,7 +102,7 @@ class OpenAIService implements AIService {
     final data = jsonDecode(response.body);
     final choices = data['choices'] as List<dynamic>;
     debugPrint('[OpenAI] Choices count: ${choices.length}');
-    
+
     if (choices.isEmpty) {
       throw Exception('No response from OpenAI');
     }
@@ -119,8 +119,10 @@ class OpenAIService implements AIService {
     int maxTokens = 2048,
   }) async* {
     debugPrint('[OpenAI] sendMessageStream called');
-    debugPrint('[OpenAI] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens');
-    
+    debugPrint(
+      '[OpenAI] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
+    );
+
     if (_apiKey.isEmpty) {
       debugPrint('[OpenAI] ERROR: API key not set');
       throw Exception('OpenAI API key not set');
@@ -144,43 +146,65 @@ class OpenAIService implements AIService {
     request.body = body;
 
     debugPrint('[OpenAI] Sending stream request...');
-    final streamedResponse = await http.Client().send(request);
-    debugPrint('[OpenAI] Stream response status: ${streamedResponse.statusCode}');
+    final client = http.Client();
+    try {
+      final streamedResponse = await client.send(request);
+      debugPrint(
+        '[OpenAI] Stream response status: ${streamedResponse.statusCode}',
+      );
 
-    if (streamedResponse.statusCode != 200) {
-      debugPrint('[OpenAI] Stream ERROR: ${streamedResponse.statusCode}');
-      throw Exception('OpenAI streaming error: ${streamedResponse.statusCode}');
-    }
+      if (streamedResponse.statusCode != 200) {
+        debugPrint('[OpenAI] Stream ERROR: ${streamedResponse.statusCode}');
+        throw Exception(
+          'OpenAI streaming error: ${streamedResponse.statusCode}',
+        );
+      }
 
-    int chunkCount = 0;
-    await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
-      final lines = chunk.split('\n');
-      for (final line in lines) {
-        if (line.startsWith('data: ')) {
-          final jsonStr = line.substring(6).trim();
-          if (jsonStr == '[DONE]') {
-            debugPrint('[OpenAI] Stream complete. Total chunks: $chunkCount');
-            continue;
-          }
-          if (jsonStr.isEmpty) continue;
-          
-          try {
-            final data = jsonDecode(jsonStr);
-            final choices = data['choices'] as List<dynamic>?;
-            if (choices != null && choices.isNotEmpty) {
-              final delta = choices[0]['delta'];
-              final content = delta?['content'] as String?;
-              if (content != null && content.isNotEmpty) {
-                chunkCount++;
-                if (chunkCount <= 3) debugPrint('[OpenAI] Chunk $chunkCount received');
-                yield content;
-              }
+      int chunkCount = 0;
+      String buffer = ''; // Buffer for incomplete SSE lines
+
+      await for (final chunk in streamedResponse.stream.transform(
+        utf8.decoder,
+      )) {
+        // Append new data to buffer
+        buffer += chunk;
+
+        // Process complete lines from buffer
+        while (buffer.contains('\n')) {
+          final newlineIndex = buffer.indexOf('\n');
+          final line = buffer.substring(0, newlineIndex).trim();
+          buffer = buffer.substring(newlineIndex + 1);
+
+          if (line.startsWith('data: ')) {
+            final jsonStr = line.substring(6).trim();
+            if (jsonStr == '[DONE]') {
+              debugPrint('[OpenAI] Stream complete. Total chunks: $chunkCount');
+              continue;
             }
-          } catch (e) {
-            // Skip malformed JSON
+            if (jsonStr.isEmpty) continue;
+
+            try {
+              final data = jsonDecode(jsonStr);
+              final choices = data['choices'] as List<dynamic>?;
+              if (choices != null && choices.isNotEmpty) {
+                final delta = choices[0]['delta'];
+                final content = delta?['content'] as String?;
+                if (content != null && content.isNotEmpty) {
+                  chunkCount++;
+                  if (chunkCount <= 3)
+                    debugPrint('[OpenAI] Chunk $chunkCount received');
+                  yield content;
+                }
+              }
+            } catch (e) {
+              debugPrint('[OpenAI] JSON parse error: $e');
+            }
           }
         }
       }
+      debugPrint('[OpenAI] Stream finished. Total chunks: $chunkCount');
+    } finally {
+      client.close();
     }
   }
 
@@ -193,10 +217,7 @@ class OpenAIService implements AIService {
 
     // Add system prompt
     if (systemPrompt != null && systemPrompt.isNotEmpty) {
-      messages.add({
-        'role': 'system',
-        'content': systemPrompt,
-      });
+      messages.add({'role': 'system', 'content': systemPrompt});
     }
 
     // Add conversation history
@@ -215,17 +236,11 @@ class OpenAIService implements AIService {
           role = 'system';
           break;
       }
-      messages.add({
-        'role': role,
-        'content': msg.content,
-      });
+      messages.add({'role': role, 'content': msg.content});
     }
 
     // Add current message
-    messages.add({
-      'role': 'user',
-      'content': message,
-    });
+    messages.add({'role': 'user', 'content': message});
 
     return messages;
   }

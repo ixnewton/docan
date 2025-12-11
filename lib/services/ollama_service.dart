@@ -58,7 +58,7 @@ class OllamaService implements AIService {
       final data = jsonDecode(response.body);
       final models = data['models'] as List<dynamic>?;
       debugPrint('[Ollama] Found ${models?.length ?? 0} models');
-      
+
       if (models == null || models.isEmpty) {
         return AIProvider.ollama.availableModels;
       }
@@ -76,9 +76,7 @@ class OllamaService implements AIService {
   Future<bool> testConnection() async {
     try {
       final url = Uri.parse('$_baseUrl/api/tags');
-      final response = await http.get(url).timeout(
-        const Duration(seconds: 5),
-      );
+      final response = await http.get(url).timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
     } catch (e) {
       return false;
@@ -97,7 +95,7 @@ class OllamaService implements AIService {
     debugPrint('[Ollama] Model: $_modelId, Base URL: $_baseUrl');
     debugPrint('[Ollama] Message length: ${message.length}');
     debugPrint('[Ollama] History count: ${history.length}');
-    
+
     final url = Uri.parse('$_baseUrl/api/chat');
     debugPrint('[Ollama] URL: $url');
     final messages = _buildMessages(message, history, systemPrompt);
@@ -106,10 +104,7 @@ class OllamaService implements AIService {
       'model': _modelId,
       'messages': messages,
       'stream': false,
-      'options': {
-        'temperature': temperature,
-        'num_predict': maxTokens,
-      },
+      'options': {'temperature': temperature, 'num_predict': maxTokens},
     });
 
     debugPrint('[Ollama] Sending request...');
@@ -140,8 +135,10 @@ class OllamaService implements AIService {
     int maxTokens = 2048,
   }) async* {
     debugPrint('[Ollama] sendMessageStream called');
-    debugPrint('[Ollama] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens');
-    
+    debugPrint(
+      '[Ollama] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
+    );
+
     final url = Uri.parse('$_baseUrl/api/chat');
     debugPrint('[Ollama] Stream URL: $url');
     final messages = _buildMessages(message, history, systemPrompt);
@@ -150,10 +147,7 @@ class OllamaService implements AIService {
       'model': _modelId,
       'messages': messages,
       'stream': true,
-      'options': {
-        'temperature': temperature,
-        'num_predict': maxTokens,
-      },
+      'options': {'temperature': temperature, 'num_predict': maxTokens},
     });
 
     final request = http.Request('POST', url);
@@ -161,36 +155,75 @@ class OllamaService implements AIService {
     request.body = body;
 
     debugPrint('[Ollama] Sending stream request...');
-    final streamedResponse = await http.Client().send(request);
-    debugPrint('[Ollama] Stream response status: ${streamedResponse.statusCode}');
+    final client = http.Client();
+    try {
+      final streamedResponse = await client.send(request);
+      debugPrint(
+        '[Ollama] Stream response status: ${streamedResponse.statusCode}',
+      );
 
-    if (streamedResponse.statusCode != 200) {
-      debugPrint('[Ollama] Stream ERROR: ${streamedResponse.statusCode}');
-      throw Exception('Ollama streaming error: ${streamedResponse.statusCode}');
-    }
+      if (streamedResponse.statusCode != 200) {
+        debugPrint('[Ollama] Stream ERROR: ${streamedResponse.statusCode}');
+        throw Exception(
+          'Ollama streaming error: ${streamedResponse.statusCode}',
+        );
+      }
 
-    int chunkCount = 0;
-    await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
-      final lines = chunk.split('\n');
-      for (final line in lines) {
-        if (line.trim().isEmpty) continue;
-        
-        try {
-          final data = jsonDecode(line);
-          final content = data['message']?['content'] as String?;
-          final done = data['done'] as bool? ?? false;
-          if (content != null && content.isNotEmpty) {
-            chunkCount++;
-            if (chunkCount <= 3) debugPrint('[Ollama] Chunk $chunkCount received');
-            yield content;
+      int chunkCount = 0;
+      String buffer = ''; // Buffer for incomplete lines
+
+      await for (final chunk in streamedResponse.stream.transform(
+        utf8.decoder,
+      )) {
+        // Append new data to buffer
+        buffer += chunk;
+
+        // Process complete lines from buffer
+        while (buffer.contains('\n')) {
+          final newlineIndex = buffer.indexOf('\n');
+          final line = buffer.substring(0, newlineIndex).trim();
+          buffer = buffer.substring(newlineIndex + 1);
+
+          if (line.isEmpty) continue;
+
+          try {
+            final data = jsonDecode(line);
+            final content = data['message']?['content'] as String?;
+            final done = data['done'] as bool? ?? false;
+            if (content != null && content.isNotEmpty) {
+              chunkCount++;
+              if (chunkCount <= 3)
+                debugPrint('[Ollama] Chunk $chunkCount received');
+              yield content;
+            }
+            if (done) {
+              debugPrint('[Ollama] Stream complete. Total chunks: $chunkCount');
+            }
+          } catch (e) {
+            debugPrint('[Ollama] JSON parse error for line: $line');
+            debugPrint('[Ollama] Error: $e');
           }
-          if (done) {
-            debugPrint('[Ollama] Stream complete. Total chunks: $chunkCount');
-          }
-        } catch (e) {
-          debugPrint('[Ollama] JSON parse error: $e');
         }
       }
+
+      // Process any remaining data in buffer
+      if (buffer.trim().isNotEmpty) {
+        try {
+          final data = jsonDecode(buffer.trim());
+          final content = data['message']?['content'] as String?;
+          if (content != null && content.isNotEmpty) {
+            chunkCount++;
+            debugPrint('[Ollama] Final buffer chunk received');
+            yield content;
+          }
+        } catch (e) {
+          debugPrint('[Ollama] JSON parse error for final buffer: $e');
+        }
+      }
+
+      debugPrint('[Ollama] Stream finished. Total chunks: $chunkCount');
+    } finally {
+      client.close();
     }
   }
 
@@ -203,10 +236,7 @@ class OllamaService implements AIService {
 
     // Add system prompt
     if (systemPrompt != null && systemPrompt.isNotEmpty) {
-      messages.add({
-        'role': 'system',
-        'content': systemPrompt,
-      });
+      messages.add({'role': 'system', 'content': systemPrompt});
     }
 
     // Add conversation history
@@ -225,17 +255,11 @@ class OllamaService implements AIService {
           role = 'system';
           break;
       }
-      messages.add({
-        'role': role,
-        'content': msg.content,
-      });
+      messages.add({'role': role, 'content': msg.content});
     }
 
     // Add current message
-    messages.add({
-      'role': 'user',
-      'content': message,
-    });
+    messages.add({'role': 'user', 'content': message});
 
     return messages;
   }

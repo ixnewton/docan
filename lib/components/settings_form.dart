@@ -511,7 +511,7 @@ class _SettingsFormState extends State<SettingsForm> {
           context,
           icon: Icons.language,
           title: 'Website',
-          subtitle: 'openlyst.onrender.com',
+          subtitle: 'openlyst.ink',
           onTap: () => _launchUrl('https://openlyst.ink/'),
         ),
         const SizedBox(height: AppConstants.spacingM),

@@ -191,8 +191,9 @@ class OpenAIService implements AIService {
                 final content = delta?['content'] as String?;
                 if (content != null && content.isNotEmpty) {
                   chunkCount++;
-                  if (chunkCount <= 3)
+                  if (chunkCount <= 3) {
                     debugPrint('[OpenAI] Chunk $chunkCount received');
+                  }
                   yield content;
                 }
               }

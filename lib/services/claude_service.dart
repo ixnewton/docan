@@ -199,8 +199,9 @@ class ClaudeService implements AIService {
                 final text = delta?['text'] as String?;
                 if (text != null && text.isNotEmpty) {
                   chunkCount++;
-                  if (chunkCount <= 3)
+                  if (chunkCount <= 3) {
                     debugPrint('[Claude] Chunk $chunkCount received');
+                  }
                   yield text;
                 }
               } else if (type == 'message_stop') {

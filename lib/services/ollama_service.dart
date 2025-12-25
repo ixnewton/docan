@@ -192,8 +192,9 @@ class OllamaService implements AIService {
             final done = data['done'] as bool? ?? false;
             if (content != null && content.isNotEmpty) {
               chunkCount++;
-              if (chunkCount <= 3)
+              if (chunkCount <= 3) {
                 debugPrint('[Ollama] Chunk $chunkCount received');
+              }
               yield content;
             }
             if (done) {

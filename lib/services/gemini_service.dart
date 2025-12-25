@@ -201,8 +201,9 @@ class GeminiService implements AIService {
                   final text = parts[0]['text'] ?? '';
                   if (text.isNotEmpty) {
                     chunkCount++;
-                    if (chunkCount <= 3)
+                    if (chunkCount <= 3) {
                       debugPrint('[Gemini] Chunk $chunkCount received');
+                    }
                     yield text;
                   }
                 }

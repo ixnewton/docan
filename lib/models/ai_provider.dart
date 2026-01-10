@@ -70,7 +70,6 @@ extension AIProviderExtension on AIProvider {
           'gemini-2.5-pro',
           'gemini-2.5-flash',
           'gemini-2.5-flash-lite',
-          'gemini-2.0-flash',
         ];
       case AIProvider.openai:
         return [
@@ -102,7 +101,7 @@ extension AIProviderExtension on AIProvider {
   String get defaultModel {
     switch (this) {
       case AIProvider.gemini:
-        return 'gemini-2.0-flash-exp';
+        return 'gemini-2.5-flash';
       case AIProvider.openai:
         return 'gpt-4o';
       case AIProvider.claude:
@@ -178,7 +177,7 @@ class ModelConfig {
         (e) => e.name == json['provider'],
         orElse: () => AIProvider.gemini,
       ),
-      modelId: json['modelId'] ?? 'gemini-2.0-flash-exp',
+      modelId: json['modelId'] ?? 'gemini-2.5-flash',
       temperature: (json['temperature'] ?? 0.7).toDouble(),
       maxTokens: json['maxTokens'] ?? 2048,
       systemPrompt: json['systemPrompt'],

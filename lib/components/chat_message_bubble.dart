@@ -162,19 +162,19 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
       constraints: BoxConstraints(maxWidth: widget.maxWidth),
       child: ClipRRect(
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(AppConstants.radiusM),
-          topRight: const Radius.circular(AppConstants.radiusM),
-          bottomLeft: Radius.circular(isUser ? AppConstants.radiusM : 4),
-          bottomRight: Radius.circular(isUser ? 4 : AppConstants.radiusM),
+          topLeft: Radius.circular(isUser ? AppConstants.radiusM : 4),
+          topRight: Radius.circular(isUser ? 4 : AppConstants.radiusM),
+          bottomLeft: const Radius.circular(AppConstants.radiusM),
+          bottomRight: const Radius.circular(AppConstants.radiusM),
         ),
         child: Container(
           decoration: BoxDecoration(
             color: bubbleColor.withValues(alpha: isUser ? 1.0 : 0.8),
             borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(AppConstants.radiusM),
-              topRight: const Radius.circular(AppConstants.radiusM),
-              bottomLeft: Radius.circular(isUser ? AppConstants.radiusM : 4),
-              bottomRight: Radius.circular(isUser ? 4 : AppConstants.radiusM),
+              topLeft: Radius.circular(isUser ? AppConstants.radiusM : 4),
+              topRight: Radius.circular(isUser ? 4 : AppConstants.radiusM),
+              bottomLeft: const Radius.circular(AppConstants.radiusM),
+              bottomRight: const Radius.circular(AppConstants.radiusM),
             ),
           ),
           child: Column(

@@ -41,6 +41,7 @@ dependencies:
   file_picker: ^8.0.0
   image_picker: ^1.0.7
   mime: ^2.0.0
+  desktop_drop: ^0.5.0
   
   # Animations
   flutter_animate: ^4.5.0

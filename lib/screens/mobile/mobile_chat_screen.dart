@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:cross_file/cross_file.dart';
+import 'package:mime/mime.dart';
 import '../../config/constants.dart';
 import '../../models/ai_provider.dart';
 import '../../models/chat_message.dart';
@@ -30,6 +33,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
   Map<AIProvider, bool> _configuredProviders = {};
   List<Attachment> _attachments = [];
   bool _shouldAutoScroll = true;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -93,66 +97,179 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
     }
   }
 
+  /// Handle files dropped onto the app
+  Future<void> _handleDroppedFiles(List<XFile> files) async {
+    setState(() => _isDragging = false);
+    
+    final allowedExtensions = ['txt', 'pdf', 'doc', 'docx', 'md', 'json', 'csv', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+    
+    for (final file in files) {
+      try {
+        final extension = file.path.split('.').last.toLowerCase();
+        if (!allowedExtensions.contains(extension)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('File type .$extension not supported')),
+            );
+          }
+          continue;
+        }
+        
+        final bytes = await file.readAsBytes();
+        final mimeType = lookupMimeType(file.path) ?? 'application/octet-stream';
+        final isImage = mimeType.startsWith('image/');
+        
+        final attachment = Attachment(
+          name: file.name,
+          type: isImage ? AttachmentType.image : AttachmentType.file,
+          mimeType: mimeType,
+          bytes: bytes,
+        );
+        
+        setState(() {
+          _attachments = [..._attachments, attachment];
+        });
+      } catch (e) {
+        debugPrint('Error processing dropped file: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to add file: ${file.name}')),
+          );
+        }
+      }
+    }
+  }
+
+  /// Build the visual overlay shown when dragging files
+  Widget _buildDropOverlay(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Positioned.fill(
+      child: Container(
+        color: theme.primaryColor.withValues(alpha: 0.1),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.spacingXL,
+              vertical: AppConstants.spacingL,
+            ),
+            decoration: BoxDecoration(
+              color: theme.cardColor.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(AppConstants.radiusL),
+              border: Border.all(
+                color: theme.primaryColor,
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.primaryColor.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 64,
+                  color: theme.primaryColor,
+                ),
+                const SizedBox(height: AppConstants.spacingM),
+                Text(
+                  'Drop files to attach',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: AppConstants.spacingS),
+                Text(
+                  'Images, documents, and text files',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.textTheme.bodySmall?.color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Consumer<ChatService>(
       builder: (context, chatService, child) {
-        return Scaffold(
-          key: _scaffoldKey,
-          backgroundColor: theme.scaffoldBackgroundColor,
-          drawer: _buildDrawer(context, chatService),
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Floating Nav Bar
-                _buildNavBar(context, chatService),
+        return DropTarget(
+          onDragDone: (details) => _handleDroppedFiles(details.files),
+          onDragEntered: (_) => setState(() => _isDragging = true),
+          onDragExited: (_) => setState(() => _isDragging = false),
+          child: Stack(
+            children: [
+              Scaffold(
+                key: _scaffoldKey,
+                backgroundColor: theme.scaffoldBackgroundColor,
+                drawer: _buildDrawer(context, chatService),
+                body: SafeArea(
+                  child: Column(
+                    children: [
+                      // Floating Nav Bar
+                      _buildNavBar(context, chatService),
 
-                // Chat Messages
-                Expanded(child: _buildMessageList(context, chatService)),
+                      // Chat Messages
+                      Expanded(child: _buildMessageList(context, chatService)),
 
-                // Input Field
-                Builder(
-                  builder: (context) {
-                    final hasApiKey =
-                        _configuredProviders[chatService.selectedProvider] ??
-                        false;
-                    return ChatInput(
-                      controller: _inputController,
-                      isLoading: chatService.isLoading,
-                      enabled: hasApiKey,
-                      hintText: hasApiKey
-                          ? 'Message...'
-                          : 'Add API key in settings to start chatting',
-                      attachments: _attachments,
-                      onAttachmentsChanged: (attachments) {
-                        setState(() {
-                          _attachments = attachments;
-                        });
-                      },
-                      onSend: () async {
-                        final message = _inputController.text.trim();
-                        final attachments = List<Attachment>.from(_attachments);
-                        if (message.isNotEmpty || attachments.isNotEmpty) {
-                          _inputController.clear();
-                          setState(() {
-                            _attachments = [];
-                            _shouldAutoScroll =
-                                true; // Re-enable auto-scroll when sending
-                          });
-                          await chatService.sendMessage(
-                            message,
-                            attachments: attachments,
+                      // Input Field
+                      Builder(
+                        builder: (context) {
+                          final hasApiKey =
+                              _configuredProviders[chatService.selectedProvider] ??
+                              false;
+                          return ChatInput(
+                            controller: _inputController,
+                            isLoading: chatService.isLoading,
+                            enabled: hasApiKey,
+                            hintText: hasApiKey
+                                ? 'Message...'
+                                : 'Add API key in settings to start chatting',
+                            attachments: _attachments,
+                            onAttachmentsChanged: (attachments) {
+                              setState(() {
+                                _attachments = attachments;
+                              });
+                            },
+                            onSend: () async {
+                              final message = _inputController.text.trim();
+                              final attachments = List<Attachment>.from(_attachments);
+                              if (message.isNotEmpty || attachments.isNotEmpty) {
+                                _inputController.clear();
+                                setState(() {
+                                  _attachments = [];
+                                  _shouldAutoScroll =
+                                      true; // Re-enable auto-scroll when sending
+                                });
+                                await chatService.sendMessage(
+                                  message,
+                                  attachments: attachments,
+                                );
+                                _scrollToBottom();
+                              }
+                            },
                           );
-                          _scrollToBottom();
-                        }
-                      },
-                    );
-                  },
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+              // Drop overlay
+              if (_isDragging) _buildDropOverlay(context),
+            ],
           ),
         );
       },

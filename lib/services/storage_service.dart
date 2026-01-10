@@ -26,25 +26,71 @@ class StorageService {
         lOptions: LinuxOptions(),
       );
       
-      // Test if secure storage is available
+      // Test if secure storage is available with a write/read test
       try {
-        await _secureStorage?.read(key: '_test_key');
-        _secureStorageAvailable = true;
+        const testKey = '_docan_storage_test';
+        const testValue = 'test_value';
+        await _secureStorage?.write(key: testKey, value: testValue);
+        final readValue = await _secureStorage?.read(key: testKey);
+        await _secureStorage?.delete(key: testKey);
+        _secureStorageAvailable = readValue == testValue;
+        if (!_secureStorageAvailable) {
+          debugPrint('Secure storage test failed (read mismatch), using fallback');
+        }
       } catch (e) {
         debugPrint('Secure storage not available, falling back to shared preferences: $e');
         _secureStorageAvailable = false;
       }
+      
+      // Migrate any existing keys from secure storage to shared prefs if secure storage is unavailable
+      if (!_secureStorageAvailable) {
+        await _migrateToSharedPrefs();
+      }
     }
     return _instance!;
+  }
+  
+  static Future<void> _migrateToSharedPrefs() async {
+    // Try to read any existing keys from secure storage and migrate them
+    try {
+      final secureStorage = const FlutterSecureStorage(lOptions: LinuxOptions());
+      for (final provider in AIProvider.values) {
+        final key = _getStaticApiKeyStorageKey(provider);
+        final value = await secureStorage.read(key: key);
+        if (value != null && value.isNotEmpty) {
+          await _prefs?.setString('_api_$key', value);
+          debugPrint('Migrated $key to shared preferences');
+        }
+      }
+    } catch (e) {
+      debugPrint('Migration from secure storage failed (expected): $e');
+    }
+  }
+  
+  static String _getStaticApiKeyStorageKey(AIProvider provider) {
+    switch (provider) {
+      case AIProvider.gemini:
+        return AppConstants.keyGeminiApiKey;
+      case AIProvider.openai:
+        return AppConstants.keyOpenAIApiKey;
+      case AIProvider.claude:
+        return AppConstants.keyClaudeApiKey;
+      case AIProvider.ollama:
+        return AppConstants.keyOllamaUrl;
+    }
   }
 
   // API Keys (Secure Storage with fallback)
 
   Future<void> setApiKey(AIProvider provider, String key) async {
     final storageKey = _getApiKeyStorageKey(provider);
+    final fallbackKey = '_api_$storageKey';
+    
     if (_secureStorageAvailable) {
       try {
         await _secureStorage?.write(key: storageKey, value: key);
+        // Also save to shared prefs as backup
+        await _prefs?.setString(fallbackKey, key);
         return;
       } catch (e) {
         debugPrint('Secure storage write failed, using fallback: $e');
@@ -52,21 +98,26 @@ class StorageService {
       }
     }
     // Fallback to shared preferences (less secure but works)
-    await _prefs?.setString('_api_$storageKey', key);
+    await _prefs?.setString(fallbackKey, key);
   }
 
   Future<String?> getApiKey(AIProvider provider) async {
     final storageKey = _getApiKeyStorageKey(provider);
+    final fallbackKey = '_api_$storageKey';
+    
     if (_secureStorageAvailable) {
       try {
-        return await _secureStorage?.read(key: storageKey);
+        final value = await _secureStorage?.read(key: storageKey);
+        if (value != null && value.isNotEmpty) {
+          return value;
+        }
       } catch (e) {
         debugPrint('Secure storage read failed, using fallback: $e');
         _secureStorageAvailable = false;
       }
     }
     // Fallback to shared preferences
-    return _prefs?.getString('_api_$storageKey');
+    return _prefs?.getString(fallbackKey);
   }
 
   Future<void> deleteApiKey(AIProvider provider) async {

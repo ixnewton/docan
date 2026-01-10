@@ -95,9 +95,10 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: LiquidGlassContainer(
-        width: 600,
-        height: screenSize.height * 0.8,
+        width: screenSize.width * 0.5 > 700 ? screenSize.width * 0.5 : 700,
+        height: screenSize.height * 0.85,
         borderRadius: AppConstants.radiusL,
+        animateOnHover: false,
         child: Column(
           children: [
             // Header

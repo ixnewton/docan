@@ -90,7 +90,7 @@ class _SettingsFormState extends State<SettingsForm> {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(AppConstants.spacingM),
+      padding: const EdgeInsets.all(AppConstants.spacingL),
       children: [
         // API Keys Section
         _buildSection(
@@ -159,25 +159,26 @@ class _SettingsFormState extends State<SettingsForm> {
     final theme = Theme.of(context);
 
     return LiquidGlassContainer(
-      padding: const EdgeInsets.all(AppConstants.spacingM),
+      padding: const EdgeInsets.all(AppConstants.spacingL),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: theme.primaryColor),
-              const SizedBox(width: AppConstants.spacingS),
+              Icon(icon, size: 22, color: theme.primaryColor),
+              const SizedBox(width: AppConstants.spacingM),
               Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  fontSize: 18,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppConstants.spacingM),
+          const SizedBox(height: AppConstants.spacingL),
           const Divider(height: 1),
-          const SizedBox(height: AppConstants.spacingM),
+          const SizedBox(height: AppConstants.spacingL),
           ...children,
         ],
       ),
@@ -190,7 +191,7 @@ class _SettingsFormState extends State<SettingsForm> {
     final hasKey = _controllers[provider]?.text.isNotEmpty ?? false;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+      padding: const EdgeInsets.only(bottom: AppConstants.spacingL),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -198,24 +199,24 @@ class _SettingsFormState extends State<SettingsForm> {
             children: [
               Icon(
                 provider.icon,
-                size: 18,
+                size: 20,
                 color: provider.color,
               ),
-              const SizedBox(width: AppConstants.spacingS),
+              const SizedBox(width: AppConstants.spacingM),
               Text(
                 provider.apiKeyName,
-                style: theme.textTheme.labelLarge,
+                style: theme.textTheme.labelLarge?.copyWith(fontSize: 15),
               ),
               const Spacer(),
               if (hasKey)
                 Icon(
                   isConnected ? Icons.check_circle : Icons.error_outline,
-                  size: 18,
+                  size: 20,
                   color: isConnected ? Colors.green : Colors.orange,
                 ),
             ],
           ),
-          const SizedBox(height: AppConstants.spacingS),
+          const SizedBox(height: AppConstants.spacingM),
           Row(
             children: [
               Expanded(

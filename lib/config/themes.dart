@@ -53,8 +53,8 @@ class LiquidGlassColors {
   // Message Bubble Colors
   static const Color userBubbleLight = Color(0xFF007AFF);
   static const Color userBubbleDark = Color(0xFF0A84FF);
-  static const Color aiBubbleLight = Color(0xFFE9E9EB);
-  static const Color aiBubbleDark = Color(0xFF3A3A3C);
+  static const Color aiBubbleLight = Color(0xFFCFCFD1);
+  static const Color aiBubbleDark = Color(0xFF1C1C1E);
 }
 
 /// Liquid Glass Design System

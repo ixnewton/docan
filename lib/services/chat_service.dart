@@ -267,6 +267,45 @@ class ChatService extends ChangeNotifier {
     return buffer.toString();
   }
 
+  /// Format playbook result data for display
+  String _formatPlaybookResult(dynamic data) {
+    if (data == null) return 'No data returned.';
+
+    if (data is Map) {
+      final buffer = StringBuffer();
+
+      // Check for apps list
+      if (data['apps'] is List) {
+        final apps = data['apps'] as List;
+        buffer.writeln('**Found ${apps.length} apps:**\n');
+        for (final app in apps.take(10)) {
+          if (app is Map) {
+            buffer.writeln('- **${app['name'] ?? 'Unknown'}**');
+            if (app['subtitle'] != null) {
+              buffer.writeln('  ${app['subtitle']}');
+            }
+          }
+        }
+        if (apps.length > 10) {
+          buffer.writeln('\n...and ${apps.length - 10} more');
+        }
+        return buffer.toString();
+      }
+
+      // Check for single app
+      if (data['name'] != null) {
+        buffer.writeln('**${data['name']}**\n');
+        if (data['subtitle'] != null) buffer.writeln('${data['subtitle']}\n');
+        if (data['localizedDescription'] != null)
+          buffer.writeln(data['localizedDescription']);
+        return buffer.toString();
+      }
+    }
+
+    // Fallback to JSON
+    return '```json\n${const JsonEncoder.withIndent('  ').convert(data)}\n```';
+  }
+
   /// Build system prompt with ALL available playbooks
   String _buildAllPlaybooksSystemPrompt(
     List<Playbook> playbooks,
@@ -279,59 +318,39 @@ class ChatService extends ChangeNotifier {
       buffer.writeln();
     }
 
-    buffer.writeln('## Available API Integrations (Playbooks)');
+    buffer.writeln('## Available Tools');
     buffer.writeln();
-    buffer.writeln(
-      'You have access to the following APIs that can fetch REAL data. When users ask about topics these APIs cover, you MUST use them instead of making up information.',
-    );
+    buffer.writeln('You have access to these APIs to fetch real data:');
     buffer.writeln();
 
     for (final playbook in playbooks) {
-      buffer.writeln('### ${playbook.name}');
-      if (playbook.description != null) {
-        // Just first line of description
-        final firstLine = playbook.description!.split('\n').first.trim();
-        buffer.writeln(firstLine);
-      }
-      buffer.writeln();
-      buffer.writeln('**Available actions:**');
+      buffer.writeln('**${playbook.name}:**');
       for (final action in playbook.actions) {
-        final paramList = action.parameters
-            .map((p) => '${p.name}${p.required ? '*' : ''}')
+        final params = action.parameters
+            .where((p) => p.required)
+            .map((p) => p.name)
             .join(', ');
         buffer.writeln(
-          '- `${action.name}` - ${action.description ?? 'No description'}',
+          '- ${action.name}${params.isNotEmpty ? '($params)' : '()'}',
         );
-        if (paramList.isNotEmpty) {
-          buffer.writeln('  Parameters: $paramList');
-        }
       }
       buffer.writeln();
     }
 
     buffer.writeln('---');
-    buffer.writeln();
     buffer.writeln(
-      '**IMPORTANT:** When the user asks about something these APIs can answer, USE THE API. Do NOT guess or make up information.',
+      'When a user asks for data an API can provide, use this EXACT format:',
     );
     buffer.writeln();
-    buffer.writeln('To use an API, respond with a playbook block:');
     buffer.writeln('```playbook');
-    buffer.writeln('playbook: <name>');
-    buffer.writeln('action: <action_name>');
+    buffer.writeln('playbook: PlaybookName');
+    buffer.writeln('action: actionName');
     buffer.writeln('parameters:');
-    buffer.writeln('  param1: value1');
+    buffer.writeln('  key: value');
     buffer.writeln('```');
     buffer.writeln();
-    buffer.writeln('Examples:');
     buffer.writeln(
-      '- User asks "show me openlyst apps" → Use OpenLyst.getAllApps',
-    );
-    buffer.writeln(
-      '- User asks "tell me about doudou" → Use OpenLyst.searchApps with query: doudou',
-    );
-    buffer.writeln(
-      '- User asks "what\'s the weather in Tokyo" → Use Weather API if available',
+      'DO NOT use tools for greetings or general questions. Only use them when the user explicitly asks for data.',
     );
 
     return buffer.toString();
@@ -679,6 +698,11 @@ class ChatService extends ChangeNotifier {
             }
           }
 
+          // Always clean the playbook block from the response for display
+          final cleanedFullResponse = fullResponse
+              .replaceAll(RegExp(r'```playbook\s*[\s\S]*?\s*```'), '')
+              .trim();
+
           if (playbookToUse != null) {
             debugPrint(
               '[ChatService] Executing playbook action: ${playbookToUse.name}.${actionData['action']}',
@@ -686,7 +710,7 @@ class ChatService extends ChangeNotifier {
 
             // Update message to show we're fetching data
             final fetchingMessage = placeholderMessage.copyWith(
-              content: '*Fetching data from ${playbookToUse.name}...*',
+              content: 'Fetching data...',
               isStreaming: true,
               modelId: _selectedModel,
             );
@@ -709,18 +733,20 @@ class ChatService extends ChangeNotifier {
               final resultJson = const JsonEncoder.withIndent(
                 '  ',
               ).convert(result.data);
+              final userQuestion = effectiveContent.isNotEmpty
+                  ? effectiveContent
+                  : content;
 
               // Build a follow-up prompt for the AI to interpret the result
               final interpretPrompt =
-                  '''Based on the user's original question: "${effectiveContent.isNotEmpty ? effectiveContent : content}"
+                  '''User asked: "$userQuestion"
 
-Here is the data I retrieved from the ${playbookToUse.name} API:
-
+API Response:
 ```json
 $resultJson
 ```
 
-Please provide a helpful, natural language response that answers the user's question using this data. Include relevant details like names, descriptions, versions, download links, platforms, etc. Format it nicely with markdown if appropriate.''';
+Give a helpful response based on this data. Be concise and format nicely with markdown.''';
 
               // Get AI interpretation of the result
               String interpretedResponse = '';
@@ -729,7 +755,7 @@ Please provide a helpful, natural language response that answers the user's ques
                   interpretPrompt,
                   [], // Fresh context for interpretation
                   systemPrompt:
-                      'You are a helpful assistant. Respond naturally and concisely based on the data provided. Do not mention that you received JSON or that you\'re interpreting data - just answer the question directly.',
+                      'Answer the question using only the provided data. Be concise.',
                   temperature: _temperature,
                   maxTokens: _maxTokens,
                 );
@@ -751,27 +777,23 @@ Please provide a helpful, natural language response that answers the user's ques
 
                 finalResponseContent = interpretedResponse;
               } catch (e) {
-                debugPrint(
-                  '[ChatService] Failed to interpret playbook result: $e',
-                );
-                // Fall back to showing raw JSON
-                final cleanedResponse = fullResponse
-                    .replaceAll(RegExp(r'```playbook\s*[\s\S]*?\s*```'), '')
-                    .trim();
-                finalResponseContent = cleanedResponse.isNotEmpty
-                    ? '$cleanedResponse\n\n**Result:**\n```json\n$resultJson\n```'
-                    : '**Result:**\n```json\n$resultJson\n```';
+                debugPrint('[ChatService] Failed to interpret result: $e');
+                // Fall back to formatted JSON
+                finalResponseContent = _formatPlaybookResult(result.data);
               }
             } else {
               // Show error
-              final cleanedResponse = fullResponse
-                  .replaceAll(RegExp(r'```playbook\s*[\s\S]*?\s*```'), '')
-                  .trim();
-
-              finalResponseContent = cleanedResponse.isNotEmpty
-                  ? '$cleanedResponse\n\n**Error:** ${result.error}'
-                  : '**Error:** ${result.error}';
+              finalResponseContent =
+                  '**Error:** ${result.error ?? 'Unknown error'}';
             }
+          } else {
+            // Playbook not found
+            debugPrint(
+              '[ChatService] Playbook not found: ${actionData['action']}',
+            );
+            finalResponseContent = cleanedFullResponse.isNotEmpty
+                ? cleanedFullResponse
+                : 'Sorry, I couldn\'t complete that request.';
           }
         }
       }

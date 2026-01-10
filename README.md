@@ -56,7 +56,7 @@ Download from releases:
 - Windows: Visual Studio 2022 with C++ workload
 
 ```bash
-git clone https://gitlab.com/httpanimations/docan.git
+git clone https://gitlab.com/openlyst/docan.git
 cd docan
 flutter pub get
 flutter run
@@ -144,14 +144,3 @@ lib/
 ## License
 
 GPL-3.0 — see [LICENSE](LICENSE)
-
-## Links
-
-- [Website](https://httpanimations.com)
-- [Repository](https://gitlab.com/httpanimations/docan)
-- [Terms](https://httpanimations.com/tos)
-- [Privacy](https://httpanimations.com/privacy)
-
----
-
-Built by [httpanimations](https://httpanimations.com)

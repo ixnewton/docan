@@ -172,6 +172,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
           });
           Navigator.pop(context);
         },
+        fetchModels: service.getAvailableModels,
       ),
     );
   }
@@ -739,7 +740,7 @@ class _GalleryBottomSheet extends StatelessWidget {
 }
 
 /// Settings bottom sheet
-class _SettingsBottomSheet extends StatelessWidget {
+class _SettingsBottomSheet extends StatefulWidget {
   final ImageGenProvider selectedProvider;
   final String selectedModel;
   final ImageSize selectedSize;
@@ -747,6 +748,7 @@ class _SettingsBottomSheet extends StatelessWidget {
   final ValueChanged<ImageGenProvider> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final ValueChanged<ImageSize> onSizeChanged;
+  final Future<List<String>> Function(ImageGenProvider) fetchModels;
 
   const _SettingsBottomSheet({
     required this.selectedProvider,
@@ -756,7 +758,14 @@ class _SettingsBottomSheet extends StatelessWidget {
     required this.onProviderChanged,
     required this.onModelChanged,
     required this.onSizeChanged,
+    required this.fetchModels,
   });
+
+  @override
+  State<_SettingsBottomSheet> createState() => _SettingsBottomSheetState();
+}
+
+class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
@@ -801,7 +810,7 @@ class _SettingsBottomSheet extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.auto_awesome),
             title: const Text('Provider'),
-            subtitle: Text(selectedProvider.displayName),
+            subtitle: Text(widget.selectedProvider.displayName),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.pop(context);
@@ -813,7 +822,7 @@ class _SettingsBottomSheet extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.smart_toy),
             title: const Text('Model'),
-            subtitle: Text(selectedModel),
+            subtitle: Text(widget.selectedModel),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.pop(context);
@@ -825,7 +834,7 @@ class _SettingsBottomSheet extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.aspect_ratio),
             title: const Text('Image Size'),
-            subtitle: Text(selectedSize.displayName),
+            subtitle: Text(widget.selectedSize.displayName),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.pop(context);
@@ -846,7 +855,7 @@ class _SettingsBottomSheet extends StatelessWidget {
       builder: (context) => _PickerSheet<ImageGenProvider>(
         title: 'Select Provider',
         items: ImageGenProvider.values,
-        selectedItem: selectedProvider,
+        selectedItem: widget.selectedProvider,
         itemBuilder: (provider) => ListTile(
           leading: Icon(
             provider == ImageGenProvider.gemini
@@ -855,31 +864,36 @@ class _SettingsBottomSheet extends StatelessWidget {
           ),
           title: Text(provider.displayName),
           subtitle: Text(provider.description),
-          trailing: selectedProvider == provider
+          trailing: widget.selectedProvider == provider
               ? Icon(Icons.check, color: Theme.of(context).primaryColor)
               : null,
-          enabled: configuredProviders[provider] ?? false,
+          enabled: widget.configuredProviders[provider] ?? false,
         ),
-        onSelect: onProviderChanged,
+        onSelect: widget.onProviderChanged,
       ),
     );
   }
 
-  void _showModelPicker(BuildContext context) {
+  void _showModelPicker(BuildContext context) async {
+    // Fetch models from API
+    final models = await widget.fetchModels(widget.selectedProvider);
+
+    if (!context.mounted) return;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => _PickerSheet<String>(
         title: 'Select Model',
-        items: selectedProvider.availableModels,
-        selectedItem: selectedModel,
+        items: models,
+        selectedItem: widget.selectedModel,
         itemBuilder: (model) => ListTile(
           title: Text(model),
-          trailing: selectedModel == model
+          trailing: widget.selectedModel == model
               ? Icon(Icons.check, color: Theme.of(context).primaryColor)
               : null,
         ),
-        onSelect: onModelChanged,
+        onSelect: widget.onModelChanged,
       ),
     );
   }
@@ -891,14 +905,14 @@ class _SettingsBottomSheet extends StatelessWidget {
       builder: (context) => _PickerSheet<ImageSize>(
         title: 'Select Size',
         items: ImageSize.values,
-        selectedItem: selectedSize,
+        selectedItem: widget.selectedSize,
         itemBuilder: (size) => ListTile(
           title: Text(size.displayName),
-          trailing: selectedSize == size
+          trailing: widget.selectedSize == size
               ? Icon(Icons.check, color: Theme.of(context).primaryColor)
               : null,
         ),
-        onSelect: onSizeChanged,
+        onSelect: widget.onSizeChanged,
       ),
     );
   }

@@ -32,13 +32,11 @@ extension ImageGenProviderExtension on ImageGenProvider {
     }
   }
 
-  List<String> get availableModels {
+  /// Fallback models when API fetch fails
+  List<String> get fallbackModels {
     switch (this) {
       case ImageGenProvider.gemini:
-        return [
-          'gemini-2.0-flash-exp-image-generation',
-          'imagen-3.0-generate-002',
-        ];
+        return ['gemini-2.0-flash-exp-image-generation'];
       case ImageGenProvider.openai:
         return ['dall-e-3', 'dall-e-2', 'gpt-image-1'];
     }
@@ -160,6 +158,110 @@ class ImageGenerationService extends ChangeNotifier {
       result[provider] = hasKey;
     }
     return result;
+  }
+
+  /// Get available models for a provider (fetches from API)
+  Future<List<String>> getAvailableModels(ImageGenProvider provider) async {
+    switch (provider) {
+      case ImageGenProvider.gemini:
+        return _fetchGeminiImageModels();
+      case ImageGenProvider.openai:
+        return _fetchOpenAIImageModels();
+    }
+  }
+
+  /// Fetch available Gemini image models from API
+  Future<List<String>> _fetchGeminiImageModels() async {
+    final apiKey = await _storage.getApiKey(AIProvider.gemini);
+    if (apiKey == null || apiKey.isEmpty) {
+      return ImageGenProvider.gemini.fallbackModels;
+    }
+
+    try {
+      final url = Uri.parse(
+        '${AppConstants.geminiBaseUrl}/models?key=$apiKey',
+      );
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('[ImageGen] Failed to fetch Gemini models: ${response.statusCode}');
+        return ImageGenProvider.gemini.fallbackModels;
+      }
+
+      final data = jsonDecode(response.body);
+      final models = data['models'] as List<dynamic>?;
+
+      if (models == null || models.isEmpty) {
+        return ImageGenProvider.gemini.fallbackModels;
+      }
+
+      // Filter to only include image generation capable models
+      final imageModels = models
+          .where((m) {
+            final methods = m['supportedGenerationMethods'] as List<dynamic>?;
+            final name = (m['name'] as String?)?.toLowerCase() ?? '';
+            // Include models that support generateContent and have 'image' in name
+            // or are known image generation models
+            return (methods?.contains('generateContent') ?? false) &&
+                (name.contains('image') || name.contains('imagen'));
+          })
+          .map((m) {
+            final name = m['name'] as String;
+            return name.startsWith('models/') ? name.substring(7) : name;
+          })
+          .toList();
+
+      debugPrint('[ImageGen] Found ${imageModels.length} Gemini image models');
+      return imageModels.isEmpty
+          ? ImageGenProvider.gemini.fallbackModels
+          : imageModels;
+    } catch (e) {
+      debugPrint('[ImageGen] Error fetching Gemini models: $e');
+      return ImageGenProvider.gemini.fallbackModels;
+    }
+  }
+
+  /// Fetch available OpenAI image models from API
+  Future<List<String>> _fetchOpenAIImageModels() async {
+    final apiKey = await _storage.getApiKey(AIProvider.openai);
+    if (apiKey == null || apiKey.isEmpty) {
+      return ImageGenProvider.openai.fallbackModels;
+    }
+
+    try {
+      final url = Uri.parse('${AppConstants.openAIBaseUrl}/models');
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $apiKey'},
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint('[ImageGen] Failed to fetch OpenAI models: ${response.statusCode}');
+        return ImageGenProvider.openai.fallbackModels;
+      }
+
+      final data = jsonDecode(response.body);
+      final models = data['data'] as List<dynamic>?;
+
+      if (models == null || models.isEmpty) {
+        return ImageGenProvider.openai.fallbackModels;
+      }
+
+      // Filter to only include DALL-E and image models
+      final imageModels = models
+          .map((m) => m['id'] as String)
+          .where((id) => id.contains('dall-e') || id.contains('image'))
+          .toList()
+        ..sort((a, b) => b.compareTo(a)); // Sort descending (newer first)
+
+      debugPrint('[ImageGen] Found ${imageModels.length} OpenAI image models');
+      return imageModels.isEmpty
+          ? ImageGenProvider.openai.fallbackModels
+          : imageModels;
+    } catch (e) {
+      debugPrint('[ImageGen] Error fetching OpenAI models: $e');
+      return ImageGenProvider.openai.fallbackModels;
+    }
   }
 
   /// Generate an image

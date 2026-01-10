@@ -281,6 +281,7 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
             onProviderChanged: service.setProvider,
             onModelChanged: service.setModel,
             configuredProviders: _configuredProviders,
+            fetchModels: service.getAvailableModels,
           ),
 
           const Spacer(),
@@ -609,12 +610,13 @@ class _ImageViewer extends StatelessWidget {
 }
 
 /// Image provider selector
-class _ImageProviderSelector extends StatelessWidget {
+class _ImageProviderSelector extends StatefulWidget {
   final ImageGenProvider selectedProvider;
   final String selectedModel;
   final ValueChanged<ImageGenProvider> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final Map<ImageGenProvider, bool> configuredProviders;
+  final Future<List<String>> Function(ImageGenProvider) fetchModels;
 
   const _ImageProviderSelector({
     required this.selectedProvider,
@@ -622,7 +624,34 @@ class _ImageProviderSelector extends StatelessWidget {
     required this.onProviderChanged,
     required this.onModelChanged,
     required this.configuredProviders,
+    required this.fetchModels,
   });
+
+  @override
+  State<_ImageProviderSelector> createState() => _ImageProviderSelectorState();
+}
+
+class _ImageProviderSelectorState extends State<_ImageProviderSelector> {
+  List<String>? _cachedModels;
+  ImageGenProvider? _cachedProvider;
+  bool _isLoadingModels = false;
+
+  Future<List<String>> _getModels() async {
+    // Return cached if same provider
+    if (_cachedModels != null && _cachedProvider == widget.selectedProvider) {
+      return _cachedModels!;
+    }
+
+    final models = await widget.fetchModels(widget.selectedProvider);
+    _cachedModels = models;
+    _cachedProvider = widget.selectedProvider;
+    return models;
+  }
+
+  void _clearCache() {
+    _cachedModels = null;
+    _cachedProvider = null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -632,11 +661,14 @@ class _ImageProviderSelector extends StatelessWidget {
       children: [
         // Provider dropdown
         PopupMenuButton<ImageGenProvider>(
-          initialValue: selectedProvider,
-          onSelected: onProviderChanged,
+          initialValue: widget.selectedProvider,
+          onSelected: (provider) {
+            _clearCache();
+            widget.onProviderChanged(provider);
+          },
           itemBuilder: (context) {
             return ImageGenProvider.values.map((provider) {
-              final isConfigured = configuredProviders[provider] ?? false;
+              final isConfigured = widget.configuredProviders[provider] ?? false;
               return PopupMenuItem<ImageGenProvider>(
                 value: provider,
                 enabled: isConfigured,
@@ -674,13 +706,13 @@ class _ImageProviderSelector extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  selectedProvider == ImageGenProvider.gemini
+                  widget.selectedProvider == ImageGenProvider.gemini
                       ? Icons.auto_awesome
                       : Icons.palette,
                   size: 18,
                 ),
                 const SizedBox(width: AppConstants.spacingS),
-                Text(selectedProvider.displayName),
+                Text(widget.selectedProvider.displayName),
                 const SizedBox(width: AppConstants.spacingS),
                 const Icon(Icons.arrow_drop_down, size: 18),
               ],
@@ -690,31 +722,130 @@ class _ImageProviderSelector extends StatelessWidget {
 
         const SizedBox(width: AppConstants.spacingS),
 
-        // Model dropdown
-        PopupMenuButton<String>(
-          initialValue: selectedModel,
-          onSelected: onModelChanged,
-          itemBuilder: (context) {
-            return selectedProvider.availableModels.map((model) {
-              return PopupMenuItem<String>(value: model, child: Text(model));
-            }).toList();
-          },
-          child: LiquidGlassContainer(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppConstants.spacingM,
-              vertical: AppConstants.spacingS,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(selectedModel, style: theme.textTheme.bodySmall),
-                const SizedBox(width: AppConstants.spacingS),
-                const Icon(Icons.arrow_drop_down, size: 18),
-              ],
-            ),
-          ),
+        // Model dropdown - loads models asynchronously
+        _ModelDropdownButton(
+          selectedModel: widget.selectedModel,
+          onModelChanged: widget.onModelChanged,
+          fetchModels: _getModels,
+          isLoading: _isLoadingModels,
         ),
       ],
+    );
+  }
+}
+
+/// Async model dropdown button
+class _ModelDropdownButton extends StatefulWidget {
+  final String selectedModel;
+  final ValueChanged<String> onModelChanged;
+  final Future<List<String>> Function() fetchModels;
+  final bool isLoading;
+
+  const _ModelDropdownButton({
+    required this.selectedModel,
+    required this.onModelChanged,
+    required this.fetchModels,
+    required this.isLoading,
+  });
+
+  @override
+  State<_ModelDropdownButton> createState() => _ModelDropdownButtonState();
+}
+
+class _ModelDropdownButtonState extends State<_ModelDropdownButton> {
+  List<String>? _models;
+  bool _isLoading = false;
+
+  Future<void> _loadModels() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final models = await widget.fetchModels();
+      if (mounted) {
+        setState(() {
+          _models = models;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showModelMenu(BuildContext context) async {
+    if (_models == null || _models!.isEmpty) {
+      await _loadModels();
+    }
+
+    if (!mounted || _models == null || _models!.isEmpty) return;
+
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset offset = button.localToGlobal(
+      Offset(0, button.size.height),
+      ancestor: overlay,
+    );
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + 4,
+        offset.dx + button.size.width,
+        offset.dy + 4,
+      ),
+      items: _models!.map((model) {
+        return PopupMenuItem<String>(value: model, child: Text(model));
+      }).toList(),
+    );
+
+    if (selected != null) {
+      widget.onModelChanged(selected);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ModelDropdownButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Clear cache if the fetch function changes (provider changed)
+    if (oldWidget.fetchModels != widget.fetchModels) {
+      _models = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return GestureDetector(
+      onTap: () => _showModelMenu(context),
+      child: LiquidGlassContainer(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.spacingM,
+          vertical: AppConstants.spacingS,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_isLoading)
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.textTheme.bodySmall?.color,
+                ),
+              )
+            else
+              Text(widget.selectedModel, style: theme.textTheme.bodySmall),
+            const SizedBox(width: AppConstants.spacingS),
+            const Icon(Icons.arrow_drop_down, size: 18),
+          ],
+        ),
+      ),
     );
   }
 }

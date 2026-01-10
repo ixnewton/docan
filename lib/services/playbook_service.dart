@@ -76,24 +76,27 @@ class PlaybookService extends ChangeNotifier {
 
     // Load user configs (non-secret values from SharedPreferences)
     final configs = prefs.getString(_configKey);
+    Map<String, dynamic> configMap = {};
     if (configs != null) {
       try {
-        final configMap = jsonDecode(configs) as Map<String, dynamic>;
-        for (int i = 0; i < _playbooks.length; i++) {
-          final playbook = _playbooks[i];
-          if (configMap.containsKey(playbook.id)) {
-            final userConfig = Map<String, dynamic>.from(
-              configMap[playbook.id],
-            );
-
-            // Load secret values from secure storage
-            await _loadSecretConfigs(playbook.id, playbook, userConfig);
-
-            _playbooks[i] = playbook.copyWith(userConfig: userConfig);
-          }
-        }
+        configMap = jsonDecode(configs) as Map<String, dynamic>;
       } catch (e) {
-        debugPrint('[PlaybookService] Failed to load playbook configs: $e');
+        debugPrint('[PlaybookService] Failed to parse config map: $e');
+      }
+    }
+
+    // Load configs for all playbooks (including secrets)
+    for (int i = 0; i < _playbooks.length; i++) {
+      final playbook = _playbooks[i];
+      final userConfig = Map<String, dynamic>.from(
+        configMap[playbook.id] ?? {},
+      );
+
+      // Always try to load secret values from secure storage
+      await _loadSecretConfigs(playbook.id, playbook, userConfig);
+
+      if (userConfig.isNotEmpty) {
+        _playbooks[i] = playbook.copyWith(userConfig: userConfig);
       }
     }
   }
@@ -177,9 +180,9 @@ class PlaybookService extends ChangeNotifier {
           }
         }
 
-        if (nonSecretConfig.isNotEmpty) {
-          configs[playbook.id] = nonSecretConfig;
-        }
+        // Always store an entry if there's any config (even if all secrets)
+        // This helps track that this playbook has been configured
+        configs[playbook.id] = nonSecretConfig;
       }
     }
     await prefs.setString(_configKey, jsonEncode(configs));

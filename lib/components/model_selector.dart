@@ -294,30 +294,56 @@ class _ModelSelectorState extends State<ModelSelector> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => LiquidGlassContainer(
         borderRadius: AppConstants.radiusL,
         margin: const EdgeInsets.all(AppConstants.spacingM),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppConstants.spacingM),
-              child: Text(
-                'Select Model',
-                style: Theme.of(context).textTheme.titleMedium,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(AppConstants.spacingM),
+                child: Text(
+                  'Select Model',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
-            ),
-            const Divider(height: 1),
-            ...models.map((model) => ListTile(
-                  leading: Icon(
-                    Icons.memory,
-                    color: widget.selectedProvider.color,
-                  ),
-                  title: Text(model),
-                  trailing: model == widget.selectedModel
-                      ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                      : null,
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: models.length,
+                  itemBuilder: (context, index) {
+                    final model = models[index];
+                    return ListTile(
+                      leading: Icon(
+                        Icons.memory,
+                        color: widget.selectedProvider.color,
+                      ),
+                      title: Text(model),
+                      trailing: model == widget.selectedModel
+                          ? Icon(Icons.check, color: Theme.of(context).primaryColor)
+                          : null,
+                      onTap: () {
+                        widget.onModelChanged(model);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppConstants.spacingM),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
                   onTap: () {
                     widget.onModelChanged(model);
                     Navigator.pop(context);

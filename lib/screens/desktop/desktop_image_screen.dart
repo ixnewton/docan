@@ -634,7 +634,7 @@ class _ImageProviderSelector extends StatefulWidget {
 class _ImageProviderSelectorState extends State<_ImageProviderSelector> {
   List<String>? _cachedModels;
   ImageGenProvider? _cachedProvider;
-  bool _isLoadingModels = false;
+  final bool _isLoadingModels = false;
 
   Future<List<String>> _getModels() async {
     // Return cached if same provider

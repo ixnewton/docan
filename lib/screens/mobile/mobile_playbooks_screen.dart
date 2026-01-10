@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../config/constants.dart';
 import '../../models/playbook.dart';
 import '../../services/playbook_service.dart';
-import '../../utils/liquid_glass_effects.dart';
 
 /// Mobile screen for managing playbooks
 class MobilePlaybooksScreen extends StatefulWidget {
@@ -24,7 +23,7 @@ class _MobilePlaybooksScreenState extends State<MobilePlaybooksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    Theme.of(context);
     final service = context.watch<PlaybookService>();
 
     return Scaffold(

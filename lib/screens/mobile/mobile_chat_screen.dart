@@ -29,11 +29,37 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Map<AIProvider, bool> _configuredProviders = {};
   List<Attachment> _attachments = [];
+  bool _shouldAutoScroll = true;
 
   @override
   void initState() {
     super.initState();
     _loadConfiguredProviders();
+
+    // Listen to chat service updates for auto-scrolling during streaming
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final chatService = context.read<ChatService>();
+      chatService.addListener(_onChatServiceUpdate);
+    });
+
+    // Track if user scrolls up manually
+    _scrollController.addListener(_onScrollChanged);
+  }
+
+  void _onChatServiceUpdate() {
+    final chatService = context.read<ChatService>();
+    // Auto-scroll when loading (streaming) and user hasn't scrolled up
+    if (chatService.isLoading && _shouldAutoScroll) {
+      _scrollToBottom();
+    }
+  }
+
+  void _onScrollChanged() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.offset;
+    // If user is near bottom (within 100px), enable auto-scroll
+    _shouldAutoScroll = (maxScroll - currentScroll) < 100;
   }
 
   Future<void> _loadConfiguredProviders() async {
@@ -48,6 +74,8 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
 
   @override
   void dispose() {
+    context.read<ChatService>().removeListener(_onChatServiceUpdate);
+    _scrollController.removeListener(_onScrollChanged);
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -110,6 +138,8 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
                           _inputController.clear();
                           setState(() {
                             _attachments = [];
+                            _shouldAutoScroll =
+                                true; // Re-enable auto-scroll when sending
                           });
                           await chatService.sendMessage(
                             message,

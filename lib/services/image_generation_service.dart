@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -117,7 +116,7 @@ class ImageGenerationService extends ChangeNotifier {
   String _selectedModel = ImageGenProvider.gemini.defaultModel;
   bool _isGenerating = false;
   String? _error;
-  List<GeneratedImage> _generatedImages = [];
+  final List<GeneratedImage> _generatedImages = [];
 
   ImageGenerationService(this._storage);
 

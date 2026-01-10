@@ -563,6 +563,19 @@ class ChatService extends ChangeNotifier {
             '[ChatService] Executing playbook action: ${actionData['action']}',
           );
 
+          // Update message to show we're fetching data
+          final fetchingMessage = placeholderMessage.copyWith(
+            content: '$fullResponse\n\n*Fetching data...*',
+            isStreaming: true,
+            modelId: _selectedModel,
+          );
+          _currentConversation = _currentConversation!.updateMessage(
+            placeholderMessage.id,
+            fetchingMessage,
+          );
+          _updateConversationInList();
+          notifyListeners();
+
           // Execute the playbook action
           final result = await _playbookService!.executeAction(
             activePlaybook,
@@ -570,20 +583,64 @@ class ChatService extends ChangeNotifier {
             actionData['parameters'] as Map<String, dynamic>,
           );
 
-          if (result.success) {
-            // Add playbook result to response
-            final resultJson = result.data != null
-                ? const JsonEncoder.withIndent('  ').convert(result.data)
-                : 'Action completed successfully';
+          if (result.success && result.data != null) {
+            // Send the result back to AI for interpretation
+            final resultJson = const JsonEncoder.withIndent(
+              '  ',
+            ).convert(result.data);
 
-            // Remove the playbook code block and add the result
-            final cleanedResponse = fullResponse
-                .replaceAll(RegExp(r'```playbook\s*[\s\S]*?\s*```'), '')
-                .trim();
+            // Build a follow-up prompt for the AI to interpret the result
+            final interpretPrompt =
+                '''Based on the user's original question: "${effectiveContent.isNotEmpty ? effectiveContent : content}"
 
-            finalResponseContent = cleanedResponse.isNotEmpty
-                ? '$cleanedResponse\n\n**Result:**\n```json\n$resultJson\n```'
-                : '**Result:**\n```json\n$resultJson\n```';
+Here is the data I retrieved from the ${activePlaybook.name} API:
+
+```json
+$resultJson
+```
+
+Please provide a helpful, natural language response that answers the user's question using this data. Include relevant details like names, descriptions, versions, download links, platforms, etc. Format it nicely with markdown if appropriate.''';
+
+            // Get AI interpretation of the result
+            String interpretedResponse = '';
+            try {
+              final interpretStream = currentService.sendMessageStream(
+                interpretPrompt,
+                [], // Fresh context for interpretation
+                systemPrompt:
+                    'You are a helpful assistant. Respond naturally and concisely based on the data provided. Do not mention that you received JSON or that you\'re interpreting data - just answer the question directly.',
+                temperature: _temperature,
+                maxTokens: _maxTokens,
+              );
+
+              await for (final chunk in interpretStream) {
+                interpretedResponse += chunk;
+                final updatedMessage = placeholderMessage.copyWith(
+                  content: interpretedResponse,
+                  isStreaming: true,
+                  modelId: _selectedModel,
+                );
+                _currentConversation = _currentConversation!.updateMessage(
+                  placeholderMessage.id,
+                  updatedMessage,
+                );
+                _updateConversationInList();
+                notifyListeners();
+              }
+
+              finalResponseContent = interpretedResponse;
+            } catch (e) {
+              debugPrint(
+                '[ChatService] Failed to interpret playbook result: $e',
+              );
+              // Fall back to showing raw JSON
+              final cleanedResponse = fullResponse
+                  .replaceAll(RegExp(r'```playbook\s*[\s\S]*?\s*```'), '')
+                  .trim();
+              finalResponseContent = cleanedResponse.isNotEmpty
+                  ? '$cleanedResponse\n\n**Result:**\n```json\n$resultJson\n```'
+                  : '**Result:**\n```json\n$resultJson\n```';
+            }
           } else {
             // Show error
             final cleanedResponse = fullResponse

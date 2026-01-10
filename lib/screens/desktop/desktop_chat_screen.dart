@@ -8,7 +8,6 @@ import '../../components/chat_message_bubble.dart';
 import '../../components/chat_input.dart';
 import '../../components/conversation_list.dart';
 import '../../components/model_selector.dart';
-import '../../components/agent_selector.dart';
 import '../../utils/liquid_glass_effects.dart';
 import '../../utils/screen_size_helper.dart';
 import 'desktop_settings_screen.dart';
@@ -237,14 +236,6 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             onProviderChanged: chatService.setProvider,
             onModelChanged: chatService.setModel,
             configuredProviders: _configuredProviders,
-          ),
-          
-          const SizedBox(width: AppConstants.spacingM),
-          
-          // Agent selector
-          AgentSelector(
-            selectedAgent: chatService.selectedAgent,
-            onAgentChanged: chatService.selectAgent,
           ),
           
           const SizedBox(width: AppConstants.spacingM),

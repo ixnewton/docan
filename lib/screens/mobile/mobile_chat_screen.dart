@@ -7,7 +7,7 @@ import '../../components/chat_message_bubble.dart';
 import '../../components/chat_input.dart';
 import '../../components/conversation_list.dart';
 import '../../components/model_selector.dart';
-import '../../components/agent_selector.dart';
+
 import '../../utils/liquid_glass_effects.dart';
 import '../../utils/screen_size_helper.dart';
 import 'mobile_settings_screen.dart';
@@ -142,15 +142,6 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
             onModelChanged: chatService.setModel,
             compact: true,
             configuredProviders: _configuredProviders,
-          ),
-          
-          const SizedBox(width: AppConstants.spacingS),
-          
-          // Agent selector (compact)
-          AgentSelector(
-            selectedAgent: chatService.selectedAgent,
-            onAgentChanged: chatService.selectAgent,
-            compact: true,
           ),
           
           const SizedBox(width: AppConstants.spacingS),

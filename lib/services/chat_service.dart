@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../models/chat_message.dart';
 import '../models/conversation.dart';
 import '../models/ai_provider.dart';
-import '../models/agent_config.dart';
 import 'ai_service.dart';
 import 'gemini_service.dart';
 import 'openai_service.dart';
@@ -19,7 +18,6 @@ class ChatService extends ChangeNotifier {
   Conversation? _currentConversation;
   AIProvider _selectedProvider = AIProvider.gemini;
   String _selectedModel = '';
-  AgentPreset? _selectedAgent;
   bool _isLoading = false;
   String? _error;
   double _temperature = 0.7;
@@ -46,7 +44,6 @@ class ChatService extends ChangeNotifier {
   String get selectedModel => _selectedModel.isEmpty 
       ? _selectedProvider.defaultModel 
       : _selectedModel;
-  AgentPreset? get selectedAgent => _selectedAgent;
   bool get isLoading => _isLoading;
   String? get error => _error;
   double get temperature => _temperature;
@@ -135,18 +132,6 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Select an agent preset
-  void selectAgent(AgentPreset? agent) {
-    _selectedAgent = agent;
-    if (agent != null) {
-      _selectedProvider = agent.provider;
-      _selectedModel = agent.modelId;
-      _temperature = agent.temperature;
-      currentService.setModel(agent.modelId);
-    }
-    notifyListeners();
-  }
-
   /// Create a new conversation
   Conversation createConversation({String? title}) {
     final conversation = Conversation.create(
@@ -211,7 +196,6 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final systemPrompt = _selectedAgent?.systemPrompt;
       // Get history excluding the placeholder AND the current user message
       // (current message is passed separately to sendMessageStream)
       final allMessages = _currentConversation!.messages
@@ -221,7 +205,6 @@ class ChatService extends ChangeNotifier {
       
       debugPrint('[ChatService] Starting stream request');
       debugPrint('[ChatService] History messages: ${history.length}');
-      debugPrint('[ChatService] System prompt: ${systemPrompt != null ? 'yes' : 'no'}');
       debugPrint('[ChatService] Temperature: $_temperature, MaxTokens: $_maxTokens');
 
       String fullResponse = '';
@@ -240,7 +223,6 @@ class ChatService extends ChangeNotifier {
           final stream = currentService.sendMessageStream(
             content,
             history,
-            systemPrompt: systemPrompt,
             temperature: _temperature,
             maxTokens: _maxTokens,
           );

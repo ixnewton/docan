@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/constants.dart';
 import '../config/themes.dart';
@@ -47,6 +48,7 @@ class SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<SettingsForm> {
   final Map<AIProvider, TextEditingController> _controllers = {};
   final TextEditingController _ollamaController = TextEditingController();
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -57,6 +59,16 @@ class _SettingsFormState extends State<SettingsForm> {
       );
     }
     _ollamaController.text = widget.ollamaUrl;
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = packageInfo.version;
+      });
+    }
   }
 
   @override
@@ -492,7 +504,7 @@ class _SettingsFormState extends State<SettingsForm> {
           context,
           icon: Icons.tag,
           title: 'Version',
-          subtitle: AppConstants.appVersion,
+          subtitle: _appVersion.isEmpty ? 'Loading...' : _appVersion,
         ),
         const SizedBox(height: AppConstants.spacingM),
         

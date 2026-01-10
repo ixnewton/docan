@@ -131,15 +131,16 @@ class _ChatInputState extends State<ChatInput> {
                 ),
                 // Text field
                 Expanded(
-                  child: KeyboardListener(
-                    focusNode: FocusNode(),
-                    onKeyEvent: (event) {
+                  child: Focus(
+                    onKeyEvent: (node, event) {
                       // Desktop: Enter to send, Shift+Enter for newline
                       if (event is KeyDownEvent &&
                           event.logicalKey == LogicalKeyboardKey.enter &&
                           !HardwareKeyboard.instance.isShiftPressed) {
                         _handleSend();
+                        return KeyEventResult.handled;
                       }
+                      return KeyEventResult.ignored;
                     },
                     child: TextField(
                       controller: widget.controller,

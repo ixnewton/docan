@@ -83,7 +83,77 @@ class _ChatInputState extends State<ChatInput> {
 
   bool get _canSend => _hasText || widget.attachments.isNotEmpty;
 
-  Future<void> _showAttachmentOptions() async {
+  bool _isDesktop(BuildContext context) {
+    return MediaQuery.of(context).size.width >= 600;
+  }
+
+  Future<void> _showAttachmentOptions(BuildContext buttonContext) async {
+    if (_isDesktop(context)) {
+      _showAttachmentDropdown(buttonContext);
+    } else {
+      _showAttachmentBottomSheet();
+    }
+  }
+
+  void _showAttachmentDropdown(BuildContext buttonContext) {
+    final theme = Theme.of(context);
+    final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset offset = button.localToGlobal(Offset(0, 0), ancestor: overlay);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy - 150, // Show above the button
+        offset.dx + button.size.width,
+        offset.dy,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'gallery',
+          child: Row(
+            children: [
+              Icon(Icons.image, size: 20, color: theme.primaryColor),
+              const SizedBox(width: 12),
+              const Text('Photo from Gallery'),
+            ],
+          ),
+        ),
+        if (!kIsWeb)
+          PopupMenuItem<String>(
+            value: 'camera',
+            child: Row(
+              children: [
+                Icon(Icons.camera_alt, size: 20, color: theme.primaryColor),
+                const SizedBox(width: 12),
+                const Text('Take Photo'),
+              ],
+            ),
+          ),
+        PopupMenuItem<String>(
+          value: 'file',
+          child: Row(
+            children: [
+              Icon(Icons.attach_file, size: 20, color: theme.primaryColor),
+              const SizedBox(width: 12),
+              const Text('File'),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'gallery') {
+        _pickImage(ImageSource.gallery);
+      } else if (value == 'camera') {
+        _pickImage(ImageSource.camera);
+      } else if (value == 'file') {
+        _pickFile();
+      }
+    });
+  }
+
+  void _showAttachmentBottomSheet() {
     final theme = Theme.of(context);
     
     showModalBottomSheet(
@@ -263,15 +333,17 @@ class _ChatInputState extends State<ChatInput> {
                               ?.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(
-                            Icons.add,
-                            color: theme.textTheme.bodyMedium?.color
-                                ?.withValues(alpha: isDisabled ? 0.3 : 0.6),
-                            size: 20,
+                        child: Builder(
+                          builder: (buttonContext) => IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(
+                              Icons.add,
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withValues(alpha: isDisabled ? 0.3 : 0.6),
+                              size: 20,
+                            ),
+                            onPressed: isDisabled ? null : () => _showAttachmentOptions(buttonContext),
                           ),
-                          onPressed: isDisabled ? null : _showAttachmentOptions,
                         ),
                       ),
                     ),

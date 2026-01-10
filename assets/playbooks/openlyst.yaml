@@ -25,14 +25,20 @@ platforms:
   - web
 
 triggers:
-  - pattern: "openlyst|open lyst"
+  - pattern: "openlyst|open lyst|open-lyst"
     description: OpenLyst related queries
     priority: 10
-  - pattern: "doudou|klit|baobao"
+  - pattern: "doudou|klit|baobao|docan"
     description: Specific OpenLyst app names
     priority: 8
-  - pattern: "foss apps|free apps|open source apps"
+  - pattern: "foss apps|free apps|open source apps|linux apps"
     description: Open source app queries
+    priority: 6
+  - pattern: "app store|app repository|app catalog"
+    description: App store related queries
+    priority: 5
+  - pattern: "get apps|find apps|search apps|list apps|show apps"
+    description: App discovery queries
     priority: 5
 
 actions:

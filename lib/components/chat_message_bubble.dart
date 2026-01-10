@@ -153,6 +153,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
         ? Colors.white
         : (isDark ? Colors.white : Colors.black87);
 
+    // Check for image attachments
+    final imageAttachments = widget.message.attachments
+        .where((a) => a.type == AttachmentType.image)
+        .toList();
+
     return Container(
       constraints: BoxConstraints(maxWidth: widget.maxWidth),
       child: ClipRRect(
@@ -172,49 +177,177 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
               bottomRight: Radius.circular(isUser ? 4 : AppConstants.radiusM),
             ),
           ),
-          padding: const EdgeInsets.all(AppConstants.bubblePadding),
-          child: widget.message.isStreaming && widget.message.content.isEmpty
-              ? LiquidGlassTypingIndicator(
-                  color: isUser ? Colors.white : theme.primaryColor,
-                )
-              : isUser
-                  ? SelectableText(
-                      widget.message.content,
-                      style: theme.textTheme.bodyLarge?.copyWith(color: textColor),
-                    )
-                  : MarkdownBody(
-                      data: widget.message.content,
-                      selectable: true,
-                      styleSheet: MarkdownStyleSheet(
-                        p: theme.textTheme.bodyLarge?.copyWith(color: textColor),
-                        h1: theme.textTheme.headlineLarge?.copyWith(color: textColor),
-                        h2: theme.textTheme.headlineMedium?.copyWith(color: textColor),
-                        h3: theme.textTheme.headlineSmall?.copyWith(color: textColor),
-                        code: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 14,
-                          backgroundColor: isDark
-                              ? Colors.black26
-                              : Colors.black.withValues(alpha: 0.05),
-                          color: textColor,
-                        ),
-                        codeblockDecoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.black38
-                              : Colors.black.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        blockquoteDecoration: BoxDecoration(
-                          border: Border(
-                            left: BorderSide(
-                              color: theme.primaryColor,
-                              width: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Show image attachments
+              if (imageAttachments.isNotEmpty)
+                _buildImageAttachments(imageAttachments),
+              // Show text content
+              if (widget.message.content.isNotEmpty || widget.message.isStreaming)
+                Padding(
+                  padding: const EdgeInsets.all(AppConstants.bubblePadding),
+                  child: widget.message.isStreaming && widget.message.content.isEmpty
+                      ? LiquidGlassTypingIndicator(
+                          color: isUser ? Colors.white : theme.primaryColor,
+                        )
+                      : isUser
+                          ? SelectableText(
+                              widget.message.content,
+                              style: theme.textTheme.bodyLarge?.copyWith(color: textColor),
+                            )
+                          : MarkdownBody(
+                              data: widget.message.content,
+                              selectable: true,
+                              styleSheet: MarkdownStyleSheet(
+                                p: theme.textTheme.bodyLarge?.copyWith(color: textColor),
+                                h1: theme.textTheme.headlineLarge?.copyWith(color: textColor),
+                                h2: theme.textTheme.headlineMedium?.copyWith(color: textColor),
+                                h3: theme.textTheme.headlineSmall?.copyWith(color: textColor),
+                                code: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 14,
+                                  backgroundColor: isDark
+                                      ? Colors.black26
+                                      : Colors.black.withValues(alpha: 0.05),
+                                  color: textColor,
+                                ),
+                                codeblockDecoration: BoxDecoration(
+                                  color: isDark
+                                      ? Colors.black38
+                                      : Colors.black.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                blockquoteDecoration: BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: theme.primaryColor,
+                                      width: 3,
+                                    ),
+                                  ),
+                                ),
+                                listBullet: theme.textTheme.bodyLarge?.copyWith(color: textColor),
+                              ),
                             ),
-                          ),
-                        ),
-                        listBullet: theme.textTheme.bodyLarge?.copyWith(color: textColor),
-                      ),
-                    ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageAttachments(List<Attachment> images) {
+    if (images.length == 1) {
+      return _buildSingleImage(images.first);
+    }
+    
+    // Grid for multiple images
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: images.map((img) => _buildGridImage(img, images.length)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSingleImage(Attachment image) {
+    return GestureDetector(
+      onTap: () => _showFullImage(context, image),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(AppConstants.radiusM),
+          topRight: Radius.circular(AppConstants.radiusM),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: widget.maxWidth,
+            maxHeight: 300,
+          ),
+          child: Image.memory(
+            image.bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                padding: const EdgeInsets.all(AppConstants.spacingM),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.broken_image, size: 24),
+                    SizedBox(width: 8),
+                    Text('Failed to load image'),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridImage(Attachment image, int totalCount) {
+    final size = totalCount == 2 ? 150.0 : 100.0;
+    return GestureDetector(
+      onTap: () => _showFullImage(context, image),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Image.memory(
+            image.bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey.withValues(alpha: 0.3),
+                child: const Icon(Icons.broken_image),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFullImage(BuildContext context, Attachment image) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                child: Image.memory(
+                  image.bytes,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

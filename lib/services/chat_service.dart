@@ -22,6 +22,7 @@ class ChatService extends ChangeNotifier {
   String? _error;
   double _temperature = 0.7;
   int _maxTokens = 2048;
+  String _systemPrompt = '';
 
   // AI Services
   final Map<AIProvider, AIService> _services = {};
@@ -48,6 +49,7 @@ class ChatService extends ChangeNotifier {
   String? get error => _error;
   double get temperature => _temperature;
   int get maxTokens => _maxTokens;
+  String get systemPrompt => _systemPrompt;
 
   AIService get currentService => _services[_selectedProvider]!;
 
@@ -82,6 +84,7 @@ class ChatService extends ChangeNotifier {
     _selectedModel = await _storage.getSelectedModel() ?? _selectedProvider.defaultModel;
     _temperature = await _storage.getTemperature();
     _maxTokens = await _storage.getMaxTokens();
+    _systemPrompt = await _storage.getSystemPrompt();
 
     // Load API keys
     for (final provider in AIProvider.values) {
@@ -134,6 +137,13 @@ class ChatService extends ChangeNotifier {
   Future<void> setMaxTokens(int tokens) async {
     _maxTokens = tokens;
     await _storage.setMaxTokens(tokens);
+    notifyListeners();
+  }
+
+  /// Set system prompt
+  Future<void> setSystemPrompt(String prompt) async {
+    _systemPrompt = prompt;
+    await _storage.setSystemPrompt(prompt);
     notifyListeners();
   }
 
@@ -212,6 +222,7 @@ class ChatService extends ChangeNotifier {
       debugPrint('[ChatService] Starting stream request');
       debugPrint('[ChatService] History messages: ${history.length}');
       debugPrint('[ChatService] Temperature: $_temperature, MaxTokens: $_maxTokens');
+      debugPrint('[ChatService] System prompt: ${_systemPrompt.isNotEmpty ? "set" : "none"}');
 
       String fullResponse = '';
       bool success = false;
@@ -229,6 +240,7 @@ class ChatService extends ChangeNotifier {
           final stream = currentService.sendMessageStream(
             content,
             history,
+            systemPrompt: _systemPrompt.isNotEmpty ? _systemPrompt : null,
             temperature: _temperature,
             maxTokens: _maxTokens,
             attachments: attachments,

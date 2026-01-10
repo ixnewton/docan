@@ -141,6 +141,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                           accentColor: themeProvider.accentColor,
                           temperature: chatService.temperature,
                           maxTokens: chatService.maxTokens,
+                          systemPrompt: chatService.systemPrompt,
                           connectionStatus: _connectionStatus,
                           onApiKeyChanged: (provider, key) async {
                             setState(() {
@@ -165,6 +166,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                           },
                           onTemperatureChanged: chatService.setTemperature,
                           onMaxTokensChanged: chatService.setMaxTokens,
+                          onSystemPromptChanged: chatService.setSystemPrompt,
                           onTestConnection: _testConnection,
                         );
                       },

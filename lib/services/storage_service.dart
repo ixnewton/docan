@@ -199,6 +199,14 @@ class StorageService {
         AppConstants.defaultMaxTokens;
   }
 
+  Future<void> setSystemPrompt(String prompt) async {
+    await _prefs?.setString(AppConstants.keySystemPrompt, prompt);
+  }
+
+  Future<String> getSystemPrompt() async {
+    return _prefs?.getString(AppConstants.keySystemPrompt) ?? '';
+  }
+
   // Selected Provider & Model
 
   Future<void> setSelectedProvider(AIProvider provider) async {

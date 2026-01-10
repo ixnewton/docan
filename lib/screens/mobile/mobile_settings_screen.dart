@@ -130,6 +130,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                           accentColor: themeProvider.accentColor,
                           temperature: chatService.temperature,
                           maxTokens: chatService.maxTokens,
+                          systemPrompt: chatService.systemPrompt,
                           connectionStatus: _connectionStatus,
                           onApiKeyChanged: (provider, key) async {
                             setState(() {
@@ -154,6 +155,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                           },
                           onTemperatureChanged: chatService.setTemperature,
                           onMaxTokensChanged: chatService.setMaxTokens,
+                          onSystemPromptChanged: chatService.setSystemPrompt,
                           onTestConnection: _testConnection,
                         );
                       },

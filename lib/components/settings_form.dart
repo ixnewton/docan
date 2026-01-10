@@ -14,12 +14,14 @@ class SettingsForm extends StatefulWidget {
   final Color accentColor;
   final double temperature;
   final int maxTokens;
+  final String systemPrompt;
   final Function(AIProvider, String) onApiKeyChanged;
   final ValueChanged<String> onOllamaUrlChanged;
   final ValueChanged<LiquidGlassTheme> onThemeChanged;
   final ValueChanged<Color> onAccentColorChanged;
   final ValueChanged<double> onTemperatureChanged;
   final ValueChanged<int> onMaxTokensChanged;
+  final ValueChanged<String> onSystemPromptChanged;
   final Function(AIProvider)? onTestConnection;
   final Map<AIProvider, bool>? connectionStatus;
 
@@ -31,12 +33,14 @@ class SettingsForm extends StatefulWidget {
     required this.accentColor,
     required this.temperature,
     required this.maxTokens,
+    required this.systemPrompt,
     required this.onApiKeyChanged,
     required this.onOllamaUrlChanged,
     required this.onThemeChanged,
     required this.onAccentColorChanged,
     required this.onTemperatureChanged,
     required this.onMaxTokensChanged,
+    required this.onSystemPromptChanged,
     this.onTestConnection,
     this.connectionStatus,
   });
@@ -48,6 +52,7 @@ class SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<SettingsForm> {
   final Map<AIProvider, TextEditingController> _controllers = {};
   final TextEditingController _ollamaController = TextEditingController();
+  final TextEditingController _systemPromptController = TextEditingController();
   String _appVersion = '';
 
   @override
@@ -59,6 +64,7 @@ class _SettingsFormState extends State<SettingsForm> {
       );
     }
     _ollamaController.text = widget.ollamaUrl;
+    _systemPromptController.text = widget.systemPrompt;
     _loadVersion();
   }
 
@@ -77,6 +83,7 @@ class _SettingsFormState extends State<SettingsForm> {
       controller.dispose();
     }
     _ollamaController.dispose();
+    _systemPromptController.dispose();
     super.dispose();
   }
 
@@ -123,6 +130,8 @@ class _SettingsFormState extends State<SettingsForm> {
             _buildTemperatureSlider(),
             const SizedBox(height: AppConstants.spacingM),
             _buildMaxTokensSlider(),
+            const SizedBox(height: AppConstants.spacingM),
+            _buildSystemPromptField(),
           ],
         ),
 
@@ -490,6 +499,54 @@ class _SettingsFormState extends State<SettingsForm> {
             Text('${AppConstants.minMaxTokens}', style: theme.textTheme.labelSmall),
             Text('${AppConstants.maxMaxTokens}', style: theme.textTheme.labelSmall),
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSystemPromptField() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.psychology,
+              size: 18,
+              color: theme.primaryColor,
+            ),
+            const SizedBox(width: AppConstants.spacingS),
+            Text(
+              'System Prompt',
+              style: theme.textTheme.labelLarge,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingS),
+        Text(
+          'Set custom instructions for how the AI should behave',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: AppConstants.spacingS),
+        TextField(
+          controller: _systemPromptController,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: 'e.g., You are a helpful coding assistant...',
+            filled: true,
+            fillColor: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusM),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.all(AppConstants.spacingM),
+          ),
+          onChanged: widget.onSystemPromptChanged,
         ),
       ],
     );

@@ -80,6 +80,7 @@ class AppConstants {
   static const String keyThemeMode = 'theme_mode';
   static const String keyTemperature = 'temperature';
   static const String keyMaxTokens = 'max_tokens';
+  static const String keySystemPrompt = 'system_prompt';
   static const String keySelectedProvider = 'selected_provider';
   static const String keySelectedModel = 'selected_model';
   static const String keyConversations = 'conversations';

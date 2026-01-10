@@ -125,9 +125,6 @@ class PlaybookService extends ChangeNotifier {
   Future<void> _loadBuiltInPlaybooks() async {
     // List of built-in playbook files
     final builtInPlaybooks = [
-      'assets/playbooks/example.yaml',
-      'assets/playbooks/youtube.yaml',
-      'assets/playbooks/weather.yaml',
       'assets/playbooks/openlyst.yaml',
     ];
 

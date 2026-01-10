@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 
 /// Message role in the conversation
@@ -5,6 +7,60 @@ enum MessageRole {
   user,
   assistant,
   system,
+}
+
+/// Attachment type
+enum AttachmentType {
+  image,
+  file,
+}
+
+/// Represents a file attachment
+class Attachment {
+  final String id;
+  final String name;
+  final AttachmentType type;
+  final String mimeType;
+  final Uint8List bytes;
+  
+  Attachment({
+    String? id,
+    required this.name,
+    required this.type,
+    required this.mimeType,
+    required this.bytes,
+  }) : id = id ?? const Uuid().v4();
+  
+  /// Get base64 encoded data
+  String get base64Data => base64Encode(bytes);
+  
+  /// Check if this is an image
+  bool get isImage => type == AttachmentType.image;
+  
+  /// Convert to JSON for storage
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type.name,
+      'mimeType': mimeType,
+      'bytes': base64Data,
+    };
+  }
+  
+  /// Create from JSON
+  factory Attachment.fromJson(Map<String, dynamic> json) {
+    return Attachment(
+      id: json['id'],
+      name: json['name'] ?? 'file',
+      type: AttachmentType.values.firstWhere(
+        (e) => e.name == json['type'],
+        orElse: () => AttachmentType.file,
+      ),
+      mimeType: json['mimeType'] ?? 'application/octet-stream',
+      bytes: base64Decode(json['bytes'] ?? ''),
+    );
+  }
 }
 
 /// Represents a single chat message
@@ -16,6 +72,7 @@ class ChatMessage {
   final bool isStreaming;
   final String? modelId;
   final String? error;
+  final List<Attachment> attachments;
 
   ChatMessage({
     String? id,
@@ -25,14 +82,16 @@ class ChatMessage {
     this.isStreaming = false,
     this.modelId,
     this.error,
+    this.attachments = const [],
   })  : id = id ?? const Uuid().v4(),
         timestamp = timestamp ?? DateTime.now();
 
   /// Create a user message
-  factory ChatMessage.user(String content) {
+  factory ChatMessage.user(String content, {List<Attachment>? attachments}) {
     return ChatMessage(
       role: MessageRole.user,
       content: content,
+      attachments: attachments ?? [],
     );
   }
 
@@ -81,6 +140,7 @@ class ChatMessage {
     bool? isStreaming,
     String? modelId,
     String? error,
+    List<Attachment>? attachments,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -90,6 +150,7 @@ class ChatMessage {
       isStreaming: isStreaming ?? this.isStreaming,
       modelId: modelId ?? this.modelId,
       error: error ?? this.error,
+      attachments: attachments ?? this.attachments,
     );
   }
 
@@ -102,6 +163,7 @@ class ChatMessage {
       'timestamp': timestamp.toIso8601String(),
       'modelId': modelId,
       'error': error,
+      'attachments': attachments.map((a) => a.toJson()).toList(),
     };
   }
 
@@ -119,6 +181,9 @@ class ChatMessage {
           : DateTime.now(),
       modelId: json['modelId'],
       error: json['error'],
+      attachments: (json['attachments'] as List<dynamic>?)
+          ?.map((a) => Attachment.fromJson(a as Map<String, dynamic>))
+          .toList() ?? [],
     );
   }
 
@@ -126,4 +191,5 @@ class ChatMessage {
   bool get isAssistant => role == MessageRole.assistant;
   bool get isSystem => role == MessageRole.system;
   bool get hasError => error != null;
+  bool get hasAttachments => attachments.isNotEmpty;
 }

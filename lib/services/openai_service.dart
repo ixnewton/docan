@@ -97,11 +97,13 @@ class OpenAIService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async {
     debugPrint('[OpenAI] sendMessage called');
     debugPrint('[OpenAI] Model: $_modelId');
     debugPrint('[OpenAI] Message length: ${message.length}');
     debugPrint('[OpenAI] History count: ${history.length}');
+    debugPrint('[OpenAI] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
       debugPrint('[OpenAI] ERROR: API key not set');
@@ -110,7 +112,7 @@ class OpenAIService implements AIService {
 
     final url = Uri.parse('${AppConstants.openAIBaseUrl}/chat/completions');
     debugPrint('[OpenAI] URL: $url');
-    final messages = _buildMessages(message, history, systemPrompt);
+    final messages = _buildMessages(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
       'model': _modelId,
@@ -154,11 +156,13 @@ class OpenAIService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async* {
     debugPrint('[OpenAI] sendMessageStream called');
     debugPrint(
       '[OpenAI] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
     );
+    debugPrint('[OpenAI] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
       debugPrint('[OpenAI] ERROR: API key not set');
@@ -167,7 +171,7 @@ class OpenAIService implements AIService {
 
     final url = Uri.parse('${AppConstants.openAIBaseUrl}/chat/completions');
     debugPrint('[OpenAI] Stream URL: $url');
-    final messages = _buildMessages(message, history, systemPrompt);
+    final messages = _buildMessages(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
       'model': _modelId,
@@ -249,8 +253,9 @@ class OpenAIService implements AIService {
   List<Map<String, dynamic>> _buildMessages(
     String message,
     List<ChatMessage> history,
-    String? systemPrompt,
-  ) {
+    String? systemPrompt, {
+    List<Attachment>? attachments,
+  }) {
     final messages = <Map<String, dynamic>>[];
 
     // Add system prompt
@@ -274,11 +279,61 @@ class OpenAIService implements AIService {
           role = 'system';
           break;
       }
-      messages.add({'role': role, 'content': msg.content});
+      
+      // Check if message has image attachments
+      if (msg.attachments.any((a) => a.type == AttachmentType.image)) {
+        final content = <Map<String, dynamic>>[];
+        
+        // Add text first
+        content.add({
+          'type': 'text',
+          'text': msg.content,
+        });
+        
+        // Add images
+        for (final attachment in msg.attachments) {
+          if (attachment.type == AttachmentType.image) {
+            content.add({
+              'type': 'image_url',
+              'image_url': {
+                'url': 'data:${attachment.mimeType};base64,${attachment.base64Data}',
+              },
+            });
+          }
+        }
+        
+        messages.add({'role': role, 'content': content});
+      } else {
+        messages.add({'role': role, 'content': msg.content});
+      }
     }
 
-    // Add current message
-    messages.add({'role': 'user', 'content': message});
+    // Build current message content
+    if (attachments != null && attachments.any((a) => a.type == AttachmentType.image)) {
+      final content = <Map<String, dynamic>>[];
+      
+      // Add text first
+      content.add({
+        'type': 'text',
+        'text': message.isNotEmpty ? message : 'Describe this image.',
+      });
+      
+      // Add images
+      for (final attachment in attachments) {
+        if (attachment.type == AttachmentType.image) {
+          content.add({
+            'type': 'image_url',
+            'image_url': {
+              'url': 'data:${attachment.mimeType};base64,${attachment.base64Data}',
+            },
+          });
+        }
+      }
+      
+      messages.add({'role': 'user', 'content': content});
+    } else {
+      messages.add({'role': 'user', 'content': message});
+    }
 
     return messages;
   }

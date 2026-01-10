@@ -11,6 +11,7 @@ abstract class AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   });
 
   /// Send a message and get a streaming response
@@ -20,6 +21,7 @@ abstract class AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   });
 
   /// Get available models for this provider

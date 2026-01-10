@@ -96,11 +96,13 @@ class ClaudeService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async {
     debugPrint('[Claude] sendMessage called');
     debugPrint('[Claude] Model: $_modelId');
     debugPrint('[Claude] Message length: ${message.length}');
     debugPrint('[Claude] History count: ${history.length}');
+    debugPrint('[Claude] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
       debugPrint('[Claude] ERROR: API key not set');
@@ -109,7 +111,7 @@ class ClaudeService implements AIService {
 
     final url = Uri.parse('${AppConstants.claudeBaseUrl}/messages');
     debugPrint('[Claude] URL: $url');
-    final messages = _buildMessages(message, history);
+    final messages = _buildMessages(message, history, attachments: attachments);
 
     final body = <String, dynamic>{
       'model': _modelId,
@@ -161,11 +163,13 @@ class ClaudeService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async* {
     debugPrint('[Claude] sendMessageStream called');
     debugPrint(
       '[Claude] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
     );
+    debugPrint('[Claude] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
       debugPrint('[Claude] ERROR: API key not set');
@@ -174,7 +178,7 @@ class ClaudeService implements AIService {
 
     final url = Uri.parse('${AppConstants.claudeBaseUrl}/messages');
     debugPrint('[Claude] Stream URL: $url');
-    final messages = _buildMessages(message, history);
+    final messages = _buildMessages(message, history, attachments: attachments);
 
     final body = <String, dynamic>{
       'model': _modelId,
@@ -261,8 +265,9 @@ class ClaudeService implements AIService {
 
   List<Map<String, dynamic>> _buildMessages(
     String message,
-    List<ChatMessage> history,
-  ) {
+    List<ChatMessage> history, {
+    List<Attachment>? attachments,
+  }) {
     final messages = <Map<String, dynamic>>[];
 
     // Add conversation history (Claude doesn't support system role in messages)
@@ -270,14 +275,71 @@ class ClaudeService implements AIService {
       if (msg.role == MessageRole.system) continue;
       // Skip error messages and empty content
       if (msg.error != null || msg.content.trim().isEmpty) continue;
-      messages.add({
-        'role': msg.role == MessageRole.user ? 'user' : 'assistant',
-        'content': msg.content,
-      });
+      
+      // Check if message has image attachments
+      if (msg.attachments.any((a) => a.type == AttachmentType.image)) {
+        final content = <Map<String, dynamic>>[];
+        
+        // Add images first
+        for (final attachment in msg.attachments) {
+          if (attachment.type == AttachmentType.image) {
+            content.add({
+              'type': 'image',
+              'source': {
+                'type': 'base64',
+                'media_type': attachment.mimeType,
+                'data': attachment.base64Data,
+              },
+            });
+          }
+        }
+        
+        // Add text
+        content.add({
+          'type': 'text',
+          'text': msg.content,
+        });
+        
+        messages.add({
+          'role': msg.role == MessageRole.user ? 'user' : 'assistant',
+          'content': content,
+        });
+      } else {
+        messages.add({
+          'role': msg.role == MessageRole.user ? 'user' : 'assistant',
+          'content': msg.content,
+        });
+      }
     }
 
-    // Add current message
-    messages.add({'role': 'user', 'content': message});
+    // Build current message content
+    if (attachments != null && attachments.any((a) => a.type == AttachmentType.image)) {
+      final content = <Map<String, dynamic>>[];
+      
+      // Add images first
+      for (final attachment in attachments) {
+        if (attachment.type == AttachmentType.image) {
+          content.add({
+            'type': 'image',
+            'source': {
+              'type': 'base64',
+              'media_type': attachment.mimeType,
+              'data': attachment.base64Data,
+            },
+          });
+        }
+      }
+      
+      // Add text
+      content.add({
+        'type': 'text',
+        'text': message.isNotEmpty ? message : 'Describe this image.',
+      });
+      
+      messages.add({'role': 'user', 'content': content});
+    } else {
+      messages.add({'role': 'user', 'content': message});
+    }
 
     return messages;
   }

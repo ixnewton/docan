@@ -170,12 +170,13 @@ class ChatService extends ChangeNotifier {
   }
 
   /// Send a message
-  Future<void> sendMessage(String content) async {
+  Future<void> sendMessage(String content, {List<Attachment>? attachments}) async {
     debugPrint('[ChatService] sendMessage called');
     debugPrint('[ChatService] Provider: ${_selectedProvider.name}, Model: $selectedModel');
+    debugPrint('[ChatService] Attachments: ${attachments?.length ?? 0}');
     
-    if (content.trim().isEmpty) {
-      debugPrint('[ChatService] Empty message, returning');
+    if (content.trim().isEmpty && (attachments == null || attachments.isEmpty)) {
+      debugPrint('[ChatService] Empty message and no attachments, returning');
       return;
     }
 
@@ -187,8 +188,8 @@ class ChatService extends ChangeNotifier {
       createConversation();
     }
 
-    // Add user message
-    final userMessage = ChatMessage.user(content);
+    // Add user message with attachments
+    final userMessage = ChatMessage.user(content, attachments: attachments);
     _currentConversation = _currentConversation!.addMessage(userMessage);
     _updateConversationInList();
     notifyListeners();
@@ -230,6 +231,7 @@ class ChatService extends ChangeNotifier {
             history,
             temperature: _temperature,
             maxTokens: _maxTokens,
+            attachments: attachments,
           );
 
           fullResponse = '';

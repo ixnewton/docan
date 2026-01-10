@@ -101,11 +101,13 @@ class GeminiService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async {
     debugPrint('[Gemini] sendMessage called');
     debugPrint('[Gemini] Model: $_modelId');
     debugPrint('[Gemini] Message length: ${message.length}');
     debugPrint('[Gemini] History count: ${history.length}');
+    debugPrint('[Gemini] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
       debugPrint('[Gemini] ERROR: API key not set');
@@ -117,7 +119,7 @@ class GeminiService implements AIService {
     );
     debugPrint('[Gemini] URL: ${url.toString().replaceAll(_apiKey, '***')}');
 
-    final contents = _buildContents(message, history, systemPrompt);
+    final contents = _buildContents(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
       'contents': contents,
@@ -164,11 +166,13 @@ class GeminiService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async* {
     debugPrint('[Gemini] sendMessageStream called');
     debugPrint(
       '[Gemini] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
     );
+    debugPrint('[Gemini] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
       debugPrint('[Gemini] ERROR: API key not set');
@@ -182,7 +186,7 @@ class GeminiService implements AIService {
       '[Gemini] Stream URL: ${url.toString().replaceAll(_apiKey, '***')}',
     );
 
-    final contents = _buildContents(message, history, systemPrompt);
+    final contents = _buildContents(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
       'contents': contents,
@@ -291,8 +295,9 @@ class GeminiService implements AIService {
   List<Map<String, dynamic>> _buildContents(
     String message,
     List<ChatMessage> history,
-    String? systemPrompt,
-  ) {
+    String? systemPrompt, {
+    List<Attachment>? attachments,
+  }) {
     final contents = <Map<String, dynamic>>[];
 
     // Add system prompt as first user message if provided
@@ -316,20 +321,56 @@ class GeminiService implements AIService {
       if (msg.role == MessageRole.system) continue;
       // Skip error messages and empty content
       if (msg.error != null || msg.content.trim().isEmpty) continue;
+      
+      final parts = <Map<String, dynamic>>[];
+      
+      // Add any image attachments from history
+      if (msg.attachments.isNotEmpty) {
+        for (final attachment in msg.attachments) {
+          if (attachment.type == AttachmentType.image) {
+            parts.add({
+              'inline_data': {
+                'mime_type': attachment.mimeType,
+                'data': attachment.base64Data,
+              },
+            });
+          }
+        }
+      }
+      
+      // Add text content
+      parts.add({'text': msg.content});
+      
       contents.add({
         'role': msg.role == MessageRole.user ? 'user' : 'model',
-        'parts': [
-          {'text': msg.content},
-        ],
+        'parts': parts,
       });
     }
 
+    // Build parts for current message
+    final currentParts = <Map<String, dynamic>>[];
+    
+    // Add image attachments first
+    if (attachments != null) {
+      for (final attachment in attachments) {
+        if (attachment.type == AttachmentType.image) {
+          currentParts.add({
+            'inline_data': {
+              'mime_type': attachment.mimeType,
+              'data': attachment.base64Data,
+            },
+          });
+        }
+      }
+    }
+    
+    // Add text content
+    currentParts.add({'text': message.isNotEmpty ? message : 'Describe this image.'});
+    
     // Add current message
     contents.add({
       'role': 'user',
-      'parts': [
-        {'text': message},
-      ],
+      'parts': currentParts,
     });
 
     return contents;

@@ -90,15 +90,17 @@ class OllamaService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async {
     debugPrint('[Ollama] sendMessage called');
     debugPrint('[Ollama] Model: $_modelId, Base URL: $_baseUrl');
     debugPrint('[Ollama] Message length: ${message.length}');
     debugPrint('[Ollama] History count: ${history.length}');
+    debugPrint('[Ollama] Attachments: ${attachments?.length ?? 0}');
 
     final url = Uri.parse('$_baseUrl/api/chat');
     debugPrint('[Ollama] URL: $url');
-    final messages = _buildMessages(message, history, systemPrompt);
+    final messages = _buildMessages(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
       'model': _modelId,
@@ -133,15 +135,17 @@ class OllamaService implements AIService {
     String? systemPrompt,
     double temperature = 0.7,
     int maxTokens = 2048,
+    List<Attachment>? attachments,
   }) async* {
     debugPrint('[Ollama] sendMessageStream called');
     debugPrint(
       '[Ollama] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
     );
+    debugPrint('[Ollama] Attachments: ${attachments?.length ?? 0}');
 
     final url = Uri.parse('$_baseUrl/api/chat');
     debugPrint('[Ollama] Stream URL: $url');
-    final messages = _buildMessages(message, history, systemPrompt);
+    final messages = _buildMessages(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
       'model': _modelId,
@@ -231,8 +235,9 @@ class OllamaService implements AIService {
   List<Map<String, dynamic>> _buildMessages(
     String message,
     List<ChatMessage> history,
-    String? systemPrompt,
-  ) {
+    String? systemPrompt, {
+    List<Attachment>? attachments,
+  }) {
     final messages = <Map<String, dynamic>>[];
 
     // Add system prompt
@@ -256,11 +261,37 @@ class OllamaService implements AIService {
           role = 'system';
           break;
       }
-      messages.add({'role': role, 'content': msg.content});
+      
+      // Check if message has image attachments (Ollama uses 'images' array)
+      if (msg.attachments.any((a) => a.type == AttachmentType.image)) {
+        final images = msg.attachments
+            .where((a) => a.type == AttachmentType.image)
+            .map((a) => a.base64Data)
+            .toList();
+        messages.add({
+          'role': role,
+          'content': msg.content,
+          'images': images,
+        });
+      } else {
+        messages.add({'role': role, 'content': msg.content});
+      }
     }
 
-    // Add current message
-    messages.add({'role': 'user', 'content': message});
+    // Build current message
+    if (attachments != null && attachments.any((a) => a.type == AttachmentType.image)) {
+      final images = attachments
+          .where((a) => a.type == AttachmentType.image)
+          .map((a) => a.base64Data)
+          .toList();
+      messages.add({
+        'role': 'user',
+        'content': message.isNotEmpty ? message : 'Describe this image.',
+        'images': images,
+      });
+    } else {
+      messages.add({'role': 'user', 'content': message});
+    }
 
     return messages;
   }

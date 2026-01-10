@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants.dart';
 import '../../models/ai_provider.dart';
+import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
 import '../../components/chat_message_bubble.dart';
 import '../../components/chat_input.dart';
@@ -25,6 +26,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
   Map<AIProvider, bool> _configuredProviders = {};
+  List<Attachment> _attachments = [];
 
   @override
   void initState() {
@@ -114,11 +116,21 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                               isLoading: chatService.isLoading,
                               enabled: hasApiKey,
                               hintText: hasApiKey ? 'Message...' : 'Add API key in settings to start chatting',
+                              attachments: _attachments,
+                              onAttachmentsChanged: (attachments) {
+                                setState(() {
+                                  _attachments = attachments;
+                                });
+                              },
                               onSend: () async {
                                 final message = _inputController.text.trim();
-                                if (message.isNotEmpty) {
+                                final attachments = List<Attachment>.from(_attachments);
+                                if (message.isNotEmpty || attachments.isNotEmpty) {
                                   _inputController.clear();
-                                  await chatService.sendMessage(message);
+                                  setState(() {
+                                    _attachments = [];
+                                  });
+                                  await chatService.sendMessage(message, attachments: attachments);
                                   _scrollToBottom();
                                 }
                               },

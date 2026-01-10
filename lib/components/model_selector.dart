@@ -27,6 +27,10 @@ class ModelSelector extends StatelessWidget {
     return configuredProviders![provider] ?? false;
   }
 
+  bool _isDesktop(BuildContext context) {
+    return MediaQuery.of(context).size.width >= 600;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -40,7 +44,7 @@ class ModelSelector extends StatelessWidget {
           icon: selectedProvider.icon,
           label: compact ? null : selectedProvider.displayName,
           color: selectedProvider.color,
-          onTap: () => _showProviderPicker(context),
+          onTap: (buttonContext) => _showProviderPicker(context, buttonContext),
         ),
         const SizedBox(width: AppConstants.spacingS),
         // Model selector
@@ -48,7 +52,7 @@ class ModelSelector extends StatelessWidget {
           icon: Icons.memory,
           label: compact ? null : _getModelDisplayName(selectedModel),
           color: isDark ? Colors.white70 : Colors.black54,
-          onTap: () => _showModelPicker(context),
+          onTap: (buttonContext) => _showModelPicker(context, buttonContext),
         ),
       ],
     );
@@ -73,7 +77,78 @@ class ModelSelector extends StatelessWidget {
     return modelId.length > 12 ? '${modelId.substring(0, 10)}...' : modelId;
   }
 
-  void _showProviderPicker(BuildContext context) {
+  void _showProviderPicker(BuildContext context, BuildContext buttonContext) {
+    if (_isDesktop(context)) {
+      _showProviderDropdown(context, buttonContext);
+    } else {
+      _showProviderBottomSheet(context);
+    }
+  }
+
+  void _showProviderDropdown(BuildContext context, BuildContext buttonContext) {
+    final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset offset = button.localToGlobal(Offset(0, button.size.height), ancestor: overlay);
+
+    showMenu<AIProvider>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + 4,
+        offset.dx + button.size.width,
+        offset.dy + 4,
+      ),
+      items: AIProvider.values.map((provider) {
+        final isConfigured = _isProviderConfigured(provider);
+        return PopupMenuItem<AIProvider>(
+          value: provider,
+          enabled: isConfigured,
+          child: Row(
+            children: [
+              Icon(
+                provider.icon,
+                size: 20,
+                color: isConfigured ? provider.color : Colors.grey,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      provider.displayName,
+                      style: TextStyle(
+                        color: isConfigured ? null : Colors.grey,
+                      ),
+                    ),
+                    if (!isConfigured)
+                      Text(
+                        'Not configured',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (provider == selectedProvider)
+                Icon(Icons.check, size: 18, color: Theme.of(context).primaryColor)
+              else if (!isConfigured)
+                const Icon(Icons.lock_outline, size: 16, color: Colors.grey),
+            ],
+          ),
+        );
+      }).toList(),
+    ).then((provider) {
+      if (provider != null) {
+        onProviderChanged(provider);
+      }
+    });
+  }
+
+  void _showProviderBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -135,7 +210,50 @@ class ModelSelector extends StatelessWidget {
     );
   }
 
-  void _showModelPicker(BuildContext context) {
+  void _showModelPicker(BuildContext context, BuildContext buttonContext) {
+    if (_isDesktop(context)) {
+      _showModelDropdown(context, buttonContext);
+    } else {
+      _showModelBottomSheet(context);
+    }
+  }
+
+  void _showModelDropdown(BuildContext context, BuildContext buttonContext) {
+    final models = selectedProvider.availableModels;
+    final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset offset = button.localToGlobal(Offset(0, button.size.height), ancestor: overlay);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + 4,
+        offset.dx + button.size.width,
+        offset.dy + 4,
+      ),
+      items: models.map((model) {
+        return PopupMenuItem<String>(
+          value: model,
+          child: Row(
+            children: [
+              Icon(Icons.memory, size: 18, color: selectedProvider.color),
+              const SizedBox(width: 12),
+              Expanded(child: Text(model)),
+              if (model == selectedModel)
+                Icon(Icons.check, size: 18, color: Theme.of(context).primaryColor),
+            ],
+          ),
+        );
+      }).toList(),
+    ).then((model) {
+      if (model != null) {
+        onModelChanged(model);
+      }
+    });
+  }
+
+  void _showModelBottomSheet(BuildContext context) {
     final models = selectedProvider.availableModels;
     
     showModalBottomSheet(
@@ -182,7 +300,7 @@ class _SelectorButton extends StatefulWidget {
   final IconData icon;
   final String? label;
   final Color color;
-  final VoidCallback onTap;
+  final void Function(BuildContext) onTap;
 
   const _SelectorButton({
     required this.icon,
@@ -207,7 +325,7 @@ class _SelectorButtonState extends State<_SelectorButton> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: () => widget.onTap(context),
         child: AnimatedContainer(
           duration: AppConstants.hoverDuration,
           padding: EdgeInsets.symmetric(

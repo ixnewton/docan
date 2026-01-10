@@ -344,17 +344,6 @@ class _ModelSelectorState extends State<ModelSelector> {
       ),
     );
   }
-                  onTap: () {
-                    widget.onModelChanged(model);
-                    Navigator.pop(context);
-                  },
-                )),
-            const SizedBox(height: AppConstants.spacingM),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _SelectorButton extends StatefulWidget {

@@ -268,43 +268,262 @@ class ChatService extends ChangeNotifier {
   }
 
   /// Format playbook result data for display
+  /// Embed image URLs as markdown images
+  String _embedImageUrls(String text) {
+    // First, handle URLs that are already in markdown link format [text](url)
+    // Convert image links to image embeds
+    var result = text.replaceAllMapped(
+      RegExp(r'\[([^\]]*)\]\((https?://[^\s\)]+\.(?:jpg|jpeg|png|gif|webp|avif|bmp)(?:\?[^\s\)]*)?)\)', caseSensitive: false),
+      (match) {
+        final url = match.group(2)!;
+        return '![${match.group(1)}]($url)';
+      },
+    );
+    
+    // Match standalone URLs that look like images (not already in markdown)
+    final imageUrlRegex = RegExp(
+      r'(?<!!]\()(?<!\]\()(https?://[^\s\)\]]+\.(?:jpg|jpeg|png|gif|webp|avif|bmp)(?:\?[^\s\)\]]*)?)',
+      caseSensitive: false,
+    );
+    
+    result = result.replaceAllMapped(imageUrlRegex, (match) {
+      final url = match.group(1)!;
+      // Check if it's already part of a markdown image
+      final beforeMatch = result.substring(0, match.start);
+      if (beforeMatch.endsWith('![') || beforeMatch.endsWith('](')) {
+        return url;
+      }
+      return '\n![]($url)\n';
+    });
+    
+    // Also handle common image CDN patterns even without extensions
+    final cdnPatterns = [
+      r'https?://static1\.e926\.net/data/[^\s\)\]]+',
+      r'https?://static1\.e621\.net/data/[^\s\)\]]+',
+      r'https?://[^\s\)\]]*\.cloudfront\.net/[^\s\)\]]+',
+      r'https?://i\.imgur\.com/[^\s\)\]]+',
+      r'https?://pbs\.twimg\.com/[^\s\)\]]+',
+      r'https?://cdn\.discordapp\.com/attachments/[^\s\)\]]+',
+    ];
+    
+    for (final pattern in cdnPatterns) {
+      result = result.replaceAllMapped(RegExp(pattern, caseSensitive: false), (match) {
+        final url = match.group(0)!;
+        // Don't double-embed
+        final idx = result.indexOf(url);
+        if (idx > 0 && result.substring(idx - 2, idx) == '](') {
+          return url;
+        }
+        if (idx > 0 && result.substring(idx - 4, idx) == '![](' ) {
+          return url;
+        }
+        return '\n![]($url)\n';
+      });
+    }
+    
+    return result;
+  }
+
   String _formatPlaybookResult(dynamic data) {
     if (data == null) return 'No data returned.';
 
+    // For maps, try to format nicely
     if (data is Map) {
       final buffer = StringBuffer();
 
-      // Check for apps list
-      if (data['apps'] is List) {
-        final apps = data['apps'] as List;
-        buffer.writeln('**Found ${apps.length} apps:**\n');
-        for (final app in apps.take(10)) {
-          if (app is Map) {
-            buffer.writeln('- **${app['name'] ?? 'Unknown'}**');
-            if (app['subtitle'] != null) {
-              buffer.writeln('  ${app['subtitle']}');
+      // Check for any list in the data (generic list handling)
+      for (final entry in data.entries) {
+        if (entry.value is List && (entry.value as List).isNotEmpty) {
+          final list = entry.value as List;
+          final listName = _humanizeKey(entry.key.toString());
+          buffer.writeln('**Found ${list.length} $listName:**\n');
+          
+          for (final item in list.take(8)) {
+            if (item is Map) {
+              buffer.writeln(_formatMapItem(item));
+            } else {
+              buffer.writeln('- $item');
             }
           }
+          
+          if (list.length > 8) {
+            buffer.writeln('\n...and ${list.length - 8} more');
+          }
+          return buffer.toString();
         }
-        if (apps.length > 10) {
-          buffer.writeln('\n...and ${apps.length - 10} more');
-        }
-        return buffer.toString();
       }
 
-      // Check for single app
-      if (data['name'] != null) {
-        buffer.writeln('**${data['name']}**\n');
-        if (data['subtitle'] != null) buffer.writeln('${data['subtitle']}\n');
-        if (data['localizedDescription'] != null) {
-          buffer.writeln(data['localizedDescription']);
-        }
-        return buffer.toString();
+      // Check for success/message pattern
+      if (data['success'] != null && data['message'] != null) {
+        final emoji = data['success'] == true ? '✓' : '✗';
+        return '$emoji ${data['message']}';
+      }
+
+      // Check for error
+      if (data['error'] != null) {
+        return '**Error:** ${data['error']}';
+      }
+
+      // Single item - format it
+      if (data.isNotEmpty) {
+        return _formatMapItem(data);
       }
     }
 
-    // Fallback to JSON
-    return '```json\n${const JsonEncoder.withIndent('  ').convert(data)}\n```';
+    // For lists at top level
+    if (data is List) {
+      if (data.isEmpty) return 'No results found.';
+      
+      final buffer = StringBuffer();
+      buffer.writeln('**Found ${data.length} items:**\n');
+      
+      for (final item in data.take(8)) {
+        if (item is Map) {
+          buffer.writeln(_formatMapItem(item));
+        } else {
+          buffer.writeln('- $item');
+        }
+      }
+      
+      if (data.length > 8) {
+        buffer.writeln('\n...and ${data.length - 8} more');
+      }
+      return buffer.toString();
+    }
+
+    // Fallback to JSON with embedded images
+    final json = const JsonEncoder.withIndent('  ').convert(data);
+    return _embedImageUrls('```json\n$json\n```');
+  }
+
+  /// Format a single map item for display
+  String _formatMapItem(Map item) {
+    final buffer = StringBuffer();
+    
+    // Try to find a title/name field
+    final titleField = _findField(item, ['name', 'title', 'label', 'id']);
+    if (titleField != null) {
+      buffer.write('**$titleField**');
+    }
+    
+    // Try to find secondary info
+    final secondary = <String>[];
+    final scoreField = _findField(item, ['score', 'rating', 'count', 'votes']);
+    if (scoreField != null) secondary.add('Score: $scoreField');
+    
+    final authorField = _findField(item, ['artist', 'author', 'creator', 'user', 'username']);
+    if (authorField != null && authorField.toString().isNotEmpty && authorField != '[]') {
+      secondary.add('by $authorField');
+    }
+    
+    if (secondary.isNotEmpty) {
+      buffer.write(' (${secondary.join(', ')})');
+    }
+    buffer.writeln();
+    
+    // Try to find description
+    final descField = _findField(item, ['description', 'subtitle', 'summary', 'text', 'content']);
+    if (descField != null && descField.toString().length < 200) {
+      buffer.writeln('  $descField');
+    }
+    
+    // Try to find and embed image
+    final imageUrl = _findImageUrl(item);
+    if (imageUrl != null) {
+      buffer.writeln('\n![]($imageUrl)\n');
+    }
+    
+    // If we couldn't extract anything meaningful, show key fields
+    if (titleField == null && imageUrl == null) {
+      for (final entry in item.entries.take(5)) {
+        if (entry.value != null && entry.value.toString().isNotEmpty) {
+          final value = entry.value.toString();
+          if (value.length < 100) {
+            buffer.writeln('- **${_humanizeKey(entry.key.toString())}:** $value');
+          }
+        }
+      }
+    }
+    
+    return buffer.toString();
+  }
+
+  /// Find a field by trying multiple possible names
+  dynamic _findField(Map item, List<String> possibleNames) {
+    for (final name in possibleNames) {
+      // Direct match
+      if (item[name] != null) return item[name];
+      // Nested match (e.g., score.total)
+      for (final key in item.keys) {
+        if (item[key] is Map && (item[key] as Map)[name] != null) {
+          return (item[key] as Map)[name];
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Find an image URL in a map
+  String? _findImageUrl(Map item) {
+    final imageFields = [
+      'previewUrl', 'preview_url', 'preview',
+      'thumbnailUrl', 'thumbnail_url', 'thumbnail', 'thumb',
+      'imageUrl', 'image_url', 'image',
+      'fileUrl', 'file_url', 'file',
+      'url', 'src', 'source',
+    ];
+    
+    for (final field in imageFields) {
+      final value = item[field];
+      if (value is String && _looksLikeImageUrl(value)) {
+        return value;
+      }
+      // Check nested (e.g., file.url, preview.url)
+      for (final key in item.keys) {
+        if (item[key] is Map) {
+          final nested = item[key] as Map;
+          if (nested[field] is String && _looksLikeImageUrl(nested[field])) {
+            return nested[field];
+          }
+          // Also check just 'url' in nested objects named like images
+          if (imageFields.contains(key.toString().toLowerCase()) && nested['url'] is String) {
+            return nested['url'];
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Check if a URL looks like an image
+  bool _looksLikeImageUrl(String url) {
+    final lower = url.toLowerCase();
+    return (lower.startsWith('http://') || lower.startsWith('https://')) &&
+        (lower.endsWith('.jpg') ||
+            lower.endsWith('.jpeg') ||
+            lower.endsWith('.png') ||
+            lower.endsWith('.gif') ||
+            lower.endsWith('.webp') ||
+            lower.endsWith('.avif') ||
+            lower.contains('/preview/') ||
+            lower.contains('/thumbnail/') ||
+            lower.contains('/image/'));
+  }
+
+  /// Convert snake_case or camelCase to human readable
+  String _humanizeKey(String key) {
+    // Handle snake_case
+    var result = key.replaceAll('_', ' ');
+    // Handle camelCase
+    result = result.replaceAllMapped(
+      RegExp(r'([a-z])([A-Z])'),
+      (m) => '${m.group(1)} ${m.group(2)}',
+    );
+    // Capitalize first letter
+    if (result.isNotEmpty) {
+      result = result[0].toUpperCase() + result.substring(1);
+    }
+    return result;
   }
 
   /// Build system prompt with ALL available playbooks
@@ -776,7 +995,8 @@ Give a helpful response based on this data. Be concise and format nicely with ma
                   notifyListeners();
                 }
 
-                finalResponseContent = interpretedResponse;
+                // Embed any image URLs in the AI's response
+                finalResponseContent = _embedImageUrls(interpretedResponse);
               } catch (e) {
                 debugPrint('[ChatService] Failed to interpret result: $e');
                 // Fall back to formatted JSON

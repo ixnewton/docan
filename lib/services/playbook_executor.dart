@@ -94,13 +94,16 @@ class PlaybookExecutor {
     required Map<String, dynamic> parameters,
     Map<String, dynamic>? context,
   }) async* {
+    // Apply default values for parameters that weren't provided
+    final effectiveParams = _applyParameterDefaults(action, parameters);
+    
     final execContext = ExecutionContext(
       playbook: playbook,
       action: action,
-      parameters: parameters,
+      parameters: effectiveParams,
       variables: {
         'config': playbook.userConfig,
-        'params': parameters,
+        'params': effectiveParams,
         ...?context,
         ..._globalContext,
       },
@@ -116,7 +119,7 @@ class PlaybookExecutor {
       status: PlaybookStepStatus.running,
     );
 
-    final validationErrors = validateParameters(action, parameters);
+    final validationErrors = validateParameters(action, effectiveParams);
     if (validationErrors.isNotEmpty) {
       yield PlaybookProgress(
         currentStep: 0,
@@ -268,6 +271,24 @@ class PlaybookExecutor {
     return errors;
   }
 
+  /// Apply default values for parameters that weren't provided
+  Map<String, dynamic> _applyParameterDefaults(
+    PlaybookAction action,
+    Map<String, dynamic> parameters,
+  ) {
+    final result = Map<String, dynamic>.from(parameters);
+    
+    for (final param in action.parameters) {
+      if (!result.containsKey(param.name) || result[param.name] == null) {
+        if (param.defaultValue != null) {
+          result[param.name] = param.defaultValue;
+        }
+      }
+    }
+    
+    return result;
+  }
+
   ValidationError? _validateType(
     String name,
     dynamic value,
@@ -352,6 +373,9 @@ class PlaybookExecutor {
   }) {
     final issues = <String>[];
     final warnings = <String>[];
+    
+    // Apply defaults before validation
+    final effectiveParams = _applyParameterDefaults(action, parameters);
 
     // Check if playbook is configured
     if (!playbook.isConfigured) {
@@ -360,7 +384,7 @@ class PlaybookExecutor {
     }
 
     // Validate parameters
-    final validationErrors = validateParameters(action, parameters);
+    final validationErrors = validateParameters(action, effectiveParams);
     for (final error in validationErrors) {
       issues.add(error.toString());
     }
@@ -375,7 +399,7 @@ class PlaybookExecutor {
             varName != 'config' &&
             varName != 'params' &&
             varName != 'item' &&
-            !parameters.containsKey(varName) &&
+            !effectiveParams.containsKey(varName) &&
             !playbook.userConfig.containsKey(varName)) {
           warnings.add('Variable "$varName" may not be defined');
         }

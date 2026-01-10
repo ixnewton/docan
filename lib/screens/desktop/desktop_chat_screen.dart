@@ -236,6 +236,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             onProviderChanged: chatService.setProvider,
             onModelChanged: chatService.setModel,
             configuredProviders: _configuredProviders,
+            fetchModels: chatService.getAvailableModels,
           ),
           
           const SizedBox(width: AppConstants.spacingM),

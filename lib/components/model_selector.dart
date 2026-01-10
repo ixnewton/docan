@@ -4,13 +4,14 @@ import '../models/ai_provider.dart';
 import '../utils/liquid_glass_effects.dart';
 
 /// Model and provider selector dropdown
-class ModelSelector extends StatelessWidget {
+class ModelSelector extends StatefulWidget {
   final AIProvider selectedProvider;
   final String selectedModel;
   final ValueChanged<AIProvider> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final bool compact;
   final Map<AIProvider, bool>? configuredProviders;
+  final Future<List<String>> Function(AIProvider)? fetchModels;
 
   const ModelSelector({
     super.key,
@@ -20,15 +21,40 @@ class ModelSelector extends StatelessWidget {
     required this.onModelChanged,
     this.compact = false,
     this.configuredProviders,
+    this.fetchModels,
   });
 
+  @override
+  State<ModelSelector> createState() => _ModelSelectorState();
+}
+
+class _ModelSelectorState extends State<ModelSelector> {
+  List<String>? _cachedModels;
+  AIProvider? _cachedProvider;
+
   bool _isProviderConfigured(AIProvider provider) {
-    if (configuredProviders == null) return true;
-    return configuredProviders![provider] ?? false;
+    if (widget.configuredProviders == null) return true;
+    return widget.configuredProviders![provider] ?? false;
   }
 
   bool _isDesktop(BuildContext context) {
     return MediaQuery.of(context).size.width >= 600;
+  }
+
+  Future<List<String>> _getModels() async {
+    // Return cached if same provider
+    if (_cachedModels != null && _cachedProvider == widget.selectedProvider) {
+      return _cachedModels!;
+    }
+    
+    if (widget.fetchModels != null) {
+      final models = await widget.fetchModels!(widget.selectedProvider);
+      _cachedModels = models;
+      _cachedProvider = widget.selectedProvider;
+      return models;
+    }
+    
+    return widget.selectedProvider.availableModels;
   }
 
   @override
@@ -41,16 +67,16 @@ class ModelSelector extends StatelessWidget {
       children: [
         // Provider selector
         _SelectorButton(
-          icon: selectedProvider.icon,
-          label: compact ? null : selectedProvider.displayName,
-          color: selectedProvider.color,
+          icon: widget.selectedProvider.icon,
+          label: widget.compact ? null : widget.selectedProvider.displayName,
+          color: widget.selectedProvider.color,
           onTap: (buttonContext) => _showProviderPicker(context, buttonContext),
         ),
         const SizedBox(width: AppConstants.spacingS),
         // Model selector
         _SelectorButton(
           icon: Icons.memory,
-          label: compact ? null : _getModelDisplayName(selectedModel),
+          label: widget.compact ? null : _getModelDisplayName(widget.selectedModel),
           color: isDark ? Colors.white70 : Colors.black54,
           onTap: (buttonContext) => _showModelPicker(context, buttonContext),
         ),
@@ -133,7 +159,7 @@ class ModelSelector extends StatelessWidget {
                   ],
                 ),
               ),
-              if (provider == selectedProvider)
+              if (provider == widget.selectedProvider)
                 Icon(Icons.check, size: 18, color: Theme.of(context).primaryColor)
               else if (!isConfigured)
                 const Icon(Icons.lock_outline, size: 16, color: Colors.grey),
@@ -143,7 +169,9 @@ class ModelSelector extends StatelessWidget {
       }).toList(),
     ).then((provider) {
       if (provider != null) {
-        onProviderChanged(provider);
+        _cachedModels = null; // Clear cache when provider changes
+        _cachedProvider = null;
+        widget.onProviderChanged(provider);
       }
     });
   }
@@ -189,7 +217,7 @@ class ModelSelector extends StatelessWidget {
                     fontSize: 12,
                   ),
                 ),
-                trailing: provider == selectedProvider
+                trailing: provider == widget.selectedProvider
                     ? Icon(Icons.check, color: Theme.of(context).primaryColor)
                     : !isConfigured
                         ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18)
@@ -197,7 +225,9 @@ class ModelSelector extends StatelessWidget {
                 enabled: isConfigured,
                 onTap: isConfigured
                     ? () {
-                        onProviderChanged(provider);
+                        _cachedModels = null;
+                        _cachedProvider = null;
+                        widget.onProviderChanged(provider);
                         Navigator.pop(context);
                       }
                     : null,
@@ -218,11 +248,14 @@ class ModelSelector extends StatelessWidget {
     }
   }
 
-  void _showModelDropdown(BuildContext context, BuildContext buttonContext) {
-    final models = selectedProvider.availableModels;
+  void _showModelDropdown(BuildContext context, BuildContext buttonContext) async {
     final RenderBox button = buttonContext.findRenderObject() as RenderBox;
     final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
     final Offset offset = button.localToGlobal(Offset(0, button.size.height), ancestor: overlay);
+    
+    final models = await _getModels();
+
+    if (!context.mounted) return;
 
     showMenu<String>(
       context: context,
@@ -237,10 +270,10 @@ class ModelSelector extends StatelessWidget {
           value: model,
           child: Row(
             children: [
-              Icon(Icons.memory, size: 18, color: selectedProvider.color),
+              Icon(Icons.memory, size: 18, color: widget.selectedProvider.color),
               const SizedBox(width: 12),
               Expanded(child: Text(model)),
-              if (model == selectedModel)
+              if (model == widget.selectedModel)
                 Icon(Icons.check, size: 18, color: Theme.of(context).primaryColor),
             ],
           ),
@@ -248,13 +281,15 @@ class ModelSelector extends StatelessWidget {
       }).toList(),
     ).then((model) {
       if (model != null) {
-        onModelChanged(model);
+        widget.onModelChanged(model);
       }
     });
   }
 
-  void _showModelBottomSheet(BuildContext context) {
-    final models = selectedProvider.availableModels;
+  void _showModelBottomSheet(BuildContext context) async {
+    final models = await _getModels();
+    
+    if (!context.mounted) return;
     
     showModalBottomSheet(
       context: context,
@@ -277,14 +312,14 @@ class ModelSelector extends StatelessWidget {
             ...models.map((model) => ListTile(
                   leading: Icon(
                     Icons.memory,
-                    color: selectedProvider.color,
+                    color: widget.selectedProvider.color,
                   ),
                   title: Text(model),
-                  trailing: model == selectedModel
+                  trailing: model == widget.selectedModel
                       ? Icon(Icons.check, color: Theme.of(context).primaryColor)
                       : null,
                   onTap: () {
-                    onModelChanged(model);
+                    widget.onModelChanged(model);
                     Navigator.pop(context);
                   },
                 )),

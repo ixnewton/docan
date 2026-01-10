@@ -38,7 +38,43 @@ class ClaudeService implements AIService {
 
   @override
   Future<List<String>> getAvailableModels() async {
-    return AIProvider.claude.availableModels;
+    if (_apiKey.isEmpty) {
+      return AIProvider.claude.availableModels;
+    }
+    
+    try {
+      final url = Uri.parse('${AppConstants.claudeBaseUrl}/models');
+      final response = await http.get(
+        url,
+        headers: {
+          'x-api-key': _apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+      );
+      
+      if (response.statusCode != 200) {
+        debugPrint('[Claude] Failed to fetch models: ${response.statusCode}');
+        return AIProvider.claude.availableModels;
+      }
+      
+      final data = jsonDecode(response.body);
+      final models = data['data'] as List<dynamic>?;
+      
+      if (models == null || models.isEmpty) {
+        return AIProvider.claude.availableModels;
+      }
+      
+      final availableModels = models
+          .map((m) => m['id'] as String)
+          .where((id) => id.startsWith('claude-'))
+          .toList();
+      
+      debugPrint('[Claude] Found ${availableModels.length} models');
+      return availableModels.isEmpty ? AIProvider.claude.availableModels : availableModels;
+    } catch (e) {
+      debugPrint('[Claude] Error fetching models: $e');
+      return AIProvider.claude.availableModels;
+    }
   }
 
   @override

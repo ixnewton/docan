@@ -38,7 +38,44 @@ class OpenAIService implements AIService {
 
   @override
   Future<List<String>> getAvailableModels() async {
-    return AIProvider.openai.availableModels;
+    if (_apiKey.isEmpty) {
+      return AIProvider.openai.availableModels;
+    }
+    
+    try {
+      final url = Uri.parse('${AppConstants.openAIBaseUrl}/models');
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+        },
+      );
+      
+      if (response.statusCode != 200) {
+        debugPrint('[OpenAI] Failed to fetch models: ${response.statusCode}');
+        return AIProvider.openai.availableModels;
+      }
+      
+      final data = jsonDecode(response.body);
+      final models = data['data'] as List<dynamic>?;
+      
+      if (models == null || models.isEmpty) {
+        return AIProvider.openai.availableModels;
+      }
+      
+      // Filter to only include GPT chat models
+      final availableModels = models
+          .map((m) => m['id'] as String)
+          .where((id) => id.startsWith('gpt-') && !id.contains('instruct'))
+          .toList()
+        ..sort((a, b) => b.compareTo(a)); // Sort descending (newer first)
+      
+      debugPrint('[OpenAI] Found ${availableModels.length} GPT models');
+      return availableModels.isEmpty ? AIProvider.openai.availableModels : availableModels;
+    } catch (e) {
+      debugPrint('[OpenAI] Error fetching models: $e');
+      return AIProvider.openai.availableModels;
+    }
   }
 
   @override

@@ -38,7 +38,48 @@ class GeminiService implements AIService {
 
   @override
   Future<List<String>> getAvailableModels() async {
-    return AIProvider.gemini.availableModels;
+    if (_apiKey.isEmpty) {
+      return AIProvider.gemini.availableModels;
+    }
+    
+    try {
+      final url = Uri.parse(
+        '${AppConstants.geminiBaseUrl}/models?key=$_apiKey',
+      );
+      final response = await http.get(url);
+      
+      if (response.statusCode != 200) {
+        debugPrint('[Gemini] Failed to fetch models: ${response.statusCode}');
+        return AIProvider.gemini.availableModels;
+      }
+      
+      final data = jsonDecode(response.body);
+      final models = data['models'] as List<dynamic>?;
+      
+      if (models == null || models.isEmpty) {
+        return AIProvider.gemini.availableModels;
+      }
+      
+      // Filter to only include generateContent-capable models
+      final availableModels = models
+          .where((m) {
+            final methods = m['supportedGenerationMethods'] as List<dynamic>?;
+            return methods?.contains('generateContent') ?? false;
+          })
+          .map((m) {
+            final name = m['name'] as String;
+            // Strip 'models/' prefix
+            return name.startsWith('models/') ? name.substring(7) : name;
+          })
+          .where((name) => !name.contains('embedding') && !name.contains('aqa'))
+          .toList();
+      
+      debugPrint('[Gemini] Found ${availableModels.length} models');
+      return availableModels.isEmpty ? AIProvider.gemini.availableModels : availableModels;
+    } catch (e) {
+      debugPrint('[Gemini] Error fetching models: $e');
+      return AIProvider.gemini.availableModels;
+    }
   }
 
   @override

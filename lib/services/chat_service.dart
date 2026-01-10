@@ -51,6 +51,11 @@ class ChatService extends ChangeNotifier {
 
   AIService get currentService => _services[_selectedProvider]!;
 
+  /// Get available models for a provider (fetches from API)
+  Future<List<String>> getAvailableModels(AIProvider provider) async {
+    return await _services[provider]!.getAvailableModels();
+  }
+
   /// Get map of configured providers (has API key or Ollama URL)
   Future<Map<AIProvider, bool>> getConfiguredProviders() async {
     final result = <AIProvider, bool>{};

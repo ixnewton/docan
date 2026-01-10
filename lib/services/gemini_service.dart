@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../utils/api_error_parser.dart';
 import 'ai_service.dart';
 
 /// Google Gemini AI Service Implementation
@@ -160,7 +161,8 @@ class GeminiService implements AIService {
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
       debugPrint('[Gemini] ERROR: ${response.body}');
-      throw Exception(error['error']?['message'] ?? 'Gemini API error');
+      final errorMessage = error['error']?['message'] ?? 'Gemini API error';
+      throw Exception(ApiErrorParser.parse(errorMessage, response.statusCode));
     }
 
     final data = jsonDecode(response.body);
@@ -263,7 +265,10 @@ class GeminiService implements AIService {
       if (streamedResponse.statusCode != 200) {
         debugPrint('[Gemini] Stream ERROR: ${streamedResponse.statusCode}');
         throw Exception(
-          'Gemini streaming error: ${streamedResponse.statusCode}',
+          ApiErrorParser.parse(
+            'Gemini streaming error',
+            streamedResponse.statusCode,
+          ),
         );
       }
 

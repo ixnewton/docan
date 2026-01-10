@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../config/constants.dart';
 import '../models/ai_provider.dart';
+import '../utils/api_error_parser.dart';
 import 'storage_service.dart';
 
 /// Image provider for image generation
@@ -241,7 +242,8 @@ class ImageGenerationService extends ChangeNotifier {
 
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
-      throw Exception(error['error']?['message'] ?? 'Gemini API error');
+      final errorMessage = error['error']?['message'] ?? 'Gemini API error';
+      throw Exception(ApiErrorParser.parse(errorMessage, response.statusCode));
     }
 
     final data = jsonDecode(response.body);
@@ -323,7 +325,8 @@ class ImageGenerationService extends ChangeNotifier {
 
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
-      throw Exception(error['error']?['message'] ?? 'OpenAI API error');
+      final errorMessage = error['error']?['message'] ?? 'OpenAI API error';
+      throw Exception(ApiErrorParser.parse(errorMessage, response.statusCode));
     }
 
     final data = jsonDecode(response.body);

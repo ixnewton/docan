@@ -38,6 +38,14 @@ class DocanApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Create playbook service first
+    final playbookService = PlaybookService()..initialize();
+
+    // Create chat service and connect playbook service
+    final chatService = ChatService(storageService)
+      ..setPlaybookService(playbookService)
+      ..initialize();
+
     return MultiProvider(
       providers: [
         // Theme provider
@@ -45,17 +53,13 @@ class DocanApp extends StatelessWidget {
           create: (_) =>
               ThemeProvider()..loadFromPreferences(theme: initialTheme),
         ),
-        // Chat service
-        ChangeNotifierProvider(
-          create: (_) => ChatService(storageService)..initialize(),
-        ),
+        // Playbook service (created first)
+        ChangeNotifierProvider.value(value: playbookService),
+        // Chat service (with playbook service connected)
+        ChangeNotifierProvider.value(value: chatService),
         // Image generation service
         ChangeNotifierProvider(
           create: (_) => ImageGenerationService(storageService)..initialize(),
-        ),
-        // Playbook service
-        ChangeNotifierProvider(
-          create: (_) => PlaybookService()..initialize(),
         ),
       ],
       child: Consumer<ThemeProvider>(

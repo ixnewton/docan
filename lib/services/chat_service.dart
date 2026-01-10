@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/chat_message.dart';
 import '../models/conversation.dart';
 import '../models/ai_provider.dart';
+import '../models/playbook.dart';
 import 'ai_service.dart';
 import 'gemini_service.dart';
 import 'openai_service.dart';
@@ -10,10 +12,12 @@ import 'claude_service.dart';
 import 'ollama_service.dart';
 import 'lmstudio_service.dart';
 import 'storage_service.dart';
+import 'playbook_service.dart';
 
 /// Chat service for managing conversations and AI interactions
 class ChatService extends ChangeNotifier {
   final StorageService _storage;
+  PlaybookService? _playbookService;
 
   List<Conversation> _conversations = [];
   Conversation? _currentConversation;
@@ -30,6 +34,11 @@ class ChatService extends ChangeNotifier {
 
   ChatService(this._storage) {
     _initServices();
+  }
+
+  /// Set the playbook service reference
+  void setPlaybookService(PlaybookService service) {
+    _playbookService = service;
   }
 
   void _initServices() {
@@ -189,6 +198,132 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Parse /playbook command from message
+  /// Returns (playbookName, remainingMessage) or (null, originalMessage)
+  (String?, String) _parsePlaybookCommand(String content) {
+    final trimmed = content.trim();
+    final playbookRegex = RegExp(
+      r'^/playbook\s+(\S+)\s*(.*)',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final match = playbookRegex.firstMatch(trimmed);
+
+    if (match != null) {
+      final playbookName = match.group(1)!;
+      final remainingMessage = match.group(2)?.trim() ?? '';
+      return (playbookName, remainingMessage);
+    }
+
+    return (null, content);
+  }
+
+  /// Build system prompt with playbook context
+  String _buildPlaybookSystemPrompt(Playbook playbook, String? basePrompt) {
+    final buffer = StringBuffer();
+
+    if (basePrompt != null && basePrompt.isNotEmpty) {
+      buffer.writeln(basePrompt);
+      buffer.writeln();
+    }
+
+    buffer.writeln(
+      'You have access to the "${playbook.name}" playbook which can perform the following actions:',
+    );
+    buffer.writeln();
+
+    for (final action in playbook.actions) {
+      buffer.writeln('## ${action.name}');
+      if (action.description != null) {
+        buffer.writeln(action.description);
+      }
+
+      if (action.parameters.isNotEmpty) {
+        buffer.writeln('Parameters:');
+        for (final param in action.parameters) {
+          final req = param.required ? '(required)' : '(optional)';
+          buffer.writeln(
+            '- ${param.name}: ${param.type} $req${param.description != null ? ' - ${param.description}' : ''}',
+          );
+        }
+      }
+      buffer.writeln();
+    }
+
+    buffer.writeln(
+      'When the user asks you to do something that matches one of these actions, respond with:',
+    );
+    buffer.writeln('```playbook');
+    buffer.writeln('action: <action_name>');
+    buffer.writeln('parameters:');
+    buffer.writeln('  param1: value1');
+    buffer.writeln('  param2: value2');
+    buffer.writeln('```');
+    buffer.writeln();
+    buffer.writeln(
+      'Only use this format when you need to execute a playbook action. For regular conversation, respond normally.',
+    );
+
+    return buffer.toString();
+  }
+
+  /// Parse playbook action from AI response
+  Map<String, dynamic>? _parsePlaybookAction(String response) {
+    final regex = RegExp(r'```playbook\s*([\s\S]*?)\s*```');
+    final match = regex.firstMatch(response);
+
+    if (match == null) return null;
+
+    try {
+      final yamlContent = match.group(1)!;
+      final lines = yamlContent.split('\n');
+      String? actionName;
+      final parameters = <String, dynamic>{};
+      bool inParameters = false;
+
+      for (final line in lines) {
+        final trimmedLine = line.trim();
+        if (trimmedLine.isEmpty) continue;
+
+        if (trimmedLine.startsWith('action:')) {
+          actionName = trimmedLine.substring(7).trim();
+        } else if (trimmedLine == 'parameters:') {
+          inParameters = true;
+        } else if (inParameters && trimmedLine.contains(':')) {
+          final colonIndex = trimmedLine.indexOf(':');
+          final key = trimmedLine.substring(0, colonIndex).trim();
+          var value = trimmedLine.substring(colonIndex + 1).trim();
+
+          // Try to parse as number or boolean
+          if (value == 'true') {
+            parameters[key] = true;
+          } else if (value == 'false') {
+            parameters[key] = false;
+          } else if (int.tryParse(value) != null) {
+            parameters[key] = int.parse(value);
+          } else if (double.tryParse(value) != null) {
+            parameters[key] = double.parse(value);
+          } else {
+            // Remove surrounding quotes if present
+            if ((value.startsWith('"') && value.endsWith('"')) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+              value = value.substring(1, value.length - 1);
+            }
+            parameters[key] = value;
+          }
+        }
+      }
+
+      if (actionName != null) {
+        return {'action': actionName, 'parameters': parameters};
+      }
+    } catch (e) {
+      debugPrint('[ChatService] Failed to parse playbook action: $e');
+    }
+
+    return null;
+  }
+
   /// Send a message
   Future<void> sendMessage(
     String content, {
@@ -207,6 +342,94 @@ class ChatService extends ChangeNotifier {
     }
 
     _error = null;
+
+    // Check for /playbook command
+    final (specifiedPlaybookName, messageContent) = _parsePlaybookCommand(
+      content,
+    );
+    Playbook? activePlaybook;
+
+    if (specifiedPlaybookName != null && _playbookService != null) {
+      activePlaybook = _playbookService!.getPlaybookByName(
+        specifiedPlaybookName,
+      );
+      if (activePlaybook == null) {
+        // Playbook not found - let user know
+        debugPrint('[ChatService] Playbook not found: $specifiedPlaybookName');
+      } else if (!activePlaybook.enabled) {
+        debugPrint(
+          '[ChatService] Playbook is disabled: ${activePlaybook.name}',
+        );
+        activePlaybook = null;
+      } else if (!activePlaybook.isConfigured) {
+        debugPrint(
+          '[ChatService] Playbook is not configured: ${activePlaybook.name}',
+        );
+        activePlaybook = null;
+      } else {
+        debugPrint('[ChatService] Using playbook: ${activePlaybook.name}');
+      }
+    }
+
+    // If no explicit playbook, check for trigger matches
+    if (activePlaybook == null && _playbookService != null) {
+      final matches = _playbookService!.findMatchingPlaybooks(content);
+      if (matches.isNotEmpty) {
+        activePlaybook = matches.first.playbook;
+        debugPrint(
+          '[ChatService] Auto-matched playbook: ${activePlaybook.name} (confidence: ${matches.first.confidence})',
+        );
+      }
+    }
+
+    // Use the message content (with /playbook stripped if present)
+    final effectiveContent = specifiedPlaybookName != null
+        ? messageContent
+        : content;
+
+    // If specified playbook but empty message, show playbook info
+    if (specifiedPlaybookName != null &&
+        effectiveContent.isEmpty &&
+        activePlaybook != null) {
+      // Create conversation if needed
+      if (_currentConversation == null) {
+        createConversation();
+      }
+
+      final userMessage = ChatMessage.user('/playbook $specifiedPlaybookName');
+      _currentConversation = _currentConversation!.addMessage(userMessage);
+
+      // Generate playbook info response
+      final infoBuffer = StringBuffer();
+      infoBuffer.writeln(
+        '**${activePlaybook.name}** v${activePlaybook.version}',
+      );
+      if (activePlaybook.description != null) {
+        infoBuffer.writeln();
+        infoBuffer.writeln(activePlaybook.description);
+      }
+      infoBuffer.writeln();
+      infoBuffer.writeln('**Available Actions:**');
+      for (final action in activePlaybook.actions) {
+        infoBuffer.writeln(
+          '- `${action.name}`: ${action.description ?? 'No description'}',
+        );
+      }
+      infoBuffer.writeln();
+      infoBuffer.writeln(
+        'Usage: `/playbook ${activePlaybook.name.toLowerCase().replaceAll(' ', '_')} <your request>`',
+      );
+
+      final infoMessage = ChatMessage.assistant(
+        infoBuffer.toString(),
+        modelId: 'system',
+      );
+      _currentConversation = _currentConversation!.addMessage(infoMessage);
+      _updateConversationInList();
+      _saveConversations();
+      notifyListeners();
+      return;
+    }
 
     // Create conversation if needed
     if (_currentConversation == null) {
@@ -235,13 +458,28 @@ class ChatService extends ChangeNotifier {
           .toList();
       final history = allMessages;
 
+      // Build system prompt with playbook context if active
+      String? effectiveSystemPrompt = _systemPrompt.isNotEmpty
+          ? _systemPrompt
+          : null;
+      if (activePlaybook != null) {
+        effectiveSystemPrompt = _buildPlaybookSystemPrompt(
+          activePlaybook,
+          effectiveSystemPrompt,
+        );
+      }
+
       debugPrint('[ChatService] Starting stream request');
       debugPrint('[ChatService] History messages: ${history.length}');
       debugPrint(
         '[ChatService] Temperature: $_temperature, MaxTokens: $_maxTokens',
       );
       debugPrint(
-        '[ChatService] System prompt: ${_systemPrompt.isNotEmpty ? "set" : "none"}',
+        '[ChatService] System prompt: ${effectiveSystemPrompt != null
+            ? "set (with playbook)"
+            : _systemPrompt.isNotEmpty
+            ? "set"
+            : "none"}',
       );
 
       String fullResponse = '';
@@ -261,9 +499,9 @@ class ChatService extends ChangeNotifier {
 
           // Use streaming
           final stream = currentService.sendMessageStream(
-            content,
+            effectiveContent.isNotEmpty ? effectiveContent : content,
             history,
-            systemPrompt: _systemPrompt.isNotEmpty ? _systemPrompt : null,
+            systemPrompt: effectiveSystemPrompt,
             temperature: _temperature,
             maxTokens: _maxTokens,
             attachments: attachments,
@@ -316,9 +554,52 @@ class ChatService extends ChangeNotifier {
         );
       }
 
+      // Check if AI response contains a playbook action to execute
+      String finalResponseContent = fullResponse;
+      if (activePlaybook != null && _playbookService != null) {
+        final actionData = _parsePlaybookAction(fullResponse);
+        if (actionData != null) {
+          debugPrint(
+            '[ChatService] Executing playbook action: ${actionData['action']}',
+          );
+
+          // Execute the playbook action
+          final result = await _playbookService!.executeAction(
+            activePlaybook,
+            actionData['action'] as String,
+            actionData['parameters'] as Map<String, dynamic>,
+          );
+
+          if (result.success) {
+            // Add playbook result to response
+            final resultJson = result.data != null
+                ? const JsonEncoder.withIndent('  ').convert(result.data)
+                : 'Action completed successfully';
+
+            // Remove the playbook code block and add the result
+            final cleanedResponse = fullResponse
+                .replaceAll(RegExp(r'```playbook\s*[\s\S]*?\s*```'), '')
+                .trim();
+
+            finalResponseContent = cleanedResponse.isNotEmpty
+                ? '$cleanedResponse\n\n**Result:**\n```json\n$resultJson\n```'
+                : '**Result:**\n```json\n$resultJson\n```';
+          } else {
+            // Show error
+            final cleanedResponse = fullResponse
+                .replaceAll(RegExp(r'```playbook\s*[\s\S]*?\s*```'), '')
+                .trim();
+
+            finalResponseContent = cleanedResponse.isNotEmpty
+                ? '$cleanedResponse\n\n**Error:** ${result.error}'
+                : '**Error:** ${result.error}';
+          }
+        }
+      }
+
       // Finalize message
       final finalMessage = placeholderMessage.copyWith(
-        content: fullResponse,
+        content: finalResponseContent,
         isStreaming: false,
       );
       _currentConversation = _currentConversation!.updateMessage(

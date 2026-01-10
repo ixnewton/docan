@@ -90,6 +90,9 @@ class PlaybookService extends ChangeNotifier {
     // List of built-in playbook files
     final builtInPlaybooks = [
       'assets/playbooks/example.yaml',
+      'assets/playbooks/youtube.yaml',
+      'assets/playbooks/weather.yaml',
+      'assets/playbooks/openlyst.yaml',
     ];
 
     for (final path in builtInPlaybooks) {
@@ -249,6 +252,17 @@ class PlaybookService extends ChangeNotifier {
   /// Get playbook by ID
   Playbook? getPlaybook(String id) {
     return _playbooks.where((p) => p.id == id).firstOrNull;
+  }
+
+  /// Get playbook by name (case-insensitive)
+  Playbook? getPlaybookByName(String name) {
+    final normalizedName = name.toLowerCase().trim();
+    return _playbooks.where((p) => 
+      p.name.toLowerCase() == normalizedName ||
+      p.name.toLowerCase().replaceAll(' ', '') == normalizedName.replaceAll(' ', '') ||
+      p.name.toLowerCase().replaceAll(' ', '_') == normalizedName.replaceAll(' ', '_') ||
+      p.name.toLowerCase().replaceAll(' ', '-') == normalizedName.replaceAll(' ', '-')
+    ).firstOrNull;
   }
 
   /// Find playbooks that match a user query

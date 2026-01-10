@@ -296,8 +296,9 @@ class ChatService extends ChangeNotifier {
       if (data['name'] != null) {
         buffer.writeln('**${data['name']}**\n');
         if (data['subtitle'] != null) buffer.writeln('${data['subtitle']}\n');
-        if (data['localizedDescription'] != null)
+        if (data['localizedDescription'] != null) {
           buffer.writeln(data['localizedDescription']);
+        }
         return buffer.toString();
       }
     }

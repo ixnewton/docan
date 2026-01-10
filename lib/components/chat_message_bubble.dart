@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/constants.dart';
 import '../config/themes.dart';
 import '../models/chat_message.dart';
@@ -208,6 +209,17 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                       : MarkdownBody(
                           data: widget.message.content,
                           selectable: true,
+                          onTapLink: (text, href, title) async {
+                            if (href != null) {
+                              final uri = Uri.tryParse(href);
+                              if (uri != null && await canLaunchUrl(uri)) {
+                                await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              }
+                            }
+                          },
                           imageBuilder: (uri, title, alt) {
                             // Handle base64 data URLs for generated images
                             if (uri.toString().startsWith('data:image/')) {
@@ -304,6 +316,15 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                             ),
                             listBullet: theme.textTheme.bodyLarge?.copyWith(
                               color: textColor,
+                            ),
+                            a: TextStyle(
+                              color: isDark
+                                  ? Colors.lightBlueAccent
+                                  : Colors.blue,
+                              decoration: TextDecoration.underline,
+                              decorationColor: isDark
+                                  ? Colors.lightBlueAccent
+                                  : Colors.blue,
                             ),
                           ),
                         ),

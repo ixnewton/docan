@@ -1,0 +1,100 @@
+# Example Playbook for Docan
+# This playbook demonstrates the basic structure and features
+# Learn more at: docs/playbooks.md
+
+name: Example
+version: 1.0.0
+description: An example playbook showing available features
+author: Docan Team
+license: AGPL-3.0
+playbookVersion: 1
+
+# Platforms this playbook supports
+platforms:
+  - android
+  - ios
+  - linux
+  - macos
+  - windows
+  - web
+
+# Configuration fields that users need to provide
+config:
+  exampleApiKey:
+    type: string
+    required: false
+    description: Example API key (not actually used)
+    secret: true
+
+# Triggers determine when this playbook should be considered
+# Uses regex patterns to match user queries
+triggers:
+  - pattern: "example|demo|test playbook"
+    description: Trigger for example/demo queries
+    priority: 0
+
+# Actions that this playbook can perform
+actions:
+  # Simple action that returns static data
+  getGreeting:
+    description: Returns a greeting message
+    parameters:
+      name:
+        type: string
+        required: true
+        description: Name to greet
+    steps:
+      - type: setVariable
+        name: greeting
+        value: "Hello, {{params.name}}! This is an example playbook."
+      - type: returnData
+        data:
+          message: "{{greeting}}"
+          timestamp: "{{now}}"
+    returns:
+      type: object
+      description: A greeting message
+
+  # Action demonstrating HTTP requests
+  fetchExample:
+    description: Fetches data from a public API
+    parameters:
+      endpoint:
+        type: string
+        required: false
+        description: API endpoint to fetch
+        default: "posts/1"
+    steps:
+      - type: http
+        method: GET
+        url: "https://jsonplaceholder.typicode.com/{{params.endpoint}}"
+        response:
+          store: apiResponse
+      - type: returnData
+        data: "{{apiResponse}}"
+    returns:
+      type: object
+      description: Response from the API
+
+  # Action with transformation
+  processData:
+    description: Processes and transforms data
+    parameters:
+      items:
+        type: array
+        required: true
+        description: Array of items to process
+    steps:
+      - type: transform
+        input: "{{params.items}}"
+        output: processed
+        map:
+          value: "{{item}}"
+          processed: true
+      - type: returnData
+        data:
+          original_count: "{{params.items.length}}"
+          processed_items: "{{processed}}"
+    returns:
+      type: object
+      description: Processed data with count

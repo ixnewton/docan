@@ -5,6 +5,7 @@ import 'config/themes.dart';
 import 'services/storage_service.dart';
 import 'services/chat_service.dart';
 import 'services/image_generation_service.dart';
+import 'services/playbook_service.dart';
 import 'utils/theme_provider.dart';
 import 'utils/screen_size_helper.dart';
 import 'screens/mobile/mobile_chat_screen.dart';
@@ -51,6 +52,10 @@ class DocanApp extends StatelessWidget {
         // Image generation service
         ChangeNotifierProvider(
           create: (_) => ImageGenerationService(storageService)..initialize(),
+        ),
+        // Playbook service
+        ChangeNotifierProvider(
+          create: (_) => PlaybookService()..initialize(),
         ),
       ],
       child: Consumer<ThemeProvider>(

@@ -13,6 +13,7 @@ import '../../utils/liquid_glass_effects.dart';
 import '../../utils/screen_size_helper.dart';
 import 'mobile_settings_screen.dart';
 import 'mobile_image_screen.dart';
+import 'mobile_playbooks_screen.dart';
 
 /// Mobile chat screen with iOS 26 Liquid Glass design
 class MobileChatScreen extends StatefulWidget {
@@ -348,6 +349,19 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
                 ),
               ),
               Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.spacingM,
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.auto_stories),
+                  title: const Text('Playbooks'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openPlaybooks(context);
+                  },
+                ),
+              ),
+              Padding(
                 padding: const EdgeInsets.all(AppConstants.spacingM),
                 child: ListTile(
                   leading: const Icon(Icons.settings),
@@ -369,6 +383,13 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const MobileImageScreen()),
+    );
+  }
+
+  void _openPlaybooks(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MobilePlaybooksScreen()),
     );
   }
 

@@ -13,6 +13,7 @@ import '../../utils/liquid_glass_effects.dart';
 import '../../utils/screen_size_helper.dart';
 import 'desktop_settings_screen.dart';
 import 'desktop_image_screen.dart';
+import 'desktop_playbooks_screen.dart';
 
 /// Desktop chat screen with macOS Tahoe Liquid Glass design
 class DesktopChatScreen extends StatefulWidget {
@@ -217,6 +218,21 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             ),
           ),
 
+          // Playbooks button
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.spacingM,
+            ),
+            child: ListTile(
+              leading: const Icon(Icons.auto_stories),
+              title: const Text('Playbooks'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusS),
+              ),
+              onTap: () => _openPlaybooks(context),
+            ),
+          ),
+
           // Settings button
           Padding(
             padding: const EdgeInsets.all(AppConstants.spacingM),
@@ -238,6 +254,13 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const DesktopImageScreen()),
+    );
+  }
+
+  void _openPlaybooks(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const DesktopPlaybooksScreen()),
     );
   }
 

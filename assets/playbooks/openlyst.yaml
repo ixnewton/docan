@@ -1,0 +1,230 @@
+name: OpenLyst
+version: 1.0.0
+description: |
+  Access the OpenLyst app repository API.
+  
+  Features:
+  - Browse and search apps
+  - Get app details and versions
+  - View news and announcements
+  - Filter by platform
+  
+  No API key required - completely free to use!
+author: OpenLyst
+repository: https://gitlab.com/openlyst
+license: AGPL-3.0
+icon: apps
+playbookVersion: 1
+
+platforms:
+  - android
+  - ios
+  - linux
+  - macos
+  - windows
+  - web
+
+triggers:
+  - pattern: "openlyst|open lyst"
+    description: OpenLyst related queries
+    priority: 10
+  - pattern: "doudou|klit|baobao"
+    description: Specific OpenLyst app names
+    priority: 8
+  - pattern: "foss apps|free apps|open source apps"
+    description: Open source app queries
+    priority: 5
+
+actions:
+  getRepoInfo:
+    description: Get OpenLyst repository metadata and statistics
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/repo"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        response:
+          store: repoResponse
+      - type: returnData
+        data:
+          success: "{{repoResponse.success}}"
+          repository: "{{repoResponse.data}}"
+    returns:
+      type: object
+      description: Repository metadata including name, description, and statistics
+
+  getAllApps:
+    description: Get all apps in the OpenLyst repository with optional filtering
+    parameters:
+      platform:
+        type: string
+        required: false
+        description: Filter by platform (iOS, Android, macOS, Windows, Linux, Web)
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/apps"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        params:
+          platform: "{{params.platform}}"
+        response:
+          store: appsResponse
+      - type: returnData
+        data:
+          success: "{{appsResponse.success}}"
+          count: "{{appsResponse.count}}"
+          apps: "{{appsResponse.data}}"
+    returns:
+      type: array
+      description: List of apps with name, slug, subtitle, and platforms
+
+  getAppDetails:
+    description: Get detailed information about a specific OpenLyst app
+    parameters:
+      slug:
+        type: string
+        required: true
+        description: The app slug (e.g., "doudou", "klit")
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/apps/{{params.slug}}"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        response:
+          store: appResponse
+      - type: returnData
+        data:
+          success: "{{appResponse.success}}"
+          app: "{{appResponse.data}}"
+    returns:
+      type: object
+      description: Detailed app information including description, platforms, and versions
+
+  getAppVersions:
+    description: Get all versions of a specific OpenLyst app
+    parameters:
+      slug:
+        type: string
+        required: true
+        description: The app slug (e.g., "doudou", "klit")
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/apps/{{params.slug}}/versions"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        response:
+          store: versionsResponse
+      - type: returnData
+        data:
+          success: "{{versionsResponse.success}}"
+          appName: "{{versionsResponse.appName}}"
+          count: "{{versionsResponse.count}}"
+          versions: "{{versionsResponse.data}}"
+    returns:
+      type: array
+      description: List of all app versions with dates, platforms, and changelogs
+
+  getLatestVersion:
+    description: Get the latest version of a specific OpenLyst app
+    parameters:
+      slug:
+        type: string
+        required: true
+        description: The app slug (e.g., "doudou", "klit")
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/apps/{{params.slug}}/latest"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        response:
+          store: latestResponse
+      - type: returnData
+        data:
+          success: "{{latestResponse.success}}"
+          appName: "{{latestResponse.appName}}"
+          latestVersion: "{{latestResponse.data}}"
+    returns:
+      type: object
+      description: Latest version details with download links and changelog
+
+  searchApps:
+    description: Search for OpenLyst apps by name, description, or bundle identifier
+    parameters:
+      query:
+        type: string
+        required: true
+        description: Search query (e.g., "music", "player")
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/search"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        params:
+          q: "{{params.query}}"
+        response:
+          store: searchResponse
+      - type: returnData
+        data:
+          success: "{{searchResponse.success}}"
+          query: "{{searchResponse.query}}"
+          count: "{{searchResponse.count}}"
+          results: "{{searchResponse.data}}"
+    returns:
+      type: array
+      description: Search results with relevance scores
+
+  getNews:
+    description: Get news and announcements from OpenLyst
+    parameters:
+      limit:
+        type: number
+        required: false
+        description: Maximum number of news items to return
+      appId:
+        type: string
+        required: false
+        description: Filter news by app ID (bundle identifier)
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/news"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        params:
+          limit: "{{params.limit}}"
+          appId: "{{params.appId}}"
+        response:
+          store: newsResponse
+      - type: returnData
+        data:
+          success: "{{newsResponse.success}}"
+          count: "{{newsResponse.count}}"
+          news: "{{newsResponse.data}}"
+    returns:
+      type: array
+      description: News items with title, caption, date, and links
+
+  getPlatforms:
+    description: Get all available platforms and app counts on OpenLyst
+    steps:
+      - type: http
+        method: GET
+        url: "https://openlyst.ink/api/v1/platforms"
+        headers:
+          User-Agent: Docan-Playbook/1.0
+        response:
+          store: platformsResponse
+      - type: returnData
+        data:
+          success: "{{platformsResponse.success}}"
+          count: "{{platformsResponse.count}}"
+          platforms: "{{platformsResponse.data}}"
+    returns:
+      type: array
+      description: List of platforms with app counts

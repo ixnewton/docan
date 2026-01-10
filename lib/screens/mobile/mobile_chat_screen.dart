@@ -12,6 +12,7 @@ import '../../components/model_selector.dart';
 import '../../utils/liquid_glass_effects.dart';
 import '../../utils/screen_size_helper.dart';
 import 'mobile_settings_screen.dart';
+import 'mobile_image_screen.dart';
 
 /// Mobile chat screen with iOS 26 Liquid Glass design
 class MobileChatScreen extends StatefulWidget {
@@ -78,21 +79,23 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
               children: [
                 // Floating Nav Bar
                 _buildNavBar(context, chatService),
-                
+
                 // Chat Messages
-                Expanded(
-                  child: _buildMessageList(context, chatService),
-                ),
-                
+                Expanded(child: _buildMessageList(context, chatService)),
+
                 // Input Field
                 Builder(
                   builder: (context) {
-                    final hasApiKey = _configuredProviders[chatService.selectedProvider] ?? false;
+                    final hasApiKey =
+                        _configuredProviders[chatService.selectedProvider] ??
+                        false;
                     return ChatInput(
                       controller: _inputController,
                       isLoading: chatService.isLoading,
                       enabled: hasApiKey,
-                      hintText: hasApiKey ? 'Message...' : 'Add API key in settings to start chatting',
+                      hintText: hasApiKey
+                          ? 'Message...'
+                          : 'Add API key in settings to start chatting',
                       attachments: _attachments,
                       onAttachmentsChanged: (attachments) {
                         setState(() {
@@ -107,7 +110,10 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
                           setState(() {
                             _attachments = [];
                           });
-                          await chatService.sendMessage(message, attachments: attachments);
+                          await chatService.sendMessage(
+                            message,
+                            attachments: attachments,
+                          );
                           _scrollToBottom();
                         }
                       },
@@ -133,9 +139,9 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
             icon: Icons.menu,
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-          
+
           const SizedBox(width: AppConstants.spacingS),
-          
+
           // Title
           Text(
             AppConstants.appName,
@@ -143,9 +149,9 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          
+
           const Spacer(),
-          
+
           // Model selector (compact)
           ModelSelector(
             selectedProvider: chatService.selectedProvider,
@@ -156,9 +162,9 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
             configuredProviders: _configuredProviders,
             fetchModels: chatService.getAvailableModels,
           ),
-          
+
           const SizedBox(width: AppConstants.spacingS),
-          
+
           // Settings
           LiquidGlassIconButton(
             icon: Icons.settings,
@@ -225,7 +231,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppConstants.spacingXL),
-              
+
               // Quick prompts
               Wrap(
                 spacing: AppConstants.spacingS,
@@ -304,9 +310,9 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
                   ],
                 ),
               ),
-              
+
               const Divider(height: 1),
-              
+
               // Conversation list
               Expanded(
                 child: ConversationList(
@@ -324,10 +330,23 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
                   },
                 ),
               ),
-              
+
               const Divider(height: 1),
-              
+
               // Bottom actions
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.spacingM,
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.image),
+                  title: const Text('Image Creator'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openImageCreator(context);
+                  },
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.all(AppConstants.spacingM),
                 child: ListTile(
@@ -346,12 +365,17 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
     );
   }
 
+  void _openImageCreator(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MobileImageScreen()),
+    );
+  }
+
   void _openSettings(BuildContext context) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const MobileSettingsScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const MobileSettingsScreen()),
     );
     // Refresh configured providers when returning from settings
     _loadConfiguredProviders();
@@ -362,10 +386,7 @@ class _QuickPromptChip extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _QuickPromptChip({
-    required this.label,
-    required this.onTap,
-  });
+  const _QuickPromptChip({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -385,13 +406,12 @@ class _QuickPromptChip extends StatelessWidget {
               : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
           border: Border.all(
-            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1),
+            color: (isDark ? Colors.white : Colors.black).withValues(
+              alpha: 0.1,
+            ),
           ),
         ),
-        child: Text(
-          label,
-          style: theme.textTheme.labelMedium,
-        ),
+        child: Text(label, style: theme.textTheme.labelMedium),
       ),
     );
   }

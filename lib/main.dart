@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'config/themes.dart';
 import 'services/storage_service.dart';
 import 'services/chat_service.dart';
+import 'services/image_generation_service.dart';
 import 'utils/theme_provider.dart';
 import 'utils/screen_size_helper.dart';
 import 'screens/mobile/mobile_chat_screen.dart';
@@ -11,20 +12,17 @@ import 'screens/desktop/desktop_chat_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Hive for local storage
   await Hive.initFlutter();
-  
+
   // Initialize storage service
   final storageService = await StorageService.getInstance();
-  
+
   // Load saved theme
   final savedTheme = await storageService.getTheme();
-  
-  runApp(DocanApp(
-    storageService: storageService,
-    initialTheme: savedTheme,
-  ));
+
+  runApp(DocanApp(storageService: storageService, initialTheme: savedTheme));
 }
 
 class DocanApp extends StatelessWidget {
@@ -43,11 +41,16 @@ class DocanApp extends StatelessWidget {
       providers: [
         // Theme provider
         ChangeNotifierProvider(
-          create: (_) => ThemeProvider()..loadFromPreferences(theme: initialTheme),
+          create: (_) =>
+              ThemeProvider()..loadFromPreferences(theme: initialTheme),
         ),
         // Chat service
         ChangeNotifierProvider(
           create: (_) => ChatService(storageService)..initialize(),
+        ),
+        // Image generation service
+        ChangeNotifierProvider(
+          create: (_) => ImageGenerationService(storageService)..initialize(),
         ),
       ],
       child: Consumer<ThemeProvider>(

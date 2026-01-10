@@ -12,6 +12,7 @@ import '../../components/model_selector.dart';
 import '../../utils/liquid_glass_effects.dart';
 import '../../utils/screen_size_helper.dart';
 import 'desktop_settings_screen.dart';
+import 'desktop_image_screen.dart';
 
 /// Desktop chat screen with macOS Tahoe Liquid Glass design
 class DesktopChatScreen extends StatefulWidget {
@@ -93,29 +94,32 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                 children: [
                   // Sidebar
                   _buildSidebar(context, chatService),
-                  
+
                   // Main content
                   Expanded(
                     child: Column(
                       children: [
                         // Toolbar
                         _buildToolbar(context, chatService),
-                        
+
                         // Chat area
-                        Expanded(
-                          child: _buildChatArea(context, chatService),
-                        ),
-                        
+                        Expanded(child: _buildChatArea(context, chatService)),
+
                         // Input
                         Builder(
                           builder: (context) {
-                            final hasApiKey = _configuredProviders[chatService.selectedProvider] ?? false;
+                            final hasApiKey =
+                                _configuredProviders[chatService
+                                    .selectedProvider] ??
+                                false;
                             return ChatInput(
                               controller: _inputController,
                               focusNode: _inputFocusNode,
                               isLoading: chatService.isLoading,
                               enabled: hasApiKey,
-                              hintText: hasApiKey ? 'Message...' : 'Add API key in settings to start chatting',
+                              hintText: hasApiKey
+                                  ? 'Message...'
+                                  : 'Add API key in settings to start chatting',
                               attachments: _attachments,
                               onAttachmentsChanged: (attachments) {
                                 setState(() {
@@ -124,13 +128,19 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                               },
                               onSend: () async {
                                 final message = _inputController.text.trim();
-                                final attachments = List<Attachment>.from(_attachments);
-                                if (message.isNotEmpty || attachments.isNotEmpty) {
+                                final attachments = List<Attachment>.from(
+                                  _attachments,
+                                );
+                                if (message.isNotEmpty ||
+                                    attachments.isNotEmpty) {
                                   _inputController.clear();
                                   setState(() {
                                     _attachments = [];
                                   });
-                                  await chatService.sendMessage(message, attachments: attachments);
+                                  await chatService.sendMessage(
+                                    message,
+                                    attachments: attachments,
+                                  );
                                   _scrollToBottom();
                                 }
                               },
@@ -179,7 +189,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
               ),
             ),
           ),
-          
+
           // Conversations
           Expanded(
             child: ConversationList(
@@ -191,7 +201,22 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
               onNewChat: () => chatService.createConversation(),
             ),
           ),
-          
+
+          // Image creation button
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.spacingM,
+            ),
+            child: ListTile(
+              leading: const Icon(Icons.image),
+              title: const Text('Image Creator'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusS),
+              ),
+              onTap: () => _openImageCreator(context),
+            ),
+          ),
+
           // Settings button
           Padding(
             padding: const EdgeInsets.all(AppConstants.spacingM),
@@ -206,6 +231,13 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _openImageCreator(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const DesktopImageScreen()),
     );
   }
 
@@ -238,9 +270,9 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          
+
           const Spacer(),
-          
+
           // Model selector
           ModelSelector(
             selectedProvider: chatService.selectedProvider,
@@ -250,16 +282,16 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             configuredProviders: _configuredProviders,
             fetchModels: chatService.getAvailableModels,
           ),
-          
+
           const SizedBox(width: AppConstants.spacingM),
-          
+
           // Settings
           LiquidGlassIconButton(
             icon: Icons.settings,
             tooltip: 'Settings (⌘,)',
             onPressed: () => _openSettings(context),
           ),
-          
+
           // More options
           LiquidGlassIconButton(
             icon: Icons.more_horiz,
@@ -328,7 +360,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppConstants.spacingXL),
-              
+
               // Quick prompts
               SizedBox(
                 width: 600,
@@ -349,32 +381,26 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                       icon: Icons.code,
                       title: 'Write code',
                       subtitle: 'Generate code snippets',
-                      onTap: () => _sendQuickPrompt(
-                        'Help me write some code',
-                      ),
+                      onTap: () => _sendQuickPrompt('Help me write some code'),
                     ),
                     _QuickPromptCard(
                       icon: Icons.edit_note,
                       title: 'Help me write',
                       subtitle: 'Draft emails, essays, and more',
-                      onTap: () => _sendQuickPrompt(
-                        'Help me write something',
-                      ),
+                      onTap: () => _sendQuickPrompt('Help me write something'),
                     ),
                     _QuickPromptCard(
                       icon: Icons.search,
                       title: 'Research a topic',
                       subtitle: 'Deep dive into any subject',
-                      onTap: () => _sendQuickPrompt(
-                        'Help me research a topic',
-                      ),
+                      onTap: () => _sendQuickPrompt('Help me research a topic'),
                     ),
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: AppConstants.spacingXL),
-              
+
               // Keyboard shortcuts hint
               Text(
                 'Pro tip: Press ⌘N for new chat, ⌘, for settings',

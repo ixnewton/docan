@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -89,69 +90,18 @@ class _ChatInputState extends State<ChatInput> {
 
   Future<void> _showAttachmentOptions(BuildContext buttonContext) async {
     if (_isDesktop(context)) {
-      _showAttachmentDropdown(buttonContext);
+      // On desktop, go directly to file picker
+      _pickFile();
     } else {
       _showAttachmentBottomSheet();
     }
   }
 
-  void _showAttachmentDropdown(BuildContext buttonContext) {
-    final theme = Theme.of(context);
-    final RenderBox button = buttonContext.findRenderObject() as RenderBox;
-    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
-    final Offset offset = button.localToGlobal(Offset(0, 0), ancestor: overlay);
-
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        offset.dx,
-        offset.dy - 150, // Show above the button
-        offset.dx + button.size.width,
-        offset.dy,
-      ),
-      items: [
-        PopupMenuItem<String>(
-          value: 'gallery',
-          child: Row(
-            children: [
-              Icon(Icons.image, size: 20, color: theme.primaryColor),
-              const SizedBox(width: 12),
-              const Text('Photo from Gallery'),
-            ],
-          ),
-        ),
-        if (!kIsWeb)
-          PopupMenuItem<String>(
-            value: 'camera',
-            child: Row(
-              children: [
-                Icon(Icons.camera_alt, size: 20, color: theme.primaryColor),
-                const SizedBox(width: 12),
-                const Text('Take Photo'),
-              ],
-            ),
-          ),
-        PopupMenuItem<String>(
-          value: 'file',
-          child: Row(
-            children: [
-              Icon(Icons.attach_file, size: 20, color: theme.primaryColor),
-              const SizedBox(width: 12),
-              const Text('File'),
-            ],
-          ),
-        ),
-      ],
-    ).then((value) {
-      if (value == 'gallery') {
-        _pickImage(ImageSource.gallery);
-      } else if (value == 'camera') {
-        _pickImage(ImageSource.camera);
-      } else if (value == 'file') {
-        _pickFile();
-      }
-    });
+  bool _isMobilePlatform() {
+    if (kIsWeb) return false;
+    return Platform.isAndroid || Platform.isIOS;
   }
+
 
   void _showAttachmentBottomSheet() {
     final theme = Theme.of(context);
@@ -173,7 +123,7 @@ class _ChatInputState extends State<ChatInput> {
                 _pickImage(ImageSource.gallery);
               },
             ),
-            if (!kIsWeb) ListTile(
+            if (_isMobilePlatform()) ListTile(
               leading: Icon(Icons.camera_alt, color: theme.primaryColor),
               title: const Text('Take Photo'),
               onTap: () {

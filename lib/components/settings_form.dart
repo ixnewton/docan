@@ -10,6 +10,7 @@ import '../utils/liquid_glass_effects.dart';
 class SettingsForm extends StatefulWidget {
   final Map<AIProvider, String> apiKeys;
   final String ollamaUrl;
+  final String lmStudioUrl;
   final LiquidGlassTheme theme;
   final Color accentColor;
   final double temperature;
@@ -17,6 +18,7 @@ class SettingsForm extends StatefulWidget {
   final String systemPrompt;
   final Function(AIProvider, String) onApiKeyChanged;
   final ValueChanged<String> onOllamaUrlChanged;
+  final ValueChanged<String> onLMStudioUrlChanged;
   final ValueChanged<LiquidGlassTheme> onThemeChanged;
   final ValueChanged<Color> onAccentColorChanged;
   final ValueChanged<double> onTemperatureChanged;
@@ -29,6 +31,7 @@ class SettingsForm extends StatefulWidget {
     super.key,
     required this.apiKeys,
     required this.ollamaUrl,
+    required this.lmStudioUrl,
     required this.theme,
     required this.accentColor,
     required this.temperature,
@@ -36,6 +39,7 @@ class SettingsForm extends StatefulWidget {
     required this.systemPrompt,
     required this.onApiKeyChanged,
     required this.onOllamaUrlChanged,
+    required this.onLMStudioUrlChanged,
     required this.onThemeChanged,
     required this.onAccentColorChanged,
     required this.onTemperatureChanged,
@@ -52,6 +56,7 @@ class SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<SettingsForm> {
   final Map<AIProvider, TextEditingController> _controllers = {};
   final TextEditingController _ollamaController = TextEditingController();
+  final TextEditingController _lmStudioController = TextEditingController();
   final TextEditingController _systemPromptController = TextEditingController();
   String _appVersion = '';
 
@@ -64,6 +69,7 @@ class _SettingsFormState extends State<SettingsForm> {
       );
     }
     _ollamaController.text = widget.ollamaUrl;
+    _lmStudioController.text = widget.lmStudioUrl;
     _systemPromptController.text = widget.systemPrompt;
     _loadVersion();
   }
@@ -83,6 +89,7 @@ class _SettingsFormState extends State<SettingsForm> {
       controller.dispose();
     }
     _ollamaController.dispose();
+    _lmStudioController.dispose();
     _systemPromptController.dispose();
     super.dispose();
   }
@@ -98,10 +105,12 @@ class _SettingsFormState extends State<SettingsForm> {
           title: 'API Keys',
           icon: Icons.key,
           children: [
-            ...AIProvider.values.where((p) => p.requiresApiKey).map(
-                  (provider) => _buildApiKeyField(provider),
-                ),
+            ...AIProvider.values
+                .where((p) => p.requiresApiKey)
+                .map((provider) => _buildApiKeyField(provider)),
             _buildOllamaUrlField(),
+            const SizedBox(height: AppConstants.spacingM),
+            _buildLMStudioUrlField(),
           ],
         ),
 
@@ -142,9 +151,7 @@ class _SettingsFormState extends State<SettingsForm> {
           context,
           title: 'About',
           icon: Icons.info_outline,
-          children: [
-            _buildAboutSection(),
-          ],
+          children: [_buildAboutSection()],
         ),
       ],
     );
@@ -197,11 +204,7 @@ class _SettingsFormState extends State<SettingsForm> {
         children: [
           Row(
             children: [
-              Icon(
-                provider.icon,
-                size: 20,
-                color: provider.color,
-              ),
+              Icon(provider.icon, size: 20, color: provider.color),
               const SizedBox(width: AppConstants.spacingM),
               Text(
                 provider.apiKeyName,
@@ -257,10 +260,7 @@ class _SettingsFormState extends State<SettingsForm> {
               color: AIProvider.ollama.color,
             ),
             const SizedBox(width: AppConstants.spacingS),
-            Text(
-              'Ollama URL',
-              style: theme.textTheme.labelLarge,
-            ),
+            Text('Ollama URL', style: theme.textTheme.labelLarge),
             const Spacer(),
             Icon(
               isConnected ? Icons.check_circle : Icons.error_outline,
@@ -293,16 +293,61 @@ class _SettingsFormState extends State<SettingsForm> {
     );
   }
 
+  Widget _buildLMStudioUrlField() {
+    final theme = Theme.of(context);
+    final isConnected = widget.connectionStatus?[AIProvider.lmstudio] ?? false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              AIProvider.lmstudio.icon,
+              size: 18,
+              color: AIProvider.lmstudio.color,
+            ),
+            const SizedBox(width: AppConstants.spacingS),
+            Text('LM Studio URL', style: theme.textTheme.labelLarge),
+            const Spacer(),
+            Icon(
+              isConnected ? Icons.check_circle : Icons.error_outline,
+              size: 18,
+              color: isConnected ? Colors.green : Colors.orange,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingS),
+        Row(
+          children: [
+            Expanded(
+              child: LiquidGlassTextField(
+                controller: _lmStudioController,
+                hintText: 'http://localhost:1234/v1',
+                onChanged: widget.onLMStudioUrlChanged,
+              ),
+            ),
+            if (widget.onTestConnection != null) ...[
+              const SizedBox(width: AppConstants.spacingS),
+              LiquidGlassIconButton(
+                icon: Icons.refresh,
+                tooltip: 'Test Connection',
+                onPressed: () => widget.onTestConnection!(AIProvider.lmstudio),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildThemeSelector() {
     final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Liquid Glass Style',
-          style: theme.textTheme.labelLarge,
-        ),
+        Text('Liquid Glass Style', style: theme.textTheme.labelLarge),
         const SizedBox(height: AppConstants.spacingS),
         Wrap(
           spacing: AppConstants.spacingS,
@@ -323,9 +368,7 @@ class _SettingsFormState extends State<SettingsForm> {
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(AppConstants.radiusS),
                   border: Border.all(
-                    color: isSelected
-                        ? theme.primaryColor
-                        : theme.dividerColor,
+                    color: isSelected ? theme.primaryColor : theme.dividerColor,
                     width: isSelected ? 2 : 1,
                   ),
                 ),
@@ -345,7 +388,9 @@ class _SettingsFormState extends State<SettingsForm> {
                     Text(
                       t.name[0].toUpperCase() + t.name.substring(1),
                       style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -377,16 +422,14 @@ class _SettingsFormState extends State<SettingsForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Accent Color',
-          style: theme.textTheme.labelLarge,
-        ),
+        Text('Accent Color', style: theme.textTheme.labelLarge),
         const SizedBox(height: AppConstants.spacingS),
         Wrap(
           spacing: AppConstants.spacingS,
           runSpacing: AppConstants.spacingS,
           children: LiquidGlassColors.accentColors.map((color) {
-            final isSelected = color.toARGB32() == widget.accentColor.toARGB32();
+            final isSelected =
+                color.toARGB32() == widget.accentColor.toARGB32();
             return GestureDetector(
               onTap: () => widget.onAccentColorChanged(color),
               child: AnimatedContainer(
@@ -430,10 +473,7 @@ class _SettingsFormState extends State<SettingsForm> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Temperature',
-              style: theme.textTheme.labelLarge,
-            ),
+            Text('Temperature', style: theme.textTheme.labelLarge),
             Text(
               widget.temperature.toStringAsFixed(1),
               style: theme.textTheme.labelMedium?.copyWith(
@@ -472,10 +512,7 @@ class _SettingsFormState extends State<SettingsForm> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Max Tokens',
-              style: theme.textTheme.labelLarge,
-            ),
+            Text('Max Tokens', style: theme.textTheme.labelLarge),
             Text(
               widget.maxTokens.toString(),
               style: theme.textTheme.labelMedium?.copyWith(
@@ -497,8 +534,14 @@ class _SettingsFormState extends State<SettingsForm> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${AppConstants.minMaxTokens}', style: theme.textTheme.labelSmall),
-            Text('${AppConstants.maxMaxTokens}', style: theme.textTheme.labelSmall),
+            Text(
+              '${AppConstants.minMaxTokens}',
+              style: theme.textTheme.labelSmall,
+            ),
+            Text(
+              '${AppConstants.maxMaxTokens}',
+              style: theme.textTheme.labelSmall,
+            ),
           ],
         ),
       ],
@@ -514,16 +557,9 @@ class _SettingsFormState extends State<SettingsForm> {
       children: [
         Row(
           children: [
-            Icon(
-              Icons.psychology,
-              size: 18,
-              color: theme.primaryColor,
-            ),
+            Icon(Icons.psychology, size: 18, color: theme.primaryColor),
             const SizedBox(width: AppConstants.spacingS),
-            Text(
-              'System Prompt',
-              style: theme.textTheme.labelLarge,
-            ),
+            Text('System Prompt', style: theme.textTheme.labelLarge),
           ],
         ),
         const SizedBox(height: AppConstants.spacingS),
@@ -540,7 +576,9 @@ class _SettingsFormState extends State<SettingsForm> {
           decoration: InputDecoration(
             hintText: 'e.g., You are a helpful coding assistant...',
             filled: true,
-            fillColor: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.05),
+            fillColor: isDark
+                ? Colors.black26
+                : Colors.black.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusM),
               borderSide: BorderSide.none,
@@ -565,7 +603,7 @@ class _SettingsFormState extends State<SettingsForm> {
           subtitle: _appVersion.isEmpty ? 'Loading...' : _appVersion,
         ),
         const SizedBox(height: AppConstants.spacingM),
-        
+
         // GitLab
         _buildAboutRow(
           context,
@@ -575,7 +613,7 @@ class _SettingsFormState extends State<SettingsForm> {
           onTap: () => _launchUrl('https://gitlab.com/Openlyst/docan'),
         ),
         const SizedBox(height: AppConstants.spacingM),
-        
+
         // Website
         _buildAboutRow(
           context,
@@ -585,10 +623,10 @@ class _SettingsFormState extends State<SettingsForm> {
           onTap: () => _launchUrl('https://openlyst.ink/'),
         ),
         const SizedBox(height: AppConstants.spacingM),
-        
+
         const Divider(height: 1),
         const SizedBox(height: AppConstants.spacingM),
-        
+
         // Privacy Policy
         _buildAboutRow(
           context,
@@ -598,7 +636,7 @@ class _SettingsFormState extends State<SettingsForm> {
           onTap: () => _showPrivacyDialog(context),
         ),
         const SizedBox(height: AppConstants.spacingM),
-        
+
         // Terms of Service
         _buildAboutRow(
           context,
@@ -608,7 +646,7 @@ class _SettingsFormState extends State<SettingsForm> {
           onTap: () => _showTosDialog(context),
         ),
         const SizedBox(height: AppConstants.spacingM),
-        
+
         // License
         _buildAboutRow(
           context,
@@ -652,7 +690,9 @@ class _SettingsFormState extends State<SettingsForm> {
                   Text(
                     subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                      color: theme.textTheme.bodySmall?.color?.withValues(
+                        alpha: 0.7,
+                      ),
                     ),
                   ),
                 ],
@@ -683,7 +723,10 @@ class _SettingsFormState extends State<SettingsForm> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.privacy_tip_outlined, color: Theme.of(context).primaryColor),
+            Icon(
+              Icons.privacy_tip_outlined,
+              color: Theme.of(context).primaryColor,
+            ),
             const SizedBox(width: AppConstants.spacingS),
             const Text('Privacy Policy'),
           ],
@@ -736,7 +779,10 @@ class _SettingsFormState extends State<SettingsForm> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.description_outlined, color: Theme.of(context).primaryColor),
+            Icon(
+              Icons.description_outlined,
+              color: Theme.of(context).primaryColor,
+            ),
             const SizedBox(width: AppConstants.spacingS),
             const Text('Terms of Service'),
           ],
@@ -761,10 +807,7 @@ class _SettingsFormState extends State<SettingsForm> {
                 style: TextStyle(fontSize: 14),
               ),
               SizedBox(height: 8),
-              Text(
-                '💻 Everything is local',
-                style: TextStyle(fontSize: 14),
-              ),
+              Text('💻 Everything is local', style: TextStyle(fontSize: 14)),
               SizedBox(height: 16),
               Text(
                 'By using Docan, you agree that:',
@@ -863,7 +906,8 @@ class _SettingsFormState extends State<SettingsForm> {
         ),
         actions: [
           TextButton(
-            onPressed: () => _launchUrl('https://www.gnu.org/licenses/gpl-3.0.en.html'),
+            onPressed: () =>
+                _launchUrl('https://www.gnu.org/licenses/gpl-3.0.en.html'),
             child: const Text('View Full License'),
           ),
           TextButton(

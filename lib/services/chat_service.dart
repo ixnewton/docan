@@ -8,12 +8,13 @@ import 'gemini_service.dart';
 import 'openai_service.dart';
 import 'claude_service.dart';
 import 'ollama_service.dart';
+import 'lmstudio_service.dart';
 import 'storage_service.dart';
 
 /// Chat service for managing conversations and AI interactions
 class ChatService extends ChangeNotifier {
   final StorageService _storage;
-  
+
   List<Conversation> _conversations = [];
   Conversation? _currentConversation;
   AIProvider _selectedProvider = AIProvider.gemini;
@@ -36,15 +37,15 @@ class ChatService extends ChangeNotifier {
     _services[AIProvider.openai] = OpenAIService();
     _services[AIProvider.claude] = ClaudeService();
     _services[AIProvider.ollama] = OllamaService();
+    _services[AIProvider.lmstudio] = LMStudioService();
   }
 
   // Getters
   List<Conversation> get conversations => _conversations;
   Conversation? get currentConversation => _currentConversation;
   AIProvider get selectedProvider => _selectedProvider;
-  String get selectedModel => _selectedModel.isEmpty 
-      ? _selectedProvider.defaultModel 
-      : _selectedModel;
+  String get selectedModel =>
+      _selectedModel.isEmpty ? _selectedProvider.defaultModel : _selectedModel;
   bool get isLoading => _isLoading;
   String? get error => _error;
   double get temperature => _temperature;
@@ -58,12 +59,12 @@ class ChatService extends ChangeNotifier {
     return await _services[provider]!.getAvailableModels();
   }
 
-  /// Get map of configured providers (has API key or Ollama URL)
+  /// Get map of configured providers (has API key or Ollama/LM Studio URL)
   Future<Map<AIProvider, bool>> getConfiguredProviders() async {
     final result = <AIProvider, bool>{};
     for (final provider in AIProvider.values) {
-      if (provider == AIProvider.ollama) {
-        // For Ollama, check if it's reachable
+      if (provider == AIProvider.ollama || provider == AIProvider.lmstudio) {
+        // For Ollama and LM Studio, check if it's reachable
         final isConnected = await testConnection(provider);
         result[provider] = isConnected;
       } else {
@@ -78,10 +79,11 @@ class ChatService extends ChangeNotifier {
   Future<void> initialize() async {
     // Load conversations
     _conversations = await _storage.loadConversations();
-    
+
     // Load settings
     _selectedProvider = await _storage.getSelectedProvider();
-    _selectedModel = await _storage.getSelectedModel() ?? _selectedProvider.defaultModel;
+    _selectedModel =
+        await _storage.getSelectedModel() ?? _selectedProvider.defaultModel;
     _temperature = await _storage.getTemperature();
     _maxTokens = await _storage.getMaxTokens();
     _systemPrompt = await _storage.getSystemPrompt();
@@ -93,6 +95,12 @@ class ChatService extends ChangeNotifier {
         _services[provider]?.setApiKey(apiKey);
       }
     }
+
+    // Load LM Studio URL (stored separately from API keys)
+    final lmStudioUrl = await _storage.getLMStudioUrl();
+    (_services[AIProvider.lmstudio] as LMStudioService?)?.setBaseUrl(
+      lmStudioUrl,
+    );
 
     // Set models
     for (final service in _services.values) {
@@ -173,25 +181,33 @@ class ChatService extends ChangeNotifier {
   Future<void> deleteConversation(String conversationId) async {
     _conversations.removeWhere((c) => c.id == conversationId);
     if (_currentConversation?.id == conversationId) {
-      _currentConversation = _conversations.isNotEmpty ? _conversations.first : null;
+      _currentConversation = _conversations.isNotEmpty
+          ? _conversations.first
+          : null;
     }
     await _storage.deleteConversation(conversationId);
     notifyListeners();
   }
 
   /// Send a message
-  Future<void> sendMessage(String content, {List<Attachment>? attachments}) async {
+  Future<void> sendMessage(
+    String content, {
+    List<Attachment>? attachments,
+  }) async {
     debugPrint('[ChatService] sendMessage called');
-    debugPrint('[ChatService] Provider: ${_selectedProvider.name}, Model: $selectedModel');
+    debugPrint(
+      '[ChatService] Provider: ${_selectedProvider.name}, Model: $selectedModel',
+    );
     debugPrint('[ChatService] Attachments: ${attachments?.length ?? 0}');
-    
-    if (content.trim().isEmpty && (attachments == null || attachments.isEmpty)) {
+
+    if (content.trim().isEmpty &&
+        (attachments == null || attachments.isEmpty)) {
       debugPrint('[ChatService] Empty message and no attachments, returning');
       return;
     }
 
     _error = null;
-    
+
     // Create conversation if needed
     if (_currentConversation == null) {
       debugPrint('[ChatService] Creating new conversation');
@@ -218,24 +234,31 @@ class ChatService extends ChangeNotifier {
           .where((m) => m.id != placeholderMessage.id && m.id != userMessage.id)
           .toList();
       final history = allMessages;
-      
+
       debugPrint('[ChatService] Starting stream request');
       debugPrint('[ChatService] History messages: ${history.length}');
-      debugPrint('[ChatService] Temperature: $_temperature, MaxTokens: $_maxTokens');
-      debugPrint('[ChatService] System prompt: ${_systemPrompt.isNotEmpty ? "set" : "none"}');
+      debugPrint(
+        '[ChatService] Temperature: $_temperature, MaxTokens: $_maxTokens',
+      );
+      debugPrint(
+        '[ChatService] System prompt: ${_systemPrompt.isNotEmpty ? "set" : "none"}',
+      );
 
       String fullResponse = '';
       bool success = false;
       String? lastError;
-      
+
       // Try current model first, then fallback models on 429
-      final modelsToTry = [_selectedModel, ..._getFallbackModels(_selectedProvider, _selectedModel)];
-      
+      final modelsToTry = [
+        _selectedModel,
+        ..._getFallbackModels(_selectedProvider, _selectedModel),
+      ];
+
       for (final modelToTry in modelsToTry) {
         try {
           debugPrint('[ChatService] Trying model: $modelToTry');
           currentService.setModel(modelToTry);
-          
+
           // Use streaming
           final stream = currentService.sendMessageStream(
             content,
@@ -261,19 +284,20 @@ class ChatService extends ChangeNotifier {
             _updateConversationInList();
             notifyListeners();
           }
-          
+
           success = true;
           // Update selected model if we had to fallback
           if (modelToTry != _selectedModel) {
-            debugPrint('[ChatService] Successfully fell back to model: $modelToTry');
+            debugPrint(
+              '[ChatService] Successfully fell back to model: $modelToTry',
+            );
             _selectedModel = modelToTry;
           }
           break; // Success, exit loop
-          
         } catch (e) {
           lastError = e.toString();
           debugPrint('[ChatService] Model $modelToTry failed: $e');
-          
+
           // Check if it's a rate limit error (429)
           if (_isRateLimitError(e)) {
             debugPrint('[ChatService] Rate limit hit, trying next model...');
@@ -284,9 +308,12 @@ class ChatService extends ChangeNotifier {
           }
         }
       }
-      
+
       if (!success) {
-        throw Exception(lastError ?? 'All models failed due to rate limiting. Please try again later.');
+        throw Exception(
+          lastError ??
+              'All models failed due to rate limiting. Please try again later.',
+        );
       }
 
       // Finalize message
@@ -305,7 +332,6 @@ class ChatService extends ChangeNotifier {
           title: _generateTitle(content),
         );
       }
-
     } catch (e, stackTrace) {
       debugPrint('[ChatService] ERROR: $e');
       debugPrint('[ChatService] Stack trace: $stackTrace');
@@ -336,11 +362,11 @@ class ChatService extends ChangeNotifier {
   /// Check if error is a rate limit (429) error
   bool _isRateLimitError(Object error) {
     final errorStr = error.toString().toLowerCase();
-    return errorStr.contains('429') || 
-           errorStr.contains('rate limit') ||
-           errorStr.contains('too many requests') ||
-           errorStr.contains('quota exceeded') ||
-           errorStr.contains('resource exhausted');
+    return errorStr.contains('429') ||
+        errorStr.contains('rate limit') ||
+        errorStr.contains('too many requests') ||
+        errorStr.contains('quota exceeded') ||
+        errorStr.contains('resource exhausted');
   }
 
   /// Get fallback models for a provider when rate limited
@@ -353,7 +379,9 @@ class ChatService extends ChangeNotifier {
   /// Update conversation in list
   void _updateConversationInList() {
     if (_currentConversation == null) return;
-    final index = _conversations.indexWhere((c) => c.id == _currentConversation!.id);
+    final index = _conversations.indexWhere(
+      (c) => c.id == _currentConversation!.id,
+    );
     if (index >= 0) {
       _conversations[index] = _currentConversation!;
     }
@@ -390,12 +418,16 @@ class ChatService extends ChangeNotifier {
     // Remove last AI message
     final messages = _currentConversation!.messages;
     if (messages.last.role == MessageRole.assistant) {
-      _currentConversation = _currentConversation!.removeMessage(messages.last.id);
-      
+      _currentConversation = _currentConversation!.removeMessage(
+        messages.last.id,
+      );
+
       // Get the last user message and resend
       final lastUserMessage = _currentConversation!.messages.last;
       if (lastUserMessage.role == MessageRole.user) {
-        _currentConversation = _currentConversation!.removeMessage(lastUserMessage.id);
+        _currentConversation = _currentConversation!.removeMessage(
+          lastUserMessage.id,
+        );
         await sendMessage(lastUserMessage.content);
       }
     }

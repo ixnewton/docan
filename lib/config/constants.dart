@@ -14,12 +14,14 @@ class AppConstants {
   static const String openAIBaseUrl = 'https://api.openai.com/v1';
   static const String claudeBaseUrl = 'https://api.anthropic.com/v1';
   static const String ollamaDefaultUrl = 'http://localhost:11434';
+  static const String lmStudioDefaultUrl = 'http://localhost:1234/v1';
 
   // Default Models
   static const String defaultGeminiModel = 'gemini-2.5-flash';
   static const String defaultOpenAIModel = 'gpt-4o';
   static const String defaultClaudeModel = 'claude-sonnet-4-20250514';
   static const String defaultOllamaModel = 'llama3.2';
+  static const String defaultLMStudioModel = 'default';
 
   // AI Parameters
   static const double defaultTemperature = 0.7;
@@ -77,6 +79,7 @@ class AppConstants {
   static const String keyOpenAIApiKey = 'openai_api_key';
   static const String keyClaudeApiKey = 'claude_api_key';
   static const String keyOllamaUrl = 'ollama_url';
+  static const String keyLMStudioUrl = 'lmstudio_url';
   static const String keyThemeMode = 'theme_mode';
   static const String keyTemperature = 'temperature';
   static const String keyMaxTokens = 'max_tokens';

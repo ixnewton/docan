@@ -19,6 +19,7 @@ class DesktopSettingsScreen extends StatefulWidget {
 class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   Map<AIProvider, String> _apiKeys = {};
   String _ollamaUrl = AppConstants.ollamaDefaultUrl;
+  String _lmStudioUrl = AppConstants.lmStudioDefaultUrl;
   final Map<AIProvider, bool> _connectionStatus = {};
   bool _isLoading = true;
 
@@ -30,7 +31,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
 
   Future<void> _loadSettings() async {
     final storage = await StorageService.getInstance();
-    
+
     final apiKeys = <AIProvider, String>{};
     for (final provider in AIProvider.values) {
       if (provider.requiresApiKey) {
@@ -42,10 +43,12 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
     }
 
     final ollamaUrl = await storage.getOllamaUrl();
+    final lmStudioUrl = await storage.getLMStudioUrl();
 
     setState(() {
       _apiKeys = apiKeys;
       _ollamaUrl = ollamaUrl;
+      _lmStudioUrl = lmStudioUrl;
       _isLoading = false;
     });
 
@@ -54,7 +57,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
 
   Future<void> _testAllConnections() async {
     final chatService = context.read<ChatService>();
-    
+
     for (final provider in AIProvider.values) {
       final isConnected = await chatService.testConnection(provider);
       if (mounted) {
@@ -68,12 +71,12 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   Future<void> _testConnection(AIProvider provider) async {
     final chatService = context.read<ChatService>();
     final isConnected = await chatService.testConnection(provider);
-    
+
     if (mounted) {
       setState(() {
         _connectionStatus[provider] = isConnected;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -128,7 +131,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                 ],
               ),
             ),
-            
+
             // Content
             Expanded(
               child: _isLoading
@@ -138,6 +141,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                         return SettingsForm(
                           apiKeys: _apiKeys,
                           ollamaUrl: _ollamaUrl,
+                          lmStudioUrl: _lmStudioUrl,
                           theme: themeProvider.theme,
                           accentColor: themeProvider.accentColor,
                           temperature: chatService.temperature,
@@ -157,6 +161,17 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                             final storage = await StorageService.getInstance();
                             await storage.setOllamaUrl(url);
                           },
+                          onLMStudioUrlChanged: (url) async {
+                            setState(() {
+                              _lmStudioUrl = url;
+                            });
+                            final storage = await StorageService.getInstance();
+                            await storage.setLMStudioUrl(url);
+                            await chatService.setApiKey(
+                              AIProvider.lmstudio,
+                              url,
+                            );
+                          },
                           onThemeChanged: (theme) async {
                             themeProvider.setTheme(theme);
                             final storage = await StorageService.getInstance();
@@ -173,7 +188,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                       },
                     ),
             ),
-            
+
             // Footer
             Container(
               padding: const EdgeInsets.all(AppConstants.spacingM),

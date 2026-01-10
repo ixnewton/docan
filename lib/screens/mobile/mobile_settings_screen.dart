@@ -19,6 +19,7 @@ class MobileSettingsScreen extends StatefulWidget {
 class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
   Map<AIProvider, String> _apiKeys = {};
   String _ollamaUrl = AppConstants.ollamaDefaultUrl;
+  String _lmStudioUrl = AppConstants.lmStudioDefaultUrl;
   final Map<AIProvider, bool> _connectionStatus = {};
   bool _isLoading = true;
 
@@ -30,7 +31,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
 
   Future<void> _loadSettings() async {
     final storage = await StorageService.getInstance();
-    
+
     final apiKeys = <AIProvider, String>{};
     for (final provider in AIProvider.values) {
       if (provider.requiresApiKey) {
@@ -42,10 +43,12 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
     }
 
     final ollamaUrl = await storage.getOllamaUrl();
+    final lmStudioUrl = await storage.getLMStudioUrl();
 
     setState(() {
       _apiKeys = apiKeys;
       _ollamaUrl = ollamaUrl;
+      _lmStudioUrl = lmStudioUrl;
       _isLoading = false;
     });
 
@@ -55,7 +58,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
 
   Future<void> _testAllConnections() async {
     final chatService = context.read<ChatService>();
-    
+
     for (final provider in AIProvider.values) {
       final isConnected = await chatService.testConnection(provider);
       if (mounted) {
@@ -69,12 +72,12 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
   Future<void> _testConnection(AIProvider provider) async {
     final chatService = context.read<ChatService>();
     final isConnected = await chatService.testConnection(provider);
-    
+
     if (mounted) {
       setState(() {
         _connectionStatus[provider] = isConnected;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -116,7 +119,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                 ],
               ),
             ),
-            
+
             // Settings content
             Expanded(
               child: _isLoading
@@ -126,6 +129,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                         return SettingsForm(
                           apiKeys: _apiKeys,
                           ollamaUrl: _ollamaUrl,
+                          lmStudioUrl: _lmStudioUrl,
                           theme: themeProvider.theme,
                           accentColor: themeProvider.accentColor,
                           temperature: chatService.temperature,
@@ -144,6 +148,17 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                             });
                             final storage = await StorageService.getInstance();
                             await storage.setOllamaUrl(url);
+                          },
+                          onLMStudioUrlChanged: (url) async {
+                            setState(() {
+                              _lmStudioUrl = url;
+                            });
+                            final storage = await StorageService.getInstance();
+                            await storage.setLMStudioUrl(url);
+                            await chatService.setApiKey(
+                              AIProvider.lmstudio,
+                              url,
+                            );
                           },
                           onThemeChanged: (theme) async {
                             themeProvider.setTheme(theme);

@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Supported AI Providers
-enum AIProvider {
-  gemini,
-  openai,
-  claude,
-  ollama,
-}
+enum AIProvider { gemini, openai, claude, ollama, lmstudio }
 
 /// Extension methods for AIProvider
 extension AIProviderExtension on AIProvider {
@@ -20,6 +15,8 @@ extension AIProviderExtension on AIProvider {
         return 'Claude';
       case AIProvider.ollama:
         return 'Ollama';
+      case AIProvider.lmstudio:
+        return 'LM Studio';
     }
   }
 
@@ -33,6 +30,8 @@ extension AIProviderExtension on AIProvider {
         return 'Anthropic Claude';
       case AIProvider.ollama:
         return 'Local AI Models';
+      case AIProvider.lmstudio:
+        return 'Local AI via LM Studio';
     }
   }
 
@@ -46,6 +45,8 @@ extension AIProviderExtension on AIProvider {
         return Icons.smart_toy;
       case AIProvider.ollama:
         return Icons.computer;
+      case AIProvider.lmstudio:
+        return Icons.desktop_windows;
     }
   }
 
@@ -59,6 +60,8 @@ extension AIProviderExtension on AIProvider {
         return const Color(0xFFCC785C); // Anthropic Orange
       case AIProvider.ollama:
         return const Color(0xFF6B7280); // Neutral Gray
+      case AIProvider.lmstudio:
+        return const Color(0xFF8B5CF6); // Purple
     }
   }
 
@@ -72,12 +75,7 @@ extension AIProviderExtension on AIProvider {
           'gemini-2.5-flash-lite',
         ];
       case AIProvider.openai:
-        return [
-          'gpt-4o',
-          'gpt-4o-mini',
-          'gpt-4-turbo',
-          'gpt-3.5-turbo',
-        ];
+        return ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
       case AIProvider.claude:
         return [
           'claude-sonnet-4-20250514',
@@ -95,6 +93,8 @@ extension AIProviderExtension on AIProvider {
           'qwen2.5',
           'gemma2',
         ];
+      case AIProvider.lmstudio:
+        return ['Select a model from LM Studio'];
     }
   }
 
@@ -108,6 +108,8 @@ extension AIProviderExtension on AIProvider {
         return 'claude-sonnet-4-20250514';
       case AIProvider.ollama:
         return 'llama3.2';
+      case AIProvider.lmstudio:
+        return 'default';
     }
   }
 
@@ -121,11 +123,13 @@ extension AIProviderExtension on AIProvider {
         return 'Claude API Key';
       case AIProvider.ollama:
         return 'Ollama URL';
+      case AIProvider.lmstudio:
+        return 'LM Studio URL';
     }
   }
 
   bool get requiresApiKey {
-    return this != AIProvider.ollama;
+    return this != AIProvider.ollama && this != AIProvider.lmstudio;
   }
 }
 

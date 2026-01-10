@@ -25,7 +25,7 @@ class StorageService {
         iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
         lOptions: LinuxOptions(),
       );
-      
+
       // Test if secure storage is available with a write/read test
       try {
         const testKey = '_docan_storage_test';
@@ -35,13 +35,17 @@ class StorageService {
         await _secureStorage?.delete(key: testKey);
         _secureStorageAvailable = readValue == testValue;
         if (!_secureStorageAvailable) {
-          debugPrint('Secure storage test failed (read mismatch), using fallback');
+          debugPrint(
+            'Secure storage test failed (read mismatch), using fallback',
+          );
         }
       } catch (e) {
-        debugPrint('Secure storage not available, falling back to shared preferences: $e');
+        debugPrint(
+          'Secure storage not available, falling back to shared preferences: $e',
+        );
         _secureStorageAvailable = false;
       }
-      
+
       // Migrate any existing keys from secure storage to shared prefs if secure storage is unavailable
       if (!_secureStorageAvailable) {
         await _migrateToSharedPrefs();
@@ -49,11 +53,13 @@ class StorageService {
     }
     return _instance!;
   }
-  
+
   static Future<void> _migrateToSharedPrefs() async {
     // Try to read any existing keys from secure storage and migrate them
     try {
-      final secureStorage = const FlutterSecureStorage(lOptions: LinuxOptions());
+      final secureStorage = const FlutterSecureStorage(
+        lOptions: LinuxOptions(),
+      );
       for (final provider in AIProvider.values) {
         final key = _getStaticApiKeyStorageKey(provider);
         final value = await secureStorage.read(key: key);
@@ -66,7 +72,7 @@ class StorageService {
       debugPrint('Migration from secure storage failed (expected): $e');
     }
   }
-  
+
   static String _getStaticApiKeyStorageKey(AIProvider provider) {
     switch (provider) {
       case AIProvider.gemini:
@@ -77,6 +83,8 @@ class StorageService {
         return AppConstants.keyClaudeApiKey;
       case AIProvider.ollama:
         return AppConstants.keyOllamaUrl;
+      case AIProvider.lmstudio:
+        return AppConstants.keyLMStudioUrl;
     }
   }
 
@@ -85,7 +93,7 @@ class StorageService {
   Future<void> setApiKey(AIProvider provider, String key) async {
     final storageKey = _getApiKeyStorageKey(provider);
     final fallbackKey = '_api_$storageKey';
-    
+
     if (_secureStorageAvailable) {
       try {
         await _secureStorage?.write(key: storageKey, value: key);
@@ -104,7 +112,7 @@ class StorageService {
   Future<String?> getApiKey(AIProvider provider) async {
     final storageKey = _getApiKeyStorageKey(provider);
     final fallbackKey = '_api_$storageKey';
-    
+
     if (_secureStorageAvailable) {
       try {
         final value = await _secureStorage?.read(key: storageKey);
@@ -150,6 +158,8 @@ class StorageService {
         return AppConstants.keyClaudeApiKey;
       case AIProvider.ollama:
         return AppConstants.keyOllamaUrl;
+      case AIProvider.lmstudio:
+        return AppConstants.keyLMStudioUrl;
     }
   }
 
@@ -162,6 +172,17 @@ class StorageService {
   Future<String> getOllamaUrl() async {
     return _prefs?.getString(AppConstants.keyOllamaUrl) ??
         AppConstants.ollamaDefaultUrl;
+  }
+
+  // LM Studio URL
+
+  Future<void> setLMStudioUrl(String url) async {
+    await _prefs?.setString(AppConstants.keyLMStudioUrl, url);
+  }
+
+  Future<String> getLMStudioUrl() async {
+    return _prefs?.getString(AppConstants.keyLMStudioUrl) ??
+        AppConstants.lmStudioDefaultUrl;
   }
 
   // Theme Settings
@@ -257,14 +278,16 @@ class StorageService {
 
   Future<void> saveConversation(Conversation conversation) async {
     final conversations = await loadConversations();
-    final existingIndex = conversations.indexWhere((c) => c.id == conversation.id);
-    
+    final existingIndex = conversations.indexWhere(
+      (c) => c.id == conversation.id,
+    );
+
     if (existingIndex >= 0) {
       conversations[existingIndex] = conversation;
     } else {
       conversations.insert(0, conversation);
     }
-    
+
     await saveConversations(conversations);
   }
 

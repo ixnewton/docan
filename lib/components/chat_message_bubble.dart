@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -42,14 +43,15 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: LiquidGlassCurves.smoothEntry),
+      CurvedAnimation(
+        parent: _controller,
+        curve: LiquidGlassCurves.smoothEntry,
+      ),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _controller, curve: LiquidGlassCurves.liquid),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(parent: _controller, curve: LiquidGlassCurves.liquid),
+        );
     _controller.forward();
   }
 
@@ -75,8 +77,9 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
             vertical: AppConstants.spacingS,
           ),
           child: Row(
-            mainAxisAlignment:
-                isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment: isUser
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!isUser) _buildAvatar(context, isUser),
@@ -143,11 +146,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
 
     final bubbleColor = isUser
         ? (isDark
-            ? LiquidGlassColors.userBubbleDark
-            : LiquidGlassColors.userBubbleLight)
+              ? LiquidGlassColors.userBubbleDark
+              : LiquidGlassColors.userBubbleLight)
         : (isDark
-            ? LiquidGlassColors.aiBubbleDark
-            : LiquidGlassColors.aiBubbleLight);
+              ? LiquidGlassColors.aiBubbleDark
+              : LiquidGlassColors.aiBubbleLight);
 
     final textColor = isUser
         ? Colors.white
@@ -185,51 +188,125 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
               if (imageAttachments.isNotEmpty)
                 _buildImageAttachments(imageAttachments),
               // Show text content
-              if (widget.message.content.isNotEmpty || widget.message.isStreaming)
+              if (widget.message.content.isNotEmpty ||
+                  widget.message.isStreaming)
                 Padding(
                   padding: const EdgeInsets.all(AppConstants.bubblePadding),
-                  child: widget.message.isStreaming && widget.message.content.isEmpty
+                  child:
+                      widget.message.isStreaming &&
+                          widget.message.content.isEmpty
                       ? LiquidGlassTypingIndicator(
                           color: isUser ? Colors.white : theme.primaryColor,
                         )
                       : isUser
-                          ? SelectableText(
-                              widget.message.content,
-                              style: theme.textTheme.bodyLarge?.copyWith(color: textColor),
-                            )
-                          : MarkdownBody(
-                              data: widget.message.content,
-                              selectable: true,
-                              styleSheet: MarkdownStyleSheet(
-                                p: theme.textTheme.bodyLarge?.copyWith(color: textColor),
-                                h1: theme.textTheme.headlineLarge?.copyWith(color: textColor),
-                                h2: theme.textTheme.headlineMedium?.copyWith(color: textColor),
-                                h3: theme.textTheme.headlineSmall?.copyWith(color: textColor),
-                                code: TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 14,
-                                  backgroundColor: isDark
-                                      ? Colors.black26
-                                      : Colors.black.withValues(alpha: 0.05),
-                                  color: textColor,
-                                ),
-                                codeblockDecoration: BoxDecoration(
-                                  color: isDark
-                                      ? Colors.black38
-                                      : Colors.black.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                blockquoteDecoration: BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: theme.primaryColor,
-                                      width: 3,
+                      ? SelectableText(
+                          widget.message.content,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: textColor,
+                          ),
+                        )
+                      : MarkdownBody(
+                          data: widget.message.content,
+                          selectable: true,
+                          imageBuilder: (uri, title, alt) {
+                            // Handle base64 data URLs for generated images
+                            if (uri.toString().startsWith('data:image/')) {
+                              try {
+                                final dataUri = uri.toString();
+                                final commaIndex = dataUri.indexOf(',');
+                                if (commaIndex != -1) {
+                                  final base64Data = dataUri.substring(
+                                    commaIndex + 1,
+                                  );
+                                  final bytes = base64Decode(base64Data);
+                                  return ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                      AppConstants.radiusS,
+                                    ),
+                                    child: Image.memory(
+                                      bytes,
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return Container(
+                                              padding: const EdgeInsets.all(
+                                                AppConstants.spacingM,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                      AppConstants.radiusS,
+                                                    ),
+                                              ),
+                                              child: const Text(
+                                                'Failed to load generated image',
+                                              ),
+                                            );
+                                          },
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                return Container(
+                                  padding: const EdgeInsets.all(
+                                    AppConstants.spacingM,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(
+                                      AppConstants.radiusS,
                                     ),
                                   ),
+                                  child: Text('Image error: $e'),
+                                );
+                              }
+                            }
+                            // For other images, show a placeholder
+                            return const SizedBox.shrink();
+                          },
+                          styleSheet: MarkdownStyleSheet(
+                            p: theme.textTheme.bodyLarge?.copyWith(
+                              color: textColor,
+                            ),
+                            h1: theme.textTheme.headlineLarge?.copyWith(
+                              color: textColor,
+                            ),
+                            h2: theme.textTheme.headlineMedium?.copyWith(
+                              color: textColor,
+                            ),
+                            h3: theme.textTheme.headlineSmall?.copyWith(
+                              color: textColor,
+                            ),
+                            code: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 14,
+                              backgroundColor: isDark
+                                  ? Colors.black26
+                                  : Colors.black.withValues(alpha: 0.05),
+                              color: textColor,
+                            ),
+                            codeblockDecoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.black38
+                                  : Colors.black.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            blockquoteDecoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                  color: theme.primaryColor,
+                                  width: 3,
                                 ),
-                                listBullet: theme.textTheme.bodyLarge?.copyWith(color: textColor),
                               ),
                             ),
+                            listBullet: theme.textTheme.bodyLarge?.copyWith(
+                              color: textColor,
+                            ),
+                          ),
+                        ),
                 ),
             ],
           ),
@@ -242,14 +319,16 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
     if (images.length == 1) {
       return _buildSingleImage(images.first);
     }
-    
+
     // Grid for multiple images
     return Padding(
       padding: const EdgeInsets.all(4),
       child: Wrap(
         spacing: 4,
         runSpacing: 4,
-        children: images.map((img) => _buildGridImage(img, images.length)).toList(),
+        children: images
+            .map((img) => _buildGridImage(img, images.length))
+            .toList(),
       ),
     );
   }
@@ -327,10 +406,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
               maxScale: 4.0,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                child: Image.memory(
-                  image.bytes,
-                  fit: BoxFit.contain,
-                ),
+                child: Image.memory(image.bytes, fit: BoxFit.contain),
               ),
             ),
             Padding(
@@ -475,11 +551,7 @@ class _ActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Icon(
-            icon,
-            size: 16,
-            color: theme.textTheme.bodySmall?.color,
-          ),
+          child: Icon(icon, size: 16, color: theme.textTheme.bodySmall?.color),
         ),
       ),
     );

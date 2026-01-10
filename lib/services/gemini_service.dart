@@ -17,6 +17,10 @@ class GeminiService implements AIService {
     if (modelId != null) _modelId = modelId;
   }
 
+  /// Check if the current model supports image generation
+  bool get _isImageModel =>
+      _modelId.contains('-image') || _modelId == 'gemini-3-pro-image-preview';
+
   @override
   AIProvider get provider => AIProvider.gemini;
 
@@ -41,25 +45,25 @@ class GeminiService implements AIService {
     if (_apiKey.isEmpty) {
       return AIProvider.gemini.availableModels;
     }
-    
+
     try {
       final url = Uri.parse(
         '${AppConstants.geminiBaseUrl}/models?key=$_apiKey',
       );
       final response = await http.get(url);
-      
+
       if (response.statusCode != 200) {
         debugPrint('[Gemini] Failed to fetch models: ${response.statusCode}');
         return AIProvider.gemini.availableModels;
       }
-      
+
       final data = jsonDecode(response.body);
       final models = data['models'] as List<dynamic>?;
-      
+
       if (models == null || models.isEmpty) {
         return AIProvider.gemini.availableModels;
       }
-      
+
       // Filter to only include generateContent-capable models
       final availableModels = models
           .where((m) {
@@ -73,9 +77,11 @@ class GeminiService implements AIService {
           })
           .where((name) => !name.contains('embedding') && !name.contains('aqa'))
           .toList();
-      
+
       debugPrint('[Gemini] Found ${availableModels.length} models');
-      return availableModels.isEmpty ? AIProvider.gemini.availableModels : availableModels;
+      return availableModels.isEmpty
+          ? AIProvider.gemini.availableModels
+          : availableModels;
     } catch (e) {
       debugPrint('[Gemini] Error fetching models: $e');
       return AIProvider.gemini.availableModels;
@@ -119,16 +125,28 @@ class GeminiService implements AIService {
     );
     debugPrint('[Gemini] URL: ${url.toString().replaceAll(_apiKey, '***')}');
 
-    final contents = _buildContents(message, history, systemPrompt, attachments: attachments);
+    final contents = _buildContents(
+      message,
+      history,
+      systemPrompt,
+      attachments: attachments,
+    );
+
+    final generationConfig = <String, dynamic>{
+      'temperature': temperature,
+      'maxOutputTokens': maxTokens,
+      'topP': 0.95,
+      'topK': 40,
+    };
+
+    // Add response modalities for image generation models
+    if (_isImageModel) {
+      generationConfig['responseModalities'] = ['TEXT', 'IMAGE'];
+    }
 
     final body = jsonEncode({
       'contents': contents,
-      'generationConfig': {
-        'temperature': temperature,
-        'maxOutputTokens': maxTokens,
-        'topP': 0.95,
-        'topK': 40,
-      },
+      'generationConfig': generationConfig,
     });
 
     debugPrint('[Gemini] Sending request...');
@@ -156,7 +174,27 @@ class GeminiService implements AIService {
     final content = candidates[0]['content'];
     final parts = content['parts'] as List<dynamic>;
 
-    return parts.map((p) => p['text'] ?? '').join('');
+    // Process parts - handle both text and images
+    final result = StringBuffer();
+    for (final part in parts) {
+      // Skip thought parts (for thinking models)
+      if (part['thought'] == true) continue;
+
+      if (part['text'] != null) {
+        result.write(part['text']);
+      } else if (part['inlineData'] != null || part['inline_data'] != null) {
+        final inlineData = part['inlineData'] ?? part['inline_data'];
+        final mimeType =
+            inlineData['mimeType'] ?? inlineData['mime_type'] ?? 'image/png';
+        final data = inlineData['data'];
+        if (data != null) {
+          // Return image as a special marker that can be parsed by the chat bubble
+          result.write('\n![Generated Image](data:$mimeType;base64,$data)\n');
+        }
+      }
+    }
+
+    return result.toString();
   }
 
   @override
@@ -186,16 +224,28 @@ class GeminiService implements AIService {
       '[Gemini] Stream URL: ${url.toString().replaceAll(_apiKey, '***')}',
     );
 
-    final contents = _buildContents(message, history, systemPrompt, attachments: attachments);
+    final contents = _buildContents(
+      message,
+      history,
+      systemPrompt,
+      attachments: attachments,
+    );
+
+    final generationConfig = <String, dynamic>{
+      'temperature': temperature,
+      'maxOutputTokens': maxTokens,
+      'topP': 0.95,
+      'topK': 40,
+    };
+
+    // Add response modalities for image generation models
+    if (_isImageModel) {
+      generationConfig['responseModalities'] = ['TEXT', 'IMAGE'];
+    }
 
     final body = jsonEncode({
       'contents': contents,
-      'generationConfig': {
-        'temperature': temperature,
-        'maxOutputTokens': maxTokens,
-        'topP': 0.95,
-        'topK': 40,
-      },
+      'generationConfig': generationConfig,
     });
 
     final request = http.Request('POST', url);
@@ -243,13 +293,34 @@ class GeminiService implements AIService {
                 final content = candidates[0]['content'];
                 final parts = content?['parts'] as List<dynamic>?;
                 if (parts != null && parts.isNotEmpty) {
-                  final text = parts[0]['text'] ?? '';
-                  if (text.isNotEmpty) {
-                    chunkCount++;
-                    if (chunkCount <= 3) {
-                      debugPrint('[Gemini] Chunk $chunkCount received');
+                  for (final part in parts) {
+                    // Skip thought parts (for thinking models)
+                    if (part['thought'] == true) continue;
+
+                    final text = part['text'];
+                    if (text != null && text.isNotEmpty) {
+                      chunkCount++;
+                      if (chunkCount <= 3) {
+                        debugPrint('[Gemini] Chunk $chunkCount received');
+                      }
+                      yield text;
                     }
-                    yield text;
+
+                    // Handle inline image data
+                    final inlineData =
+                        part['inlineData'] ?? part['inline_data'];
+                    if (inlineData != null) {
+                      final mimeType =
+                          inlineData['mimeType'] ??
+                          inlineData['mime_type'] ??
+                          'image/png';
+                      final imageData = inlineData['data'];
+                      if (imageData != null) {
+                        chunkCount++;
+                        debugPrint('[Gemini] Image chunk received');
+                        yield '\n![Generated Image](data:$mimeType;base64,$imageData)\n';
+                      }
+                    }
                   }
                 }
               }
@@ -272,11 +343,31 @@ class GeminiService implements AIService {
               final content = candidates[0]['content'];
               final parts = content?['parts'] as List<dynamic>?;
               if (parts != null && parts.isNotEmpty) {
-                final text = parts[0]['text'] ?? '';
-                if (text.isNotEmpty) {
-                  chunkCount++;
-                  debugPrint('[Gemini] Final buffer chunk received');
-                  yield text;
+                for (final part in parts) {
+                  // Skip thought parts
+                  if (part['thought'] == true) continue;
+
+                  final text = part['text'];
+                  if (text != null && text.isNotEmpty) {
+                    chunkCount++;
+                    debugPrint('[Gemini] Final buffer text chunk received');
+                    yield text;
+                  }
+
+                  // Handle inline image data
+                  final inlineData = part['inlineData'] ?? part['inline_data'];
+                  if (inlineData != null) {
+                    final mimeType =
+                        inlineData['mimeType'] ??
+                        inlineData['mime_type'] ??
+                        'image/png';
+                    final imageData = inlineData['data'];
+                    if (imageData != null) {
+                      chunkCount++;
+                      debugPrint('[Gemini] Final buffer image chunk received');
+                      yield '\n![Generated Image](data:$mimeType;base64,$imageData)\n';
+                    }
+                  }
                 }
               }
             }
@@ -321,9 +412,9 @@ class GeminiService implements AIService {
       if (msg.role == MessageRole.system) continue;
       // Skip error messages and empty content
       if (msg.error != null || msg.content.trim().isEmpty) continue;
-      
+
       final parts = <Map<String, dynamic>>[];
-      
+
       // Add any image attachments from history
       if (msg.attachments.isNotEmpty) {
         for (final attachment in msg.attachments) {
@@ -337,10 +428,10 @@ class GeminiService implements AIService {
           }
         }
       }
-      
+
       // Add text content
       parts.add({'text': msg.content});
-      
+
       contents.add({
         'role': msg.role == MessageRole.user ? 'user' : 'model',
         'parts': parts,
@@ -349,7 +440,7 @@ class GeminiService implements AIService {
 
     // Build parts for current message
     final currentParts = <Map<String, dynamic>>[];
-    
+
     // Add image attachments first
     if (attachments != null) {
       for (final attachment in attachments) {
@@ -363,15 +454,14 @@ class GeminiService implements AIService {
         }
       }
     }
-    
+
     // Add text content
-    currentParts.add({'text': message.isNotEmpty ? message : 'Describe this image.'});
-    
-    // Add current message
-    contents.add({
-      'role': 'user',
-      'parts': currentParts,
+    currentParts.add({
+      'text': message.isNotEmpty ? message : 'Describe this image.',
     });
+
+    // Add current message
+    contents.add({'role': 'user', 'parts': currentParts});
 
     return contents;
   }

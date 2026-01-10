@@ -45,21 +45,18 @@ class _MobilePlaybooksScreenState extends State<MobilePlaybooksScreen> {
       body: service.isLoading
           ? const Center(child: CircularProgressIndicator())
           : service.playbooks.isEmpty
-              ? _EmptyState(
-                  onImport: _importPlaybook,
-                  onNew: _createNewPlaybook,
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(AppConstants.spacingM),
-                  itemCount: service.playbooks.length,
-                  itemBuilder: (context, index) {
-                    final playbook = service.playbooks[index];
-                    return _PlaybookCard(
-                      playbook: playbook,
-                      onTap: () => _showPlaybookDetail(playbook),
-                    );
-                  },
-                ),
+          ? _EmptyState(onImport: _importPlaybook, onNew: _createNewPlaybook)
+          : ListView.builder(
+              padding: const EdgeInsets.all(AppConstants.spacingM),
+              itemCount: service.playbooks.length,
+              itemBuilder: (context, index) {
+                final playbook = service.playbooks[index];
+                return _PlaybookCard(
+                  playbook: playbook,
+                  onTap: () => _showPlaybookDetail(playbook),
+                );
+              },
+            ),
     );
   }
 
@@ -68,15 +65,15 @@ class _MobilePlaybooksScreenState extends State<MobilePlaybooksScreen> {
       final service = context.read<PlaybookService>();
       final playbook = await service.importFromFile();
       if (playbook != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported "${playbook.name}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Imported "${playbook.name}"')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to import: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to import: $e')));
       }
     }
   }
@@ -84,9 +81,7 @@ class _MobilePlaybooksScreenState extends State<MobilePlaybooksScreen> {
   void _createNewPlaybook() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const _PlaybookEditorScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const _PlaybookEditorScreen()),
     );
   }
 
@@ -105,10 +100,7 @@ class _PlaybookCard extends StatelessWidget {
   final Playbook playbook;
   final VoidCallback onTap;
 
-  const _PlaybookCard({
-    required this.playbook,
-    required this.onTap,
-  });
+  const _PlaybookCard({required this.playbook, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +145,9 @@ class _PlaybookCard extends StatelessWidget {
                             playbook.name,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w600,
-                              color: playbook.enabled ? null : theme.disabledColor,
+                              color: playbook.enabled
+                                  ? null
+                                  : theme.disabledColor,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -227,7 +221,8 @@ class _PlaybookCard extends StatelessWidget {
     if (name.contains('news')) return Icons.newspaper;
     if (name.contains('github')) return Icons.code;
     if (name.contains('search')) return Icons.search;
-    if (name.contains('email') || name.contains('mail')) return Icons.email_outlined;
+    if (name.contains('email') || name.contains('mail'))
+      return Icons.email_outlined;
     return Icons.extension;
   }
 }
@@ -281,7 +276,7 @@ class _PlaybookDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final service = context.watch<PlaybookService>();
-    
+
     // Get latest playbook data
     final currentPlaybook = service.getPlaybook(playbook.id) ?? playbook;
 
@@ -295,7 +290,8 @@ class _PlaybookDetailScreen extends StatelessWidget {
             onPressed: () => _editPlaybook(context, currentPlaybook),
           ),
           PopupMenuButton<String>(
-            onSelected: (action) => _handleAction(context, action, currentPlaybook),
+            onSelected: (action) =>
+                _handleAction(context, action, currentPlaybook),
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: 'export',
@@ -357,7 +353,8 @@ class _PlaybookDetailScreen extends StatelessWidget {
                                     ),
                                   _InfoBadge(
                                     icon: Icons.api,
-                                    text: 'SDK v${currentPlaybook.playbookVersion}',
+                                    text:
+                                        'SDK v${currentPlaybook.playbookVersion}',
                                   ),
                                 ],
                               ),
@@ -436,29 +433,36 @@ class _PlaybookDetailScreen extends StatelessWidget {
             // Triggers section
             if (currentPlaybook.triggers.isNotEmpty) ...[
               _SectionHeader(title: 'Triggers'),
-              ...currentPlaybook.triggers.map((trigger) => Card(
-                margin: const EdgeInsets.only(bottom: AppConstants.spacingS),
-                child: ListTile(
-                  leading: const Icon(Icons.bolt),
-                  title: Text(
-                    trigger.pattern,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                  ),
-                  subtitle: trigger.description != null
-                      ? Text(trigger.description!)
-                      : null,
-                  trailing: Text(
-                    'Priority ${trigger.priority}',
-                    style: theme.textTheme.bodySmall,
+              ...currentPlaybook.triggers.map(
+                (trigger) => Card(
+                  margin: const EdgeInsets.only(bottom: AppConstants.spacingS),
+                  child: ListTile(
+                    leading: const Icon(Icons.bolt),
+                    title: Text(
+                      trigger.pattern,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                      ),
+                    ),
+                    subtitle: trigger.description != null
+                        ? Text(trigger.description!)
+                        : null,
+                    trailing: Text(
+                      'Priority ${trigger.priority}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ),
                 ),
-              )),
+              ),
               const SizedBox(height: AppConstants.spacingM),
             ],
 
             // Actions section
             _SectionHeader(title: 'Actions'),
-            ...currentPlaybook.actions.map((action) => _ActionCard(action: action)),
+            ...currentPlaybook.actions.map(
+              (action) => _ActionCard(action: action),
+            ),
 
             const SizedBox(height: AppConstants.spacingL),
 
@@ -489,7 +493,11 @@ class _PlaybookDetailScreen extends StatelessWidget {
     );
   }
 
-  void _handleAction(BuildContext context, String action, Playbook playbook) async {
+  void _handleAction(
+    BuildContext context,
+    String action,
+    Playbook playbook,
+  ) async {
     final service = context.read<PlaybookService>();
 
     switch (action) {
@@ -503,9 +511,9 @@ class _PlaybookDetailScreen extends StatelessWidget {
           }
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to export: $e')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Failed to export: $e')));
           }
         }
         break;
@@ -514,7 +522,9 @@ class _PlaybookDetailScreen extends StatelessWidget {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Delete Playbook'),
-            content: Text('Are you sure you want to delete "${playbook.name}"?'),
+            content: Text(
+              'Are you sure you want to delete "${playbook.name}"?',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -653,10 +663,7 @@ class _ActionCard extends StatelessWidget {
             ),
             if (action.description != null) ...[
               const SizedBox(height: 4),
-              Text(
-                action.description!,
-                style: theme.textTheme.bodySmall,
-              ),
+              Text(action.description!, style: theme.textTheme.bodySmall),
             ],
             if (action.parameters.isNotEmpty) ...[
               const SizedBox(height: AppConstants.spacingS),
@@ -695,6 +702,7 @@ class _ConfigSheet extends StatefulWidget {
 class _ConfigSheetState extends State<_ConfigSheet> {
   late Map<String, dynamic> _config;
   final _controllers = <String, TextEditingController>{};
+  final _obscured = <String, bool>{};
 
   @override
   void initState() {
@@ -702,8 +710,12 @@ class _ConfigSheetState extends State<_ConfigSheet> {
     _config = Map.from(widget.playbook.userConfig);
     for (final field in widget.playbook.config) {
       _controllers[field.name] = TextEditingController(
-        text: _config[field.name]?.toString() ?? '',
+        text:
+            _config[field.name]?.toString() ??
+            field.defaultValue?.toString() ??
+            '',
       );
+      _obscured[field.name] = field.secret;
     }
   }
 
@@ -718,6 +730,7 @@ class _ConfigSheetState extends State<_ConfigSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasConfig = widget.playbook.config.isNotEmpty;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -750,21 +763,22 @@ class _ConfigSheetState extends State<_ConfigSheet> {
                 padding: const EdgeInsets.all(AppConstants.spacingM),
                 child: Row(
                   children: [
-                    Text(
-                      'Configure ${widget.playbook.name}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    const Icon(Icons.settings),
+                    const SizedBox(width: AppConstants.spacingS),
+                    Expanded(
+                      child: Text(
+                        'Configure ${widget.playbook.name}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    const Spacer(),
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Cancel'),
                     ),
-                    FilledButton(
-                      onPressed: _save,
-                      child: const Text('Save'),
-                    ),
+                    if (hasConfig)
+                      FilledButton(onPressed: _save, child: const Text('Save')),
                   ],
                 ),
               ),
@@ -773,36 +787,140 @@ class _ConfigSheetState extends State<_ConfigSheet> {
 
               // Config fields
               Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(AppConstants.spacingM),
-                  children: widget.playbook.config.map((field) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
-                      child: TextField(
-                        controller: _controllers[field.name],
-                        obscureText: field.secret,
-                        decoration: InputDecoration(
-                          labelText: '${field.name}${field.required ? ' *' : ''}',
-                          helperText: field.description,
-                          border: const OutlineInputBorder(),
-                          prefixIcon: Icon(
-                            field.secret ? Icons.key : Icons.settings,
-                          ),
+                child: hasConfig
+                    ? ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(AppConstants.spacingM),
+                        children: widget.playbook.config
+                            .map((field) => _buildField(field))
+                            .toList(),
+                      )
+                    : Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 48,
+                              color: Colors.green.shade400,
+                            ),
+                            const SizedBox(height: AppConstants.spacingM),
+                            Text(
+                              'No configuration needed',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: AppConstants.spacingS),
+                            Text(
+                              'This playbook works without any setup.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.textTheme.bodySmall?.color,
+                              ),
+                            ),
+                          ],
                         ),
-                        onChanged: (value) {
-                          _config[field.name] = value;
-                        },
                       ),
-                    );
-                  }).toList(),
-                ),
               ),
             ],
           ),
         );
       },
     );
+  }
+
+  Widget _buildField(PlaybookConfigField field) {
+    switch (field.type) {
+      case ConfigFieldType.boolean:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: Card(
+            child: SwitchListTile(
+              value: _config[field.name] == true,
+              onChanged: (value) {
+                setState(() {
+                  _config[field.name] = value;
+                });
+              },
+              title: Text('${field.name}${field.required ? ' *' : ''}'),
+              subtitle: field.description != null
+                  ? Text(field.description!)
+                  : null,
+            ),
+          ),
+        );
+
+      case ConfigFieldType.select:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: DropdownButtonFormField<String>(
+            value: _config[field.name]?.toString(),
+            decoration: InputDecoration(
+              labelText: '${field.name}${field.required ? ' *' : ''}',
+              helperText: field.description,
+              border: const OutlineInputBorder(),
+            ),
+            items: field.options
+                ?.map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                _config[field.name] = value;
+              });
+            },
+          ),
+        );
+
+      case ConfigFieldType.number:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: TextField(
+            controller: _controllers[field.name],
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: '${field.name}${field.required ? ' *' : ''}',
+              helperText: field.description,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.numbers),
+            ),
+            onChanged: (value) {
+              _config[field.name] = num.tryParse(value) ?? value;
+            },
+          ),
+        );
+
+      case ConfigFieldType.string:
+      case ConfigFieldType.multiselect:
+        final isSecret = field.secret;
+        final isObscured = _obscured[field.name] ?? false;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: TextField(
+            controller: _controllers[field.name],
+            obscureText: isSecret && isObscured,
+            decoration: InputDecoration(
+              labelText: '${field.name}${field.required ? ' *' : ''}',
+              helperText: field.description,
+              border: const OutlineInputBorder(),
+              prefixIcon: Icon(isSecret ? Icons.key : Icons.text_fields),
+              suffixIcon: isSecret
+                  ? IconButton(
+                      icon: Icon(
+                        isObscured ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscured[field.name] = !isObscured;
+                        });
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (value) {
+              _config[field.name] = value;
+            },
+          ),
+        );
+    }
   }
 
   void _save() async {
@@ -812,9 +930,9 @@ class _ConfigSheetState extends State<_ConfigSheet> {
     );
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Configuration saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Configuration saved')));
     }
   }
 }
@@ -836,7 +954,10 @@ class _PlaybookEditorScreenState extends State<_PlaybookEditorScreen> {
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: widget.playbook?.sourceYaml ?? widget.playbook?.toYaml() ?? _getTemplate(),
+      text:
+          widget.playbook?.sourceYaml ??
+          widget.playbook?.toYaml() ??
+          _getTemplate(),
     );
   }
 
@@ -852,10 +973,7 @@ class _PlaybookEditorScreenState extends State<_PlaybookEditorScreen> {
       appBar: AppBar(
         title: Text(widget.playbook != null ? 'Edit Playbook' : 'New Playbook'),
         actions: [
-          FilledButton(
-            onPressed: _save,
-            child: const Text('Save'),
-          ),
+          FilledButton(onPressed: _save, child: const Text('Save')),
           const SizedBox(width: AppConstants.spacingS),
         ],
       ),
@@ -866,10 +984,7 @@ class _PlaybookEditorScreenState extends State<_PlaybookEditorScreen> {
           maxLines: null,
           expands: true,
           textAlignVertical: TextAlignVertical.top,
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 13,
-          ),
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
             hintText: 'Enter playbook YAML...',
@@ -885,15 +1000,15 @@ class _PlaybookEditorScreenState extends State<_PlaybookEditorScreen> {
       final playbook = await service.importFromYaml(_controller.text);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved "${playbook.name}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Saved "${playbook.name}"')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
       }
     }
   }
@@ -948,10 +1063,7 @@ class _EmptyState extends StatelessWidget {
   final VoidCallback onImport;
   final VoidCallback onNew;
 
-  const _EmptyState({
-    required this.onImport,
-    required this.onNew,
-  });
+  const _EmptyState({required this.onImport, required this.onNew});
 
   @override
   Widget build(BuildContext context) {
@@ -969,10 +1081,7 @@ class _EmptyState extends StatelessWidget {
               color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.3),
             ),
             const SizedBox(height: AppConstants.spacingM),
-            Text(
-              'No Playbooks Yet',
-              style: theme.textTheme.titleLarge,
-            ),
+            Text('No Playbooks Yet', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppConstants.spacingS),
             Text(
               'Playbooks let you extend Docan with custom integrations.',

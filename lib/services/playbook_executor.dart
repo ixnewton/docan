@@ -1,19 +1,99 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/playbook.dart';
 
+/// Status of a playbook execution step
+enum PlaybookStepStatus { pending, running, success, failed, skipped }
+
+/// Progress update during playbook execution
+class PlaybookProgress {
+  final int currentStep;
+  final int totalSteps;
+  final String stepName;
+  final PlaybookStepStatus status;
+  final String? message;
+  final dynamic data;
+
+  const PlaybookProgress({
+    required this.currentStep,
+    required this.totalSteps,
+    required this.stepName,
+    required this.status,
+    this.message,
+    this.data,
+  });
+
+  double get progress => totalSteps > 0 ? currentStep / totalSteps : 0;
+  bool get isComplete => currentStep >= totalSteps;
+}
+
+/// Validation error for playbook parameters
+class ValidationError {
+  final String field;
+  final String message;
+  final dynamic expected;
+  final dynamic actual;
+
+  const ValidationError({
+    required this.field,
+    required this.message,
+    this.expected,
+    this.actual,
+  });
+
+  @override
+  String toString() => '$field: $message';
+}
+
+/// Result of dry run check
+class DryRunResult {
+  final bool canRun;
+  final List<String> issues;
+  final List<String> warnings;
+
+  const DryRunResult({
+    required this.canRun,
+    this.issues = const [],
+    this.warnings = const [],
+  });
+}
+
 /// Executor for running playbook actions
 class PlaybookExecutor {
   final Map<String, dynamic> _globalContext = {};
 
-  /// Execute a playbook action
+  /// Execute a playbook action (returns final result)
   Future<PlaybookResult> execute({
     required Playbook playbook,
     required PlaybookAction action,
     required Map<String, dynamic> parameters,
     Map<String, dynamic>? context,
   }) async {
+    PlaybookResult? lastResult;
+
+    await for (final progress in executeStream(
+      playbook: playbook,
+      action: action,
+      parameters: parameters,
+      context: context,
+    )) {
+      if (progress.data is PlaybookResult) {
+        lastResult = progress.data as PlaybookResult;
+      }
+    }
+
+    return lastResult ?? PlaybookResult.failure('No result from execution');
+  }
+
+  /// Execute a playbook action with progress stream
+  Stream<PlaybookProgress> executeStream({
+    required Playbook playbook,
+    required PlaybookAction action,
+    required Map<String, dynamic> parameters,
+    Map<String, dynamic>? context,
+  }) async* {
     final execContext = ExecutionContext(
       playbook: playbook,
       action: action,
@@ -26,36 +106,340 @@ class PlaybookExecutor {
       },
     );
 
-    try {
-      // Validate required parameters
-      for (final param in action.parameters) {
-        if (param.required && !parameters.containsKey(param.name)) {
-          return PlaybookResult.failure(
-            'Missing required parameter: ${param.name}',
-          );
-        }
-      }
+    final totalSteps = action.steps.length;
 
-      // Execute each step
-      dynamic lastResult;
-      for (final step in action.steps) {
-        final result = await _executeStep(step, execContext);
+    // Validate parameters first
+    yield PlaybookProgress(
+      currentStep: 0,
+      totalSteps: totalSteps,
+      stepName: 'Validating parameters',
+      status: PlaybookStepStatus.running,
+    );
+
+    final validationErrors = validateParameters(action, parameters);
+    if (validationErrors.isNotEmpty) {
+      yield PlaybookProgress(
+        currentStep: 0,
+        totalSteps: totalSteps,
+        stepName: 'Validation failed',
+        status: PlaybookStepStatus.failed,
+        message: validationErrors.map((e) => e.toString()).join(', '),
+        data: PlaybookResult.failure(
+          'Validation failed: ${validationErrors.map((e) => e.toString()).join(', ')}',
+        ),
+      );
+      return;
+    }
+
+    // Execute each step
+    dynamic lastResult;
+    for (int i = 0; i < action.steps.length; i++) {
+      final step = action.steps[i];
+      final stepName = _getStepName(step, i);
+
+      yield PlaybookProgress(
+        currentStep: i,
+        totalSteps: totalSteps,
+        stepName: stepName,
+        status: PlaybookStepStatus.running,
+        message: 'Executing...',
+      );
+
+      try {
+        final result = await _executeStepWithRetry(step, execContext);
+
         if (!result.success) {
-          return result;
+          // Handle failure based on onFailure setting
+          if (step.onFailure == 'continue') {
+            yield PlaybookProgress(
+              currentStep: i + 1,
+              totalSteps: totalSteps,
+              stepName: stepName,
+              status: PlaybookStepStatus.skipped,
+              message: 'Step failed but continuing: ${result.error}',
+            );
+            continue;
+          } else if (step.onFailure == 'returnError') {
+            yield PlaybookProgress(
+              currentStep: i + 1,
+              totalSteps: totalSteps,
+              stepName: stepName,
+              status: PlaybookStepStatus.failed,
+              message: result.error,
+              data: result,
+            );
+            return;
+          } else {
+            // 'throw' - stop execution
+            yield PlaybookProgress(
+              currentStep: i + 1,
+              totalSteps: totalSteps,
+              stepName: stepName,
+              status: PlaybookStepStatus.failed,
+              message: result.error,
+              data: result,
+            );
+            return;
+          }
         }
-        lastResult = result.data;
-      }
 
-      // Return the last step's result
-      // Note: action.returns is just metadata (type/description), not the actual data
-      return PlaybookResult.success(
+        lastResult = result.data;
+
+        yield PlaybookProgress(
+          currentStep: i + 1,
+          totalSteps: totalSteps,
+          stepName: stepName,
+          status: PlaybookStepStatus.success,
+          message: 'Completed',
+        );
+      } catch (e, stack) {
+        debugPrint('[PlaybookExecutor] Error in step $i: $e\n$stack');
+
+        if (step.onFailure == 'continue') {
+          yield PlaybookProgress(
+            currentStep: i + 1,
+            totalSteps: totalSteps,
+            stepName: stepName,
+            status: PlaybookStepStatus.skipped,
+            message: 'Exception but continuing: $e',
+          );
+          continue;
+        }
+
+        yield PlaybookProgress(
+          currentStep: i + 1,
+          totalSteps: totalSteps,
+          stepName: stepName,
+          status: PlaybookStepStatus.failed,
+          message: 'Exception: $e',
+          data: PlaybookResult.failure('Execution error: $e'),
+        );
+        return;
+      }
+    }
+
+    // Final result
+    yield PlaybookProgress(
+      currentStep: totalSteps,
+      totalSteps: totalSteps,
+      stepName: 'Complete',
+      status: PlaybookStepStatus.success,
+      data: PlaybookResult.success(
         data: lastResult,
         context: execContext.variables,
-      );
-    } catch (e, stack) {
-      debugPrint('[PlaybookExecutor] Error executing action: $e\n$stack');
-      return PlaybookResult.failure('Execution error: $e');
+      ),
+    );
+  }
+
+  /// Validate parameters against action definition
+  List<ValidationError> validateParameters(
+    PlaybookAction action,
+    Map<String, dynamic> parameters,
+  ) {
+    final errors = <ValidationError>[];
+
+    for (final param in action.parameters) {
+      final value = parameters[param.name];
+
+      // Check required
+      if (param.required &&
+          (value == null || (value is String && value.isEmpty))) {
+        errors.add(
+          ValidationError(
+            field: param.name,
+            message: 'Required parameter is missing',
+            expected: param.type,
+            actual: null,
+          ),
+        );
+        continue;
+      }
+
+      // Skip type check if value is null and not required
+      if (value == null) continue;
+
+      // Type validation
+      final typeError = _validateType(param.name, value, param.type);
+      if (typeError != null) {
+        errors.add(typeError);
+      }
     }
+
+    return errors;
+  }
+
+  ValidationError? _validateType(
+    String name,
+    dynamic value,
+    String expectedType,
+  ) {
+    switch (expectedType.toLowerCase()) {
+      case 'string':
+        if (value is! String) {
+          return ValidationError(
+            field: name,
+            message: 'Expected string',
+            expected: 'string',
+            actual: value.runtimeType.toString(),
+          );
+        }
+        break;
+      case 'int':
+      case 'integer':
+        if (value is! int && int.tryParse(value.toString()) == null) {
+          return ValidationError(
+            field: name,
+            message: 'Expected integer',
+            expected: 'int',
+            actual: value.runtimeType.toString(),
+          );
+        }
+        break;
+      case 'number':
+      case 'double':
+      case 'float':
+        if (value is! num && double.tryParse(value.toString()) == null) {
+          return ValidationError(
+            field: name,
+            message: 'Expected number',
+            expected: 'number',
+            actual: value.runtimeType.toString(),
+          );
+        }
+        break;
+      case 'bool':
+      case 'boolean':
+        if (value is! bool && value != 'true' && value != 'false') {
+          return ValidationError(
+            field: name,
+            message: 'Expected boolean',
+            expected: 'bool',
+            actual: value.runtimeType.toString(),
+          );
+        }
+        break;
+      case 'array':
+      case 'list':
+        if (value is! List) {
+          return ValidationError(
+            field: name,
+            message: 'Expected array',
+            expected: 'array',
+            actual: value.runtimeType.toString(),
+          );
+        }
+        break;
+      case 'object':
+      case 'map':
+        if (value is! Map) {
+          return ValidationError(
+            field: name,
+            message: 'Expected object',
+            expected: 'object',
+            actual: value.runtimeType.toString(),
+          );
+        }
+        break;
+    }
+    return null;
+  }
+
+  /// Check if a playbook can run (dry run)
+  DryRunResult dryRun({
+    required Playbook playbook,
+    required PlaybookAction action,
+    required Map<String, dynamic> parameters,
+  }) {
+    final issues = <String>[];
+    final warnings = <String>[];
+
+    // Check if playbook is configured
+    if (!playbook.isConfigured) {
+      final missing = playbook.missingConfig.map((c) => c.name).join(', ');
+      issues.add('Missing configuration: $missing');
+    }
+
+    // Validate parameters
+    final validationErrors = validateParameters(action, parameters);
+    for (final error in validationErrors) {
+      issues.add(error.toString());
+    }
+
+    // Check for template variables that might not be resolved
+    for (final step in action.steps) {
+      final configStr = jsonEncode(step.config);
+      final templateRegex = RegExp(r'\{\{([^}]+)\}\}');
+      for (final match in templateRegex.allMatches(configStr)) {
+        final varName = match.group(1)?.trim().split('.').first;
+        if (varName != null &&
+            varName != 'config' &&
+            varName != 'params' &&
+            varName != 'item' &&
+            !parameters.containsKey(varName) &&
+            !playbook.userConfig.containsKey(varName)) {
+          warnings.add('Variable "$varName" may not be defined');
+        }
+      }
+    }
+
+    return DryRunResult(
+      canRun: issues.isEmpty,
+      issues: issues,
+      warnings: warnings,
+    );
+  }
+
+  String _getStepName(PlaybookStep step, int index) {
+    switch (step.type) {
+      case StepType.http:
+        final method = step.config['method']?.toString().toUpperCase() ?? 'GET';
+        final url = step.config['url']?.toString() ?? '';
+        final shortUrl = url.length > 40 ? '${url.substring(0, 40)}...' : url;
+        return '$method $shortUrl';
+      case StepType.transform:
+        return 'Transform data';
+      case StepType.condition:
+        return 'Check condition';
+      case StepType.loop:
+        return 'Loop over items';
+      case StepType.setVariable:
+        return 'Set variable';
+      case StepType.returnData:
+        return 'Return result';
+      case StepType.webhook:
+        return 'Send webhook';
+      case StepType.askUser:
+        return 'Ask user';
+      case StepType.askAI:
+        return 'Ask AI';
+    }
+  }
+
+  /// Execute a step with retry logic
+  Future<PlaybookResult> _executeStepWithRetry(
+    PlaybookStep step,
+    ExecutionContext context,
+  ) async {
+    int attempts = 0;
+    PlaybookResult? lastResult;
+
+    while (attempts <= step.retries) {
+      if (attempts > 0) {
+        debugPrint('[PlaybookExecutor] Retry attempt $attempts for step');
+        await Future.delayed(Duration(milliseconds: step.retryDelayMs));
+      }
+
+      lastResult = await _executeStep(step, context);
+
+      if (lastResult.success) {
+        return lastResult;
+      }
+
+      attempts++;
+    }
+
+    return lastResult ??
+        PlaybookResult.failure('Step failed after ${step.retries} retries');
   }
 
   Future<PlaybookResult> _executeStep(
@@ -134,23 +518,33 @@ class PlaybookExecutor {
 
       debugPrint('[PlaybookExecutor] HTTP $methodStr $url');
 
-      // Execute request
+      // Execute request with timeout
+      final timeout = Duration(
+        milliseconds: config['timeout'] as int? ?? 30000,
+      );
       http.Response response;
+
       switch (methodStr) {
         case 'POST':
-          response = await http.post(url, headers: headers, body: body);
+          response = await http
+              .post(url, headers: headers, body: body)
+              .timeout(timeout);
           break;
         case 'PUT':
-          response = await http.put(url, headers: headers, body: body);
+          response = await http
+              .put(url, headers: headers, body: body)
+              .timeout(timeout);
           break;
         case 'PATCH':
-          response = await http.patch(url, headers: headers, body: body);
+          response = await http
+              .patch(url, headers: headers, body: body)
+              .timeout(timeout);
           break;
         case 'DELETE':
-          response = await http.delete(url, headers: headers);
+          response = await http.delete(url, headers: headers).timeout(timeout);
           break;
         default:
-          response = await http.get(url, headers: headers);
+          response = await http.get(url, headers: headers).timeout(timeout);
       }
 
       debugPrint('[PlaybookExecutor] Response: ${response.statusCode}');
@@ -167,7 +561,10 @@ class PlaybookExecutor {
       if (response.statusCode >= 400) {
         return PlaybookResult.failure(
           'HTTP ${response.statusCode}: ${response.reasonPhrase}',
-          context: {'response': responseData},
+          context: {
+            'response': responseData,
+            'statusCode': response.statusCode,
+          },
         );
       }
 
@@ -178,6 +575,8 @@ class PlaybookExecutor {
       }
 
       return PlaybookResult.success(data: responseData);
+    } on TimeoutException {
+      return PlaybookResult.failure('HTTP request timed out');
     } catch (e) {
       return PlaybookResult.failure('HTTP request failed: $e');
     }
@@ -188,7 +587,6 @@ class PlaybookExecutor {
     PlaybookStep step,
     ExecutionContext context,
   ) async {
-    // Similar to HTTP but specifically for webhooks
     final config = step.config;
     final url = _resolveTemplate(config['url']?.toString() ?? '', context);
 
@@ -267,8 +665,8 @@ class PlaybookExecutor {
       final thenSteps = config['then'] as List?;
       if (thenSteps != null) {
         for (final stepConfig in thenSteps) {
-          final step = PlaybookStep.fromJson(stepConfig);
-          final result = await _executeStep(step, context);
+          final nestedStep = PlaybookStep.fromJson(stepConfig);
+          final result = await _executeStep(nestedStep, context);
           if (!result.success) return result;
         }
       }
@@ -276,8 +674,8 @@ class PlaybookExecutor {
       final elseSteps = config['else'] as List?;
       if (elseSteps != null) {
         for (final stepConfig in elseSteps) {
-          final step = PlaybookStep.fromJson(stepConfig);
-          final result = await _executeStep(step, context);
+          final nestedStep = PlaybookStep.fromJson(stepConfig);
+          final result = await _executeStep(nestedStep, context);
           if (!result.success) return result;
         }
       }
@@ -299,23 +697,36 @@ class PlaybookExecutor {
       return PlaybookResult.failure('Loop items must be a list');
     }
 
-    final itemName = config['as']?.toString() ?? 'item';
-    final loopSteps = config['steps'] as List?;
-
     final results = <dynamic>[];
+    final itemVar = config['as']?.toString() ?? 'item';
+    final indexVar = config['index']?.toString() ?? 'index';
 
-    for (var i = 0; i < items.length; i++) {
-      context.variables[itemName] = items[i];
-      context.variables['index'] = i;
+    for (int i = 0; i < items.length; i++) {
+      context.variables[itemVar] = items[i];
+      context.variables[indexVar] = i;
 
+      final loopSteps = config['steps'] as List?;
       if (loopSteps != null) {
         for (final stepConfig in loopSteps) {
-          final step = PlaybookStep.fromJson(stepConfig);
-          final result = await _executeStep(step, context);
-          if (!result.success) return result;
-          results.add(result.data);
+          final nestedStep = PlaybookStep.fromJson(stepConfig);
+          final result = await _executeStep(nestedStep, context);
+          if (!result.success) {
+            // Check if we should break on error
+            if (config['breakOnError'] == true) {
+              return result;
+            }
+          }
+          if (result.data != null) {
+            results.add(result.data);
+          }
         }
       }
+    }
+
+    // Store results if output is specified
+    final outputName = config['output']?.toString();
+    if (outputName != null) {
+      context.variables[outputName] = results;
     }
 
     return PlaybookResult.success(data: results);
@@ -327,12 +738,11 @@ class PlaybookExecutor {
     ExecutionContext context,
   ) async {
     final config = step.config;
-    final name = config['name']?.toString() ?? 'var';
-    final value = config['value'];
+    final name = config['name']?.toString() ?? '';
+    final value = _resolveValue(config['value']?.toString() ?? '', context);
 
-    context.variables[name] = _processTemplate(value, context);
-
-    return PlaybookResult.success(data: context.variables[name]);
+    context.variables[name] = value;
+    return PlaybookResult.success(data: value);
   }
 
   /// Execute return step
@@ -341,52 +751,29 @@ class PlaybookExecutor {
     ExecutionContext context,
   ) async {
     final config = step.config;
-    final data = _processTemplate(config['data'] ?? config['value'], context);
-    final message = config['message']?.toString();
-
-    return PlaybookResult.success(
-      data: data,
-      message: message != null ? _resolveTemplate(message, context) : null,
-    );
+    final value = _processTemplate(config['value'], context);
+    return PlaybookResult.success(data: value);
   }
 
-  /// Execute ask user step (returns a request for user input)
+  /// Execute ask user step (placeholder)
   Future<PlaybookResult> _executeAskUser(
     PlaybookStep step,
     ExecutionContext context,
   ) async {
-    final config = step.config;
-    final question = _resolveTemplate(
-      config['question']?.toString() ?? '',
-      context,
-    );
-    final options = (config['options'] as List?)
-        ?.map((e) => e.toString())
-        .toList();
-
-    return PlaybookResult.success(
-      data: {'type': 'ask_user', 'question': question, 'options': options},
-    );
+    // This would need UI integration
+    return PlaybookResult.failure('askUser step requires UI integration');
   }
 
-  /// Execute ask AI step (request AI to process something)
+  /// Execute ask AI step (placeholder)
   Future<PlaybookResult> _executeAskAI(
     PlaybookStep step,
     ExecutionContext context,
   ) async {
-    final config = step.config;
-    final prompt = _resolveTemplate(
-      config['prompt']?.toString() ?? '',
-      context,
-    );
-    final data = _processTemplate(config['data'], context);
-
-    return PlaybookResult.success(
-      data: {'type': 'ask_ai', 'prompt': prompt, 'data': data},
-    );
+    // This would need AI service integration
+    return PlaybookResult.failure('askAI step requires AI service integration');
   }
 
-  /// Resolve a template string with variable substitution
+  /// Resolve template variables in a string
   String _resolveTemplate(String template, ExecutionContext context) {
     return template.replaceAllMapped(RegExp(r'\{\{([^}]+)\}\}'), (match) {
       final path = match.group(1)?.trim() ?? '';
@@ -395,37 +782,26 @@ class PlaybookExecutor {
     });
   }
 
-  /// Process a template object recursively
-  dynamic _processTemplate(dynamic template, ExecutionContext context) {
-    if (template == null) return null;
-
-    if (template is String) {
-      // Check if it's a template reference
-      if (template.startsWith('{{') && template.endsWith('}}')) {
-        final path = template.substring(2, template.length - 2).trim();
-        return _resolveValue(path, context);
-      }
-      return _resolveTemplate(template, context);
+  /// Process template in complex objects
+  dynamic _processTemplate(dynamic value, ExecutionContext context) {
+    if (value is String) {
+      return _resolveTemplate(value, context);
+    } else if (value is Map) {
+      return value.map((k, v) => MapEntry(k, _processTemplate(v, context)));
+    } else if (value is List) {
+      return value.map((v) => _processTemplate(v, context)).toList();
     }
-
-    if (template is Map) {
-      final result = <String, dynamic>{};
-      template.forEach((key, value) {
-        result[key.toString()] = _processTemplate(value, context);
-      });
-      return result;
-    }
-
-    if (template is List) {
-      return template.map((e) => _processTemplate(e, context)).toList();
-    }
-
-    return template;
+    return value;
   }
 
-  /// Resolve a dot-notation path to a value
+  /// Resolve a value path like "config.apiKey" or "params.query"
   dynamic _resolveValue(String path, ExecutionContext context) {
     if (path.isEmpty) return null;
+
+    // Check if it's a direct variable reference
+    if (!path.contains('.') && !path.contains('[')) {
+      return context.variables[path];
+    }
 
     final parts = _parsePath(path);
     dynamic current = context.variables;
@@ -469,7 +845,6 @@ class PlaybookExecutor {
 
   /// Evaluate a simple condition expression
   bool _evaluateCondition(String condition, ExecutionContext context) {
-    // Simple evaluation - can be extended
     final resolved = _resolveTemplate(condition, context);
 
     if (resolved == 'true') return true;

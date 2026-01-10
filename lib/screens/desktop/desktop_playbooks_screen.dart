@@ -58,41 +58,40 @@ class _DesktopPlaybooksScreenState extends State<DesktopPlaybooksScreen> {
           ),
 
           // Divider
-          Container(
-            width: 1,
-            color: theme.dividerColor.withValues(alpha: 0.2),
-          ),
+          Container(width: 1, color: theme.dividerColor.withValues(alpha: 0.2)),
 
           // Main content
           Expanded(
             child: _selectedPlaybook != null
                 ? _showEditor
-                    ? _PlaybookEditor(
-                        playbook: _selectedPlaybook!,
-                        controller: _yamlController,
-                        onSave: _savePlaybook,
-                        onCancel: () {
-                          setState(() {
-                            _showEditor = false;
-                          });
-                        },
-                      )
-                    : _PlaybookDetail(
-                        playbook: _selectedPlaybook!,
-                        onEdit: () {
-                          _yamlController.text = _selectedPlaybook!.sourceYaml ?? 
-                              _selectedPlaybook!.toYaml();
-                          setState(() {
-                            _showEditor = true;
-                          });
-                        },
-                        onDelete: () => _deletePlaybook(_selectedPlaybook!),
-                        onExport: () => _exportPlaybook(_selectedPlaybook!),
-                        onToggleEnabled: (enabled) {
-                          service.setEnabled(_selectedPlaybook!.id, enabled);
-                        },
-                        onConfigure: () => _showConfigDialog(_selectedPlaybook!),
-                      )
+                      ? _PlaybookEditor(
+                          playbook: _selectedPlaybook!,
+                          controller: _yamlController,
+                          onSave: _savePlaybook,
+                          onCancel: () {
+                            setState(() {
+                              _showEditor = false;
+                            });
+                          },
+                        )
+                      : _PlaybookDetail(
+                          playbook: _selectedPlaybook!,
+                          onEdit: () {
+                            _yamlController.text =
+                                _selectedPlaybook!.sourceYaml ??
+                                _selectedPlaybook!.toYaml();
+                            setState(() {
+                              _showEditor = true;
+                            });
+                          },
+                          onDelete: () => _deletePlaybook(_selectedPlaybook!),
+                          onExport: () => _exportPlaybook(_selectedPlaybook!),
+                          onToggleEnabled: (enabled) {
+                            service.setEnabled(_selectedPlaybook!.id, enabled);
+                          },
+                          onConfigure: () =>
+                              _showConfigDialog(_selectedPlaybook!),
+                        )
                 : _EmptyState(
                     onImport: _importPlaybook,
                     onNew: _createNewPlaybook,
@@ -111,15 +110,15 @@ class _DesktopPlaybooksScreenState extends State<DesktopPlaybooksScreen> {
         setState(() {
           _selectedPlaybook = playbook;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported "${playbook.name}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Imported "${playbook.name}"')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to import: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to import: $e')));
       }
     }
   }
@@ -141,15 +140,15 @@ class _DesktopPlaybooksScreenState extends State<DesktopPlaybooksScreen> {
           _selectedPlaybook = playbook;
           _showEditor = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved "${playbook.name}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Saved "${playbook.name}"')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
       }
     }
   }
@@ -186,15 +185,15 @@ class _DesktopPlaybooksScreenState extends State<DesktopPlaybooksScreen> {
     try {
       await context.read<PlaybookService>().exportToFile(playbook);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported "${playbook.name}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Exported "${playbook.name}"')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export: $e')));
       }
     }
   }
@@ -286,7 +285,7 @@ class _PlaybookSidebar extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      color: isDark 
+      color: isDark
           ? Colors.black.withValues(alpha: 0.3)
           : Colors.white.withValues(alpha: 0.5),
       child: Column(
@@ -308,10 +307,7 @@ class _PlaybookSidebar extends StatelessWidget {
                   tooltip: 'Close',
                   onPressed: () => Navigator.of(context).pop(),
                 ),
-                Icon(
-                  Icons.auto_stories,
-                  color: theme.colorScheme.primary,
-                ),
+                Icon(Icons.auto_stories, color: theme.colorScheme.primary),
                 const SizedBox(width: AppConstants.spacingS),
                 Text(
                   'Playbooks',
@@ -493,7 +489,8 @@ class _PlaybookTile extends StatelessWidget {
     if (name.contains('news')) return Icons.newspaper;
     if (name.contains('github')) return Icons.code;
     if (name.contains('search')) return Icons.search;
-    if (name.contains('email') || name.contains('mail')) return Icons.email_outlined;
+    if (name.contains('email') || name.contains('mail'))
+      return Icons.email_outlined;
     return Icons.extension;
   }
 }
@@ -565,10 +562,7 @@ class _PlaybookDetail extends StatelessWidget {
               // Actions
               Row(
                 children: [
-                  Switch(
-                    value: playbook.enabled,
-                    onChanged: onToggleEnabled,
-                  ),
+                  Switch(value: playbook.enabled, onChanged: onToggleEnabled),
                   const SizedBox(width: AppConstants.spacingS),
                   IconButton(
                     icon: const Icon(Icons.settings),
@@ -597,10 +591,7 @@ class _PlaybookDetail extends StatelessWidget {
 
           if (playbook.description != null) ...[
             const SizedBox(height: AppConstants.spacingM),
-            Text(
-              playbook.description!,
-              style: theme.textTheme.bodyLarge,
-            ),
+            Text(playbook.description!, style: theme.textTheme.bodyLarge),
           ],
 
           // Configuration warning
@@ -610,10 +601,7 @@ class _PlaybookDetail extends StatelessWidget {
               padding: const EdgeInsets.all(AppConstants.spacingM),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.warning_amber,
-                    color: Colors.orange.shade400,
-                  ),
+                  Icon(Icons.warning_amber, color: Colors.orange.shade400),
                   const SizedBox(width: AppConstants.spacingM),
                   Expanded(
                     child: Column(
@@ -650,10 +638,7 @@ class _PlaybookDetail extends StatelessWidget {
               spacing: AppConstants.spacingS,
               runSpacing: AppConstants.spacingS,
               children: playbook.platforms.map((p) {
-                return _InfoChip(
-                  icon: _getPlatformIcon(p),
-                  label: p.name,
-                );
+                return _InfoChip(icon: _getPlatformIcon(p), label: p.name);
               }).toList(),
             ),
           ),
@@ -667,7 +652,9 @@ class _PlaybookDetail extends StatelessWidget {
               child: Column(
                 children: playbook.triggers.map((trigger) {
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: AppConstants.spacingS),
+                    padding: const EdgeInsets.only(
+                      bottom: AppConstants.spacingS,
+                    ),
                     child: LiquidGlassContainer(
                       padding: const EdgeInsets.all(AppConstants.spacingM),
                       child: Row(
@@ -727,7 +714,9 @@ class _PlaybookDetail extends StatelessWidget {
               child: Column(
                 children: playbook.config.map((field) {
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: AppConstants.spacingS),
+                    padding: const EdgeInsets.only(
+                      bottom: AppConstants.spacingS,
+                    ),
                     child: LiquidGlassContainer(
                       padding: const EdgeInsets.all(AppConstants.spacingM),
                       child: Row(
@@ -745,15 +734,18 @@ class _PlaybookDetail extends StatelessWidget {
                                   children: [
                                     Text(
                                       field.name,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                     ),
                                     if (field.required) ...[
                                       const SizedBox(width: 4),
                                       Text(
                                         '*',
-                                        style: TextStyle(color: Colors.red.shade400),
+                                        style: TextStyle(
+                                          color: Colors.red.shade400,
+                                        ),
                                       ),
                                     ],
                                   ],
@@ -830,10 +822,7 @@ class _ActionCard extends StatelessWidget {
           ),
           if (action.description != null) ...[
             const SizedBox(height: AppConstants.spacingXS),
-            Text(
-              action.description!,
-              style: theme.textTheme.bodySmall,
-            ),
+            Text(action.description!, style: theme.textTheme.bodySmall),
           ],
           if (action.parameters.isNotEmpty) ...[
             const SizedBox(height: AppConstants.spacingM),
@@ -921,10 +910,7 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 14),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall,
-          ),
+          Text(label, style: theme.textTheme.bodySmall),
         ],
       ),
     );
@@ -970,10 +956,7 @@ class _PlaybookEditor extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              TextButton(
-                onPressed: onCancel,
-                child: const Text('Cancel'),
-              ),
+              TextButton(onPressed: onCancel, child: const Text('Cancel')),
               const SizedBox(width: AppConstants.spacingS),
               FilledButton.icon(
                 onPressed: onSave,
@@ -993,10 +976,7 @@ class _PlaybookEditor extends StatelessWidget {
               maxLines: null,
               expands: true,
               textAlignVertical: TextAlignVertical.top,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusM),
@@ -1024,6 +1004,7 @@ class _ConfigDialog extends StatefulWidget {
 class _ConfigDialogState extends State<_ConfigDialog> {
   late Map<String, dynamic> _config;
   final _controllers = <String, TextEditingController>{};
+  final _obscured = <String, bool>{};
 
   @override
   void initState() {
@@ -1031,8 +1012,12 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     _config = Map.from(widget.playbook.userConfig);
     for (final field in widget.playbook.config) {
       _controllers[field.name] = TextEditingController(
-        text: _config[field.name]?.toString() ?? '',
+        text:
+            _config[field.name]?.toString() ??
+            field.defaultValue?.toString() ??
+            '',
       );
+      _obscured[field.name] = field.secret;
     }
   }
 
@@ -1046,44 +1031,186 @@ class _ConfigDialogState extends State<_ConfigDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasConfig = widget.playbook.config.isNotEmpty;
+
     return AlertDialog(
-      title: Text('Configure ${widget.playbook.name}'),
+      title: Row(
+        children: [
+          const Icon(Icons.settings),
+          const SizedBox(width: AppConstants.spacingS),
+          Text('Configure ${widget.playbook.name}'),
+        ],
+      ),
       content: SizedBox(
-        width: 400,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: widget.playbook.config.map((field) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
-                child: TextField(
-                  controller: _controllers[field.name],
-                  obscureText: field.secret,
-                  decoration: InputDecoration(
-                    labelText: '${field.name}${field.required ? ' *' : ''}',
-                    helperText: field.description,
-                    border: const OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    _config[field.name] = value;
-                  },
+        width: 450,
+        child: hasConfig
+            ? SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Enter the configuration values for this playbook.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.spacingL),
+                    ...widget.playbook.config.map(
+                      (field) => _buildField(field),
+                    ),
+                  ],
                 ),
-              );
-            }).toList(),
-          ),
-        ),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    size: 48,
+                    color: Colors.green.shade400,
+                  ),
+                  const SizedBox(height: AppConstants.spacingM),
+                  Text(
+                    'No configuration needed',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppConstants.spacingS),
+                  Text(
+                    'This playbook works without any additional configuration.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _config),
-          child: const Text('Save'),
-        ),
+        if (hasConfig)
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _config),
+            child: const Text('Save'),
+          ),
       ],
     );
+  }
+
+  Widget _buildField(PlaybookConfigField field) {
+    final theme = Theme.of(context);
+
+    switch (field.type) {
+      case ConfigFieldType.boolean:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: Row(
+            children: [
+              Switch(
+                value: _config[field.name] == true,
+                onChanged: (value) {
+                  setState(() {
+                    _config[field.name] = value;
+                  });
+                },
+              ),
+              const SizedBox(width: AppConstants.spacingS),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${field.name}${field.required ? ' *' : ''}',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    if (field.description != null)
+                      Text(
+                        field.description!,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case ConfigFieldType.select:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: DropdownButtonFormField<String>(
+            value: _config[field.name]?.toString(),
+            decoration: InputDecoration(
+              labelText: '${field.name}${field.required ? ' *' : ''}',
+              helperText: field.description,
+              border: const OutlineInputBorder(),
+            ),
+            items: field.options
+                ?.map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                _config[field.name] = value;
+              });
+            },
+          ),
+        );
+
+      case ConfigFieldType.number:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: TextField(
+            controller: _controllers[field.name],
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: '${field.name}${field.required ? ' *' : ''}',
+              helperText: field.description,
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (value) {
+              _config[field.name] = num.tryParse(value) ?? value;
+            },
+          ),
+        );
+
+      case ConfigFieldType.string:
+      case ConfigFieldType.multiselect:
+        final isSecret = field.secret;
+        final isObscured = _obscured[field.name] ?? false;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
+          child: TextField(
+            controller: _controllers[field.name],
+            obscureText: isSecret && isObscured,
+            decoration: InputDecoration(
+              labelText: '${field.name}${field.required ? ' *' : ''}',
+              helperText: field.description,
+              border: const OutlineInputBorder(),
+              prefixIcon: isSecret ? const Icon(Icons.key) : null,
+              suffixIcon: isSecret
+                  ? IconButton(
+                      icon: Icon(
+                        isObscured ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscured[field.name] = !isObscured;
+                        });
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (value) {
+              _config[field.name] = value;
+            },
+          ),
+        );
+    }
   }
 }
 
@@ -1092,10 +1219,7 @@ class _EmptyState extends StatelessWidget {
   final VoidCallback onImport;
   final VoidCallback onNew;
 
-  const _EmptyState({
-    required this.onImport,
-    required this.onNew,
-  });
+  const _EmptyState({required this.onImport, required this.onNew});
 
   @override
   Widget build(BuildContext context) {

@@ -11,6 +11,7 @@ A multi-provider AI chat client with a Liquid Glass UI. Runs on iOS, Android, ma
 - **Liquid Glass UI** — Glassmorphic design with blur and transparency effects
 - **Multi-provider support** — Gemini, ChatGPT, Claude, and Ollama in one app
 - **Conversation history** — Save and organize your chats
+- **Playbooks** — Extend Docan with custom YAML-based API integrations
 - **Responsive layout** — Works on phones and desktops
 - **Dark mode** — Glass effects that actually look good
 - **Auto-retry** — Falls back to alternate models on rate limits
@@ -102,6 +103,68 @@ Go to Settings and add your keys:
 curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull llama3.2
 ```
+
+## Playbooks
+
+Playbooks are YAML files that extend Docan with custom API integrations. The AI can use them to fetch data, send webhooks, and interact with external services.
+
+### Quick Example
+
+```yaml
+name: Weather
+version: 1.0.0
+playbookVersion: 1
+
+config:
+  apiKey:
+    type: string
+    secret: true
+    required: true
+
+triggers:
+  - pattern: "weather in (?<city>.+)"
+
+actions:
+  getWeather:
+    description: Get current weather
+    parameters:
+      city:
+        type: string
+        required: true
+    steps:
+      - type: http
+        method: GET
+        url: "https://api.weather.com/current?q={{params.city}}"
+        headers:
+          Authorization: "Bearer {{config.apiKey}}"
+        response:
+          store: weather
+      - type: returnData
+        value:
+          temp: "{{weather.temp}}"
+          condition: "{{weather.condition}}"
+```
+
+### Features
+
+- **Trigger patterns** — Regex patterns to auto-activate playbooks
+- **Multi-step execution** — Chain HTTP calls, transforms, conditions, and loops
+- **Secure storage** — API keys stored in encrypted secure storage
+- **Retry logic** — Configurable retries with delay per step
+- **Progress streaming** — Real-time execution status updates
+- **Dry run** — Validate before execution
+- **Platform support** — Limit playbooks to specific platforms
+
+### Usage
+
+1. Go to **Playbooks** screen
+2. Import a YAML file or create one
+3. Configure required settings (API keys, etc.)
+4. Enable the playbook
+5. Chat naturally — playbooks activate automatically based on triggers
+6. Or use `/playbook <name>` to invoke directly
+
+See [docs/playbooks.md](docs/playbooks.md) for full documentation.
 
 ## Project Structure
 

@@ -155,10 +155,16 @@ enum StepType {
 class PlaybookStep {
   final StepType type;
   final Map<String, dynamic> config;
+  final int retries;
+  final int retryDelayMs;
+  final String onFailure; // 'throw', 'continue', 'returnError'
 
   const PlaybookStep({
     required this.type,
     required this.config,
+    this.retries = 0,
+    this.retryDelayMs = 1000,
+    this.onFailure = 'throw',
   });
 
   factory PlaybookStep.fromYaml(YamlMap yaml) {
@@ -166,7 +172,7 @@ class PlaybookStep {
     final config = <String, dynamic>{};
     
     yaml.forEach((key, value) {
-      if (key != 'type') {
+      if (!['type', 'retries', 'retryDelay', 'onFailure'].contains(key)) {
         config[key.toString()] = _convertYamlValue(value);
       }
     });
@@ -174,18 +180,34 @@ class PlaybookStep {
     return PlaybookStep(
       type: StepType.fromString(typeStr),
       config: config,
+      retries: yaml['retries'] as int? ?? 0,
+      retryDelayMs: yaml['retryDelay'] as int? ?? 1000,
+      onFailure: yaml['onFailure']?.toString() ?? 'throw',
     );
   }
 
   Map<String, dynamic> toJson() => {
     'type': type.name,
+    'retries': retries,
+    'retryDelay': retryDelayMs,
+    'onFailure': onFailure,
     ...config,
   };
 
   factory PlaybookStep.fromJson(Map<String, dynamic> json) {
     final type = StepType.fromString(json['type'] ?? 'http');
-    final config = Map<String, dynamic>.from(json)..remove('type');
-    return PlaybookStep(type: type, config: config);
+    final config = Map<String, dynamic>.from(json)
+      ..remove('type')
+      ..remove('retries')
+      ..remove('retryDelay')
+      ..remove('onFailure');
+    return PlaybookStep(
+      type: type,
+      config: config,
+      retries: json['retries'] as int? ?? 0,
+      retryDelayMs: json['retryDelay'] as int? ?? 1000,
+      onFailure: json['onFailure']?.toString() ?? 'throw',
+    );
   }
 }
 

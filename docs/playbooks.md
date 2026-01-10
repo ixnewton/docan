@@ -108,6 +108,10 @@ actions:
     steps:
       - type: stepType
         # ... step configuration
+        # Optional error handling:
+        retries: Int         # Number of retry attempts (default: 0)
+        retryDelay: Int      # Delay between retries in ms (default: 1000)
+        onFailure: String    # 'throw' | 'continue' | 'returnError'
     returns:
       type: String
       description: String
@@ -245,9 +249,22 @@ Make HTTP API calls.
     q: "{{params.query}}"
   body:                      # Request body (for POST/PUT/PATCH)
     data: "{{params.data}}"
+  timeout: 30000             # Request timeout in ms (default: 30000)
   response:
     store: variableName      # Store response in variable
+  # Error handling (optional)
+  retries: 3                 # Retry up to 3 times on failure
+  retryDelay: 2000           # Wait 2 seconds between retries
+  onFailure: continue        # 'throw' (default), 'continue', or 'returnError'
 ```
+
+#### Error Handling Options
+
+| Option | Description |
+|--------|-------------|
+| `throw` | Stop execution and return error (default) |
+| `continue` | Log error and continue to next step |
+| `returnError` | Stop execution and return error data |
 
 ### Webhook (`webhook`)
 
@@ -524,6 +541,28 @@ actions:
 
 ### 2. Handle Errors Gracefully
 
+Use step-level error handling:
+
+```yaml
+steps:
+  - type: http
+    url: "{{apiUrl}}"
+    retries: 3              # Retry on transient failures
+    retryDelay: 1000        # 1 second between retries
+    onFailure: continue     # Don't stop on error
+    response:
+      store: result
+  - type: condition
+    if: "{{result.error}}"
+    then:
+      - type: returnData
+        data:
+          success: false
+          error: "{{result.error.message}}"
+```
+
+Or use conditional checks:
+
 ```yaml
 steps:
   - type: http
@@ -576,6 +615,8 @@ config:
     secret: true  # Always mark sensitive data
 ```
 
+> **Note**: Fields marked with `secret: true` are stored in encrypted secure storage, not plain SharedPreferences.
+
 ---
 
 ## Troubleshooting
@@ -608,7 +649,17 @@ config:
 
 ## SDK Version History
 
-### Version 1 (Current)
+### Version 1.1 (Current)
+
+- **Retry logic**: `retries` and `retryDelay` options per step
+- **Failure strategies**: `onFailure` option (`throw`, `continue`, `returnError`)
+- **Secure storage**: Secret config values stored in encrypted secure storage
+- **HTTP timeout**: Configurable `timeout` for HTTP requests
+- **Fuzzy matching**: Improved trigger pattern matching with word similarity
+- **Progress streaming**: Real-time execution status updates
+- **Dry run**: Validate playbook before execution
+
+### Version 1.0
 
 - Initial release
 - Step types: http, webhook, transform, condition, loop, setVariable, returnData, askUser, askAI

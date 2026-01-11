@@ -775,7 +775,9 @@ class PlaybookExecutor {
     ExecutionContext context,
   ) async {
     final config = step.config;
-    final value = _processTemplate(config['value'], context);
+    // Support both 'data' and 'value' keys for returnData step
+    final data = config['data'] ?? config['value'];
+    final value = _processTemplate(data, context);
     return PlaybookResult.success(data: value);
   }
 

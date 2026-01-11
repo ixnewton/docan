@@ -489,8 +489,9 @@ class _PlaybookTile extends StatelessWidget {
     if (name.contains('news')) return Icons.newspaper;
     if (name.contains('github')) return Icons.code;
     if (name.contains('search')) return Icons.search;
-    if (name.contains('email') || name.contains('mail'))
+    if (name.contains('email') || name.contains('mail')) {
       return Icons.email_outlined;
+    }
     return Icons.extension;
   }
 }
@@ -1143,7 +1144,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
         return Padding(
           padding: const EdgeInsets.only(bottom: AppConstants.spacingM),
           child: DropdownButtonFormField<String>(
-            value: _config[field.name]?.toString(),
+            initialValue: _config[field.name]?.toString(),
             decoration: InputDecoration(
               labelText: '${field.name}${field.required ? ' *' : ''}',
               helperText: field.description,

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 import '../config/constants.dart';
 import '../config/themes.dart';
@@ -209,6 +211,22 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                       : MarkdownBody(
                           data: widget.message.content,
                           selectable: true,
+                          builders: {
+                            'latex': LatexElementBuilder(
+                              textStyle: theme.textTheme.bodyLarge?.copyWith(
+                                color: textColor,
+                              ),
+                              textScaleFactor: 1.2,
+                            ),
+                          },
+                          extensionSet: md.ExtensionSet(
+                            [...md.ExtensionSet.gitHubFlavored.blockSyntaxes],
+                            [
+                              md.EmojiSyntax(),
+                              ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes,
+                              LatexSyntax(),
+                            ],
+                          ),
                           onTapLink: (text, href, title) async {
                             if (href != null) {
                               final uri = Uri.tryParse(href);
@@ -575,6 +593,56 @@ class _ActionButton extends StatelessWidget {
           child: Icon(icon, size: 16, color: theme.textTheme.bodySmall?.color),
         ),
       ),
+    );
+  }
+}
+
+class LatexSyntax extends md.InlineSyntax {
+  LatexSyntax() : super(r'(\$\$[\s\S]*?\$\$)|(\$[^$]*\$)');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final input = match.input;
+    final matchStart = match.start;
+    final matchEnd = match.end;
+    final text = input.substring(matchStart, matchEnd);
+    final isBlock = text.startsWith('\$\$') && text.endsWith('\$\$');
+
+    final content = isBlock
+        ? text.substring(2, text.length - 2)
+        : text.substring(1, text.length - 1);
+
+    md.Element el = md.Element.text('latex', content);
+    el.attributes['displayMode'] = isBlock.toString();
+    parser.addNode(el);
+    return true;
+  }
+}
+
+class LatexElementBuilder extends MarkdownElementBuilder {
+  final TextStyle? textStyle;
+  final double textScaleFactor;
+
+  LatexElementBuilder({this.textStyle, this.textScaleFactor = 1.0});
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final content = element.textContent;
+    final isBlock = element.attributes['displayMode'] == 'true';
+
+    return Math.tex(
+      content,
+      mathStyle: isBlock ? MathStyle.display : MathStyle.text,
+      textStyle: textStyle?.copyWith(
+        fontSize:
+            (textStyle?.fontSize ?? 14) * (isBlock ? textScaleFactor : 1.0),
+      ),
+      onErrorFallback: (err) {
+        return Text(
+          '\$$content\$',
+          style: textStyle?.copyWith(color: Colors.red),
+        );
+      },
     );
   }
 }

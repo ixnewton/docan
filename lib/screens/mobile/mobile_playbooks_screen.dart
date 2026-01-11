@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/constants.dart';
 import '../../models/playbook.dart';
 import '../../services/playbook_service.dart';
@@ -31,6 +32,11 @@ class _MobilePlaybooksScreenState extends State<MobilePlaybooksScreen> {
         title: const Text('Playbooks'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Documentation',
+            onPressed: _openDocs,
+          ),
+          IconButton(
             icon: const Icon(Icons.file_upload),
             tooltip: 'Import',
             onPressed: _importPlaybook,
@@ -58,6 +64,15 @@ class _MobilePlaybooksScreenState extends State<MobilePlaybooksScreen> {
               },
             ),
     );
+  }
+
+  Future<void> _openDocs() async {
+    final uri = Uri.parse(
+      'https://gitlab.com/Openlyst/docan/-/blob/main/docs/playbooks.md?ref_type=heads',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Future<void> _importPlaybook() async {
@@ -1107,6 +1122,19 @@ class _EmptyState extends StatelessWidget {
                   label: const Text('Create'),
                 ),
               ],
+            ),
+            const SizedBox(height: AppConstants.spacingM),
+            TextButton.icon(
+              onPressed: () async {
+                final uri = Uri.parse(
+                  'https://gitlab.com/Openlyst/docan/-/blob/main/docs/playbooks.md?ref_type=heads',
+                );
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: const Icon(Icons.help_outline, size: 18),
+              label: const Text('View Documentation'),
             ),
           ],
         ),

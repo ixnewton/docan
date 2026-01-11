@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/constants.dart';
 import '../../models/playbook.dart';
 import '../../services/playbook_service.dart';
@@ -263,6 +264,15 @@ actions:
   }
 }
 
+Future<void> _openDocs() async {
+  final uri = Uri.parse(
+    'https://gitlab.com/Openlyst/docan/-/blob/main/docs/playbooks.md?ref_type=heads',
+  );
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
 /// Sidebar showing list of playbooks
 class _PlaybookSidebar extends StatelessWidget {
   final List<Playbook> playbooks;
@@ -325,6 +335,11 @@ class _PlaybookSidebar extends StatelessWidget {
                   icon: const Icon(Icons.file_upload, size: 20),
                   tooltip: 'Import',
                   onPressed: onImport,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.help_outline, size: 20),
+                  tooltip: 'Documentation',
+                  onPressed: () => _openDocs(),
                 ),
               ],
             ),
@@ -1258,6 +1273,12 @@ class _EmptyState extends StatelessWidget {
                 label: const Text('New Playbook'),
               ),
             ],
+          ),
+          const SizedBox(height: AppConstants.spacingM),
+          TextButton.icon(
+            onPressed: _openDocs,
+            icon: const Icon(Icons.help_outline, size: 18),
+            label: const Text('View Documentation'),
           ),
         ],
       ),

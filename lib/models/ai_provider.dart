@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Supported AI Providers
-enum AIProvider { gemini, openai, claude, ollama, lmstudio }
+enum AIProvider { gemini, openai, claude, deepseek, ollama, lmstudio }
 
 /// Extension methods for AIProvider
 extension AIProviderExtension on AIProvider {
@@ -13,6 +13,8 @@ extension AIProviderExtension on AIProvider {
         return 'ChatGPT';
       case AIProvider.claude:
         return 'Claude';
+      case AIProvider.deepseek:
+        return 'DeepSeek';
       case AIProvider.ollama:
         return 'Ollama';
       case AIProvider.lmstudio:
@@ -28,6 +30,8 @@ extension AIProviderExtension on AIProvider {
         return 'OpenAI ChatGPT';
       case AIProvider.claude:
         return 'Anthropic Claude';
+      case AIProvider.deepseek:
+        return 'DeepSeek AI';
       case AIProvider.ollama:
         return 'Local AI Models';
       case AIProvider.lmstudio:
@@ -43,6 +47,8 @@ extension AIProviderExtension on AIProvider {
         return Icons.psychology;
       case AIProvider.claude:
         return Icons.smart_toy;
+      case AIProvider.deepseek:
+        return Icons.water_drop;
       case AIProvider.ollama:
         return Icons.computer;
       case AIProvider.lmstudio:
@@ -58,6 +64,8 @@ extension AIProviderExtension on AIProvider {
         return const Color(0xFF10A37F); // OpenAI Green
       case AIProvider.claude:
         return const Color(0xFFCC785C); // Anthropic Orange
+      case AIProvider.deepseek:
+        return const Color(0xFF4D6BFE); // DeepSeek Blue
       case AIProvider.ollama:
         return const Color(0xFF6B7280); // Neutral Gray
       case AIProvider.lmstudio:
@@ -84,6 +92,11 @@ extension AIProviderExtension on AIProvider {
           'claude-3-5-sonnet-20241022',
           'claude-3-5-haiku-20241022',
         ];
+      case AIProvider.deepseek:
+        return [
+          'deepseek-chat',
+          'deepseek-reasoner',
+        ];
       case AIProvider.ollama:
         return [
           'llama3.2',
@@ -108,6 +121,8 @@ extension AIProviderExtension on AIProvider {
         return 'gpt-4o';
       case AIProvider.claude:
         return 'claude-sonnet-4-20250514';
+      case AIProvider.deepseek:
+        return 'deepseek-chat';
       case AIProvider.ollama:
         return 'llama3.2';
       case AIProvider.lmstudio:
@@ -123,6 +138,8 @@ extension AIProviderExtension on AIProvider {
         return 'OpenAI API Key';
       case AIProvider.claude:
         return 'Claude API Key';
+      case AIProvider.deepseek:
+        return 'DeepSeek API Key';
       case AIProvider.ollama:
         return 'Ollama URL';
       case AIProvider.lmstudio:
@@ -132,6 +149,10 @@ extension AIProviderExtension on AIProvider {
 
   bool get requiresApiKey {
     return this != AIProvider.ollama && this != AIProvider.lmstudio;
+  }
+
+  bool get supportsReasoning {
+    return this == AIProvider.deepseek;
   }
 }
 

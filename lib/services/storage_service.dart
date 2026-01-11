@@ -81,6 +81,8 @@ class StorageService {
         return AppConstants.keyOpenAIApiKey;
       case AIProvider.claude:
         return AppConstants.keyClaudeApiKey;
+      case AIProvider.deepseek:
+        return AppConstants.keyDeepSeekApiKey;
       case AIProvider.ollama:
         return AppConstants.keyOllamaUrl;
       case AIProvider.lmstudio:
@@ -156,6 +158,8 @@ class StorageService {
         return AppConstants.keyOpenAIApiKey;
       case AIProvider.claude:
         return AppConstants.keyClaudeApiKey;
+      case AIProvider.deepseek:
+        return AppConstants.keyDeepSeekApiKey;
       case AIProvider.ollama:
         return AppConstants.keyOllamaUrl;
       case AIProvider.lmstudio:

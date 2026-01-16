@@ -1,0 +1,701 @@
+name: Stable Diffusion Prompt Generator
+version: 1.0.0
+description: |
+  Generate detailed prompts for Stable Diffusion image generation.
+  
+  Features:
+  - Create furry/anthro character prompts
+  - Anime/chibi style prompts
+  - Portrait and full-body compositions
+  - Detailed clothing and accessories
+  - Mood and atmosphere settings
+  - Quality and style tags
+  
+  This is for LOCAL AI use - no content restrictions.
+  Generate whatever prompts you need for your local Stable Diffusion setup.
+
+author: Docan Community
+license: AGPL-3.0
+icon: image
+playbookVersion: 1
+
+platforms:
+  - android
+  - ios
+  - linux
+  - macos
+  - windows
+  - web
+
+triggers:
+  - pattern: "stable.?diffusion|sd.?prompt|image.?prompt|generate.?prompt"
+    description: Stable Diffusion prompt generation
+    priority: 10
+  - pattern: "furry|anthro|fursona|kemono"
+    description: Furry/anthro character prompts
+    priority: 8
+  - pattern: "chibi|anime|manga|kawaii"
+    description: Anime style prompts
+    priority: 7
+  - pattern: "character.?design|oc|original.?character"
+    description: Character design prompts
+    priority: 6
+  - pattern: "art.?prompt|draw|illustration"
+    description: General art prompts
+    priority: 5
+
+actions:
+  generateFurryPrompt:
+    description: Generate a detailed Stable Diffusion prompt for furry/anthro characters
+    parameters:
+      species:
+        type: string
+        required: false
+        default: "fox"
+        description: Species of the character (fox, wolf, cat, dog, rabbit, etc.)
+      furColors:
+        type: string
+        required: false
+        default: "cream and peach fur"
+        description: Fur color description
+      bodyType:
+        type: string
+        required: false
+        default: "cute chibi"
+        description: Body type (chibi, muscular, slim, curvy, etc.)
+      clothing:
+        type: string
+        required: false
+        default: "oversized black hoodie, pink plaid pleated skirt"
+        description: Clothing description
+      accessories:
+        type: string
+        required: false
+        default: "thigh-high socks, flower crown, pink bell collar"
+        description: Accessories and extras
+      pose:
+        type: string
+        required: false
+        default: "shy pose, blushing"
+        description: Pose and expression
+      background:
+        type: string
+        required: false
+        default: "floating hearts, soft pastel colors"
+        description: Background elements
+      style:
+        type: string
+        required: false
+        default: "digital illustration, clean line art, high quality"
+        description: Art style tags
+      extras:
+        type: string
+        required: false
+        default: ""
+        description: Any additional tags or modifiers
+      nsfw:
+        type: boolean
+        required: false
+        default: false
+        description: Include NSFW elements
+    steps:
+      - type: setVariable
+        name: basePrompt
+        value: "{{params.style}} of a {{params.bodyType}} furry {{params.species}} character, {{params.furColors}}"
+      - type: setVariable
+        name: clothingPart
+        value: "wearing {{params.clothing}}"
+      - type: setVariable
+        name: accessoriesPart
+        value: "{{params.accessories}}"
+      - type: setVariable
+        name: posePart
+        value: "{{params.pose}}"
+      - type: setVariable
+        name: backgroundPart
+        value: "{{params.background}}"
+      - type: setVariable
+        name: qualityTags
+        value: "masterpiece, best quality, highly detailed"
+      - type: condition
+        if: "{{params.nsfw}} == true"
+        then:
+          - type: setVariable
+            name: ratingTag
+            value: "explicit, nsfw"
+        else:
+          - type: setVariable
+            name: ratingTag
+            value: "(solo:1.2)"
+      - type: setVariable
+        name: fullPrompt
+        value: "{{basePrompt}}, {{clothingPart}}, {{accessoriesPart}}, {{posePart}}, {{backgroundPart}}, {{qualityTags}}, {{ratingTag}}"
+      - type: condition
+        if: "{{params.extras}}"
+        then:
+          - type: setVariable
+            name: fullPrompt
+            value: "{{fullPrompt}}, {{params.extras}}"
+      - type: returnData
+        data:
+          prompt: "{{fullPrompt}}"
+          negativePrompt: "low quality, worst quality, bad anatomy, bad hands, missing fingers, extra digits, fewer digits, cropped, watermark, signature, username, blurry, jpeg artifacts"
+          suggestedSettings:
+            steps: 30
+            cfg_scale: 7
+            sampler: "DPM++ 2M Karras"
+            size: "512x768"
+    returns:
+      type: object
+      description: Complete Stable Diffusion prompt with negative prompt and settings
+
+  generateAnimePrompt:
+    description: Generate a detailed Stable Diffusion prompt for anime-style characters
+    parameters:
+      characterType:
+        type: string
+        required: false
+        default: "girl"
+        description: Character type (girl, boy, catgirl, kemonomimi, etc.)
+      hairStyle:
+        type: string
+        required: false
+        default: "long pink hair, twintails"
+        description: Hair description
+      eyeColor:
+        type: string
+        required: false
+        default: "blue eyes"
+        description: Eye color and style
+      outfit:
+        type: string
+        required: false
+        default: "school uniform, sailor collar"
+        description: Outfit description
+      accessories:
+        type: string
+        required: false
+        default: "hair ribbons, cat ears headband"
+        description: Accessories
+      expression:
+        type: string
+        required: false
+        default: "happy, smile, looking at viewer"
+        description: Expression and gaze
+      pose:
+        type: string
+        required: false
+        default: "standing, hands behind back"
+        description: Pose description
+      background:
+        type: string
+        required: false
+        default: "cherry blossoms, spring, outdoors"
+        description: Background setting
+      artStyle:
+        type: string
+        required: false
+        default: "anime style, cel shading"
+        description: Specific art style
+      nsfw:
+        type: boolean
+        required: false
+        default: false
+        description: Include NSFW elements
+    steps:
+      - type: setVariable
+        name: qualityTags
+        value: "masterpiece, best quality, highly detailed, sharp focus"
+      - type: setVariable
+        name: characterBase
+        value: "1{{params.characterType}}, {{params.hairStyle}}, {{params.eyeColor}}"
+      - type: setVariable
+        name: outfitPart
+        value: "{{params.outfit}}, {{params.accessories}}"
+      - type: setVariable
+        name: expressionPose
+        value: "{{params.expression}}, {{params.pose}}"
+      - type: condition
+        if: "{{params.nsfw}} == true"
+        then:
+          - type: setVariable
+            name: ratingTag
+            value: "nsfw, explicit"
+        else:
+          - type: setVariable
+            name: ratingTag
+            value: "safe, sfw"
+      - type: setVariable
+        name: fullPrompt
+        value: "{{qualityTags}}, {{params.artStyle}}, {{characterBase}}, {{outfitPart}}, {{expressionPose}}, {{params.background}}, {{ratingTag}}"
+      - type: returnData
+        data:
+          prompt: "{{fullPrompt}}"
+          negativePrompt: "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name"
+          suggestedSettings:
+            steps: 28
+            cfg_scale: 7
+            sampler: "Euler a"
+            size: "512x768"
+    returns:
+      type: object
+      description: Complete anime-style prompt with negative prompt
+
+  generatePortraitPrompt:
+    description: Generate a Stable Diffusion prompt for character portraits
+    parameters:
+      subject:
+        type: string
+        required: true
+        description: Subject description (e.g., "furry fox", "anime girl", "fantasy elf")
+      features:
+        type: string
+        required: false
+        default: "detailed face, beautiful eyes"
+        description: Facial features
+      lighting:
+        type: string
+        required: false
+        default: "soft lighting, rim light"
+        description: Lighting setup
+      mood:
+        type: string
+        required: false
+        default: "serene, peaceful"
+        description: Mood/atmosphere
+      artStyle:
+        type: string
+        required: false
+        default: "digital painting, semi-realistic"
+        description: Art style
+      extras:
+        type: string
+        required: false
+        default: ""
+        description: Additional elements
+    steps:
+      - type: setVariable
+        name: compositionTags
+        value: "portrait, close-up, upper body, face focus"
+      - type: setVariable
+        name: qualityTags
+        value: "masterpiece, best quality, ultra detailed, 8k"
+      - type: setVariable
+        name: fullPrompt
+        value: "{{qualityTags}}, {{params.artStyle}}, {{compositionTags}}, {{params.subject}}, {{params.features}}, {{params.lighting}}, {{params.mood}}"
+      - type: condition
+        if: "{{params.extras}}"
+        then:
+          - type: setVariable
+            name: fullPrompt
+            value: "{{fullPrompt}}, {{params.extras}}"
+      - type: returnData
+        data:
+          prompt: "{{fullPrompt}}"
+          negativePrompt: "low quality, blurry, bad anatomy, disfigured, deformed, extra limbs, watermark, text, signature"
+          suggestedSettings:
+            steps: 35
+            cfg_scale: 7.5
+            sampler: "DPM++ SDE Karras"
+            size: "512x512"
+    returns:
+      type: object
+      description: Portrait-focused prompt
+
+  generateScenePrompt:
+    description: Generate a Stable Diffusion prompt for full scenes with characters
+    parameters:
+      characters:
+        type: string
+        required: true
+        description: Character(s) description
+      action:
+        type: string
+        required: false
+        default: "standing"
+        description: What the character is doing
+      setting:
+        type: string
+        required: false
+        default: "fantasy forest"
+        description: Environment/location
+      timeOfDay:
+        type: string
+        required: false
+        default: "golden hour, sunset"
+        description: Time and lighting
+      atmosphere:
+        type: string
+        required: false
+        default: "magical, dreamy"
+        description: Overall atmosphere
+      style:
+        type: string
+        required: false
+        default: "detailed illustration"
+        description: Art style
+      nsfw:
+        type: boolean
+        required: false
+        default: false
+        description: NSFW content flag
+    steps:
+      - type: setVariable
+        name: qualityTags
+        value: "masterpiece, best quality, highly detailed, intricate details"
+      - type: setVariable
+        name: scenePart
+        value: "{{params.setting}}, {{params.timeOfDay}}, {{params.atmosphere}}"
+      - type: condition
+        if: "{{params.nsfw}} == true"
+        then:
+          - type: setVariable
+            name: ratingTag
+            value: "nsfw, explicit"
+        else:
+          - type: setVariable
+            name: ratingTag
+            value: ""
+      - type: setVariable
+        name: fullPrompt
+        value: "{{qualityTags}}, {{params.style}}, {{params.characters}}, {{params.action}}, {{scenePart}}, {{ratingTag}}"
+      - type: returnData
+        data:
+          prompt: "{{fullPrompt}}"
+          negativePrompt: "low quality, worst quality, blurry, watermark, signature, bad anatomy, deformed"
+          suggestedSettings:
+            steps: 30
+            cfg_scale: 7
+            sampler: "DPM++ 2M Karras"
+            size: "768x512"
+    returns:
+      type: object
+      description: Full scene prompt with settings
+
+  customPromptBuilder:
+    description: Build a custom prompt from individual components with full control
+    parameters:
+      subject:
+        type: string
+        required: true
+        description: Main subject of the image
+      quality:
+        type: string
+        required: false
+        default: "masterpiece, best quality, highly detailed"
+        description: Quality tags
+      style:
+        type: string
+        required: false
+        default: "digital illustration"
+        description: Art style tags
+      composition:
+        type: string
+        required: false
+        default: ""
+        description: Composition tags (portrait, full body, etc.)
+      lighting:
+        type: string
+        required: false
+        default: ""
+        description: Lighting description
+      colors:
+        type: string
+        required: false
+        default: ""
+        description: Color palette
+      mood:
+        type: string
+        required: false
+        default: ""
+        description: Mood/atmosphere
+      artistStyle:
+        type: string
+        required: false
+        default: ""
+        description: Artist style reference (e.g., "art by Wypher style")
+      weights:
+        type: string
+        required: false
+        default: ""
+        description: Weighted tags like (tag:1.2)
+      negativePrompt:
+        type: string
+        required: false
+        default: "low quality, worst quality, bad anatomy, watermark, signature, blurry"
+        description: Custom negative prompt
+    steps:
+      - type: setVariable
+        name: parts
+        value: ""
+      - type: condition
+        if: "{{params.quality}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{params.quality}}"
+      - type: condition
+        if: "{{params.style}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{parts}}, {{params.style}}"
+      - type: condition
+        if: "{{params.composition}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{parts}}, {{params.composition}}"
+      - type: setVariable
+        name: parts
+        value: "{{parts}}, {{params.subject}}"
+      - type: condition
+        if: "{{params.lighting}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{parts}}, {{params.lighting}}"
+      - type: condition
+        if: "{{params.colors}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{parts}}, {{params.colors}}"
+      - type: condition
+        if: "{{params.mood}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{parts}}, {{params.mood}}"
+      - type: condition
+        if: "{{params.artistStyle}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{parts}}, {{params.artistStyle}}"
+      - type: condition
+        if: "{{params.weights}}"
+        then:
+          - type: setVariable
+            name: parts
+            value: "{{parts}}, {{params.weights}}"
+      - type: returnData
+        data:
+          prompt: "{{parts}}"
+          negativePrompt: "{{params.negativePrompt}}"
+          tips:
+            - "Use (tag:1.2) to increase weight, (tag:0.8) to decrease"
+            - "Separate concepts with commas"
+            - "Put most important tags first"
+            - "Add artist styles like 'by artist_name'"
+    returns:
+      type: object
+      description: Fully customized prompt
+
+  suggestTags:
+    description: Get tag suggestions for different categories
+    parameters:
+      category:
+        type: string
+        required: true
+        description: Category to get suggestions for (quality, style, pose, clothing, species, hair, eyes, expression, background, lighting)
+    steps:
+      - type: condition
+        if: "{{params.category}} == 'quality'"
+        then:
+          - type: returnData
+            data:
+              category: quality
+              tags:
+                - masterpiece
+                - best quality
+                - highly detailed
+                - ultra detailed
+                - sharp focus
+                - 8k
+                - absurdres
+                - highres
+                - intricate details
+                - professional
+      - type: condition
+        if: "{{params.category}} == 'style'"
+        then:
+          - type: returnData
+            data:
+              category: style
+              tags:
+                - digital illustration
+                - digital painting
+                - anime style
+                - cel shading
+                - watercolor
+                - oil painting
+                - concept art
+                - semi-realistic
+                - photorealistic
+                - clean line art
+                - sketch
+                - pixel art
+      - type: condition
+        if: "{{params.category}} == 'pose'"
+        then:
+          - type: returnData
+            data:
+              category: pose
+              tags:
+                - standing
+                - sitting
+                - lying down
+                - walking
+                - running
+                - jumping
+                - shy pose
+                - confident pose
+                - dynamic pose
+                - action pose
+                - relaxed
+                - looking at viewer
+                - looking away
+                - from behind
+                - from side
+      - type: condition
+        if: "{{params.category}} == 'clothing'"
+        then:
+          - type: returnData
+            data:
+              category: clothing
+              tags:
+                - hoodie
+                - oversized hoodie
+                - school uniform
+                - sailor uniform
+                - dress
+                - casual clothes
+                - formal wear
+                - swimsuit
+                - kimono
+                - armor
+                - jacket
+                - skirt
+                - pleated skirt
+                - shorts
+                - thigh-highs
+                - stockings
+      - type: condition
+        if: "{{params.category}} == 'species'"
+        then:
+          - type: returnData
+            data:
+              category: species
+              tags:
+                - fox
+                - wolf
+                - cat
+                - dog
+                - rabbit
+                - deer
+                - dragon
+                - sergal
+                - protogen
+                - avian
+                - shark
+                - otter
+                - raccoon
+                - red panda
+                - husky
+      - type: condition
+        if: "{{params.category}} == 'expression'"
+        then:
+          - type: returnData
+            data:
+              category: expression
+              tags:
+                - happy
+                - smile
+                - grin
+                - blushing
+                - shy
+                - embarrassed
+                - angry
+                - sad
+                - crying
+                - surprised
+                - smug
+                - sleepy
+                - wink
+                - tongue out
+                - open mouth
+      - type: condition
+        if: "{{params.category}} == 'background'"
+        then:
+          - type: returnData
+            data:
+              category: background
+              tags:
+                - simple background
+                - white background
+                - gradient background
+                - outdoors
+                - indoors
+                - forest
+                - beach
+                - city
+                - bedroom
+                - classroom
+                - fantasy setting
+                - night sky
+                - starry sky
+                - cherry blossoms
+                - floating hearts
+      - type: condition
+        if: "{{params.category}} == 'lighting'"
+        then:
+          - type: returnData
+            data:
+              category: lighting
+              tags:
+                - soft lighting
+                - dramatic lighting
+                - rim light
+                - backlighting
+                - golden hour
+                - sunset
+                - sunrise
+                - night
+                - moonlight
+                - neon lights
+                - studio lighting
+                - natural lighting
+    returns:
+      type: object
+      description: List of suggested tags for the category
+
+  generateExamplePrompt:
+    description: Generate an example prompt in the style of the user's reference
+    steps:
+      - type: setVariable
+        name: examplePrompt
+        value: "Digital illustration of a cute chibi furry character, cream and peach fur, large bushy white tail, wearing an oversized black hoodie and a pink plaid pleated skirt, thigh-high socks, flower crown, pink bell collar, shy pose, blushing, floating hearts, soft pastel colors, clean line art, high quality, art by Wypher style, (solo:1.2)"
+      - type: returnData
+        data:
+          prompt: "{{examplePrompt}}"
+          negativePrompt: "low quality, worst quality, bad anatomy, bad hands, missing fingers, extra digits, fewer digits, cropped, watermark, signature, username, blurry, jpeg artifacts, deformed"
+          breakdown:
+            style: "Digital illustration"
+            body: "cute chibi furry character"
+            colors: "cream and peach fur, large bushy white tail"
+            clothing: "oversized black hoodie, pink plaid pleated skirt"
+            accessories: "thigh-high socks, flower crown, pink bell collar"
+            pose: "shy pose, blushing"
+            atmosphere: "floating hearts, soft pastel colors"
+            quality: "clean line art, high quality"
+            artist: "art by Wypher style"
+            weight: "(solo:1.2)"
+          suggestedSettings:
+            steps: 30
+            cfg_scale: 7
+            sampler: "DPM++ 2M Karras"
+            size: "512x768"
+    returns:
+      type: object
+      description: Example prompt with full breakdown

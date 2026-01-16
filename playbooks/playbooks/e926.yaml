@@ -1,0 +1,330 @@
+name: e926
+version: 1.0.1
+description: |
+  Integration with e926.net - the safe-for-work imageboard.
+  Search posts, manage favorites, and browse content.
+  
+  Requirements:
+  - e926 account
+  - API key (get from Account > Manage API Access)
+
+author: HttpAnimations
+playbookVersion: 1
+icon: image
+
+config:
+  username:
+    type: string
+    required: true
+    description: Your e926 username
+  
+  apiKey:
+    type: string
+    required: true
+    secret: true
+    description: Your e926 API key (Account > Manage API Access)
+
+triggers:
+  - pattern: "e926|e9|search.*image|find.*art"
+    description: e926 related queries
+    priority: 5
+  - pattern: "favorite|fav|like.*post"
+    description: Favorite management
+    priority: 3
+
+actions:
+  verifyLogin:
+    description: Verify your e926 credentials are working
+    steps:
+      - type: http
+        method: GET
+        url: "https://e926.net/users/{{config.username}}.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+        retries: 2
+        retryDelay: 1000
+        response:
+          store: user
+      - type: condition
+        if: "{{user.id}}"
+        then:
+          - type: returnData
+            value:
+              success: true
+              message: "Logged in as {{user.name}}"
+              userId: "{{user.id}}"
+              level: "{{user.level_string}}"
+              postCount: "{{user.post_upload_count}}"
+        else:
+          - type: returnData
+            value:
+              success: false
+              message: "Failed to verify credentials"
+
+  searchPosts:
+    description: Search for posts on e926
+    parameters:
+      tags:
+        type: string
+        required: true
+        description: Tags to search for (space-separated)
+      limit:
+        type: number
+        default: 20
+        description: Maximum number of results (max 320)
+      page:
+        type: number
+        default: 1
+        description: Page number
+    steps:
+      - type: http
+        method: GET
+        url: "https://e926.net/posts.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+          tags: "{{params.tags}}"
+          limit: "{{params.limit}}"
+          page: "{{params.page}}"
+        retries: 2
+        response:
+          store: searchResults
+      - type: transform
+        input: "{{searchResults.posts}}"
+        output: posts
+        map:
+          id: "{{item.id}}"
+          rating: "{{item.rating}}"
+          score: "{{item.score.total}}"
+          favCount: "{{item.fav_count}}"
+          tags: "{{item.tags.general}}"
+          artist: "{{item.tags.artist}}"
+          previewUrl: "{{item.preview.url}}"
+          fileUrl: "{{item.file.url}}"
+          width: "{{item.file.width}}"
+          height: "{{item.file.height}}"
+          source: "{{item.sources}}"
+      - type: returnData
+        value:
+          count: "{{posts.length}}"
+          posts: "{{posts}}"
+
+  getPost:
+    description: Get details for a specific post
+    parameters:
+      postId:
+        type: number
+        required: true
+        description: The post ID
+    steps:
+      - type: http
+        method: GET
+        url: "https://e926.net/posts/{{params.postId}}.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+        retries: 2
+        response:
+          store: postData
+      - type: returnData
+        value:
+          id: "{{postData.post.id}}"
+          rating: "{{postData.post.rating}}"
+          score: "{{postData.post.score.total}}"
+          favCount: "{{postData.post.fav_count}}"
+          description: "{{postData.post.description}}"
+          tags: "{{postData.post.tags}}"
+          fileUrl: "{{postData.post.file.url}}"
+          previewUrl: "{{postData.post.preview.url}}"
+          width: "{{postData.post.file.width}}"
+          height: "{{postData.post.file.height}}"
+          sources: "{{postData.post.sources}}"
+          uploaderId: "{{postData.post.uploader_id}}"
+          createdAt: "{{postData.post.created_at}}"
+
+  addFavorite:
+    description: Add a post to your favorites
+    parameters:
+      postId:
+        type: number
+        required: true
+        description: The post ID to favorite
+    steps:
+      - type: http
+        method: POST
+        url: "https://e926.net/favorites.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+        body:
+          post_id: "{{params.postId}}"
+        retries: 1
+        onFailure: returnError
+        response:
+          store: favResult
+      - type: returnData
+        value:
+          success: true
+          message: "Post {{params.postId}} added to favorites"
+          post: "{{favResult.post}}"
+
+  removeFavorite:
+    description: Remove a post from your favorites
+    parameters:
+      postId:
+        type: number
+        required: true
+        description: The post ID to unfavorite
+    steps:
+      - type: http
+        method: DELETE
+        url: "https://e926.net/favorites/{{params.postId}}.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+        retries: 1
+        onFailure: returnError
+        response:
+          store: unfavResult
+      - type: returnData
+        value:
+          success: true
+          message: "Post {{params.postId}} removed from favorites"
+
+  getFavorites:
+    description: Get your favorited posts
+    parameters:
+      limit:
+        type: number
+        default: 20
+        description: Maximum number of results
+      page:
+        type: number
+        default: 1
+        description: Page number
+    steps:
+      - type: http
+        method: GET
+        url: "https://e926.net/favorites.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+          limit: "{{params.limit}}"
+          page: "{{params.page}}"
+        retries: 2
+        response:
+          store: favorites
+      - type: transform
+        input: "{{favorites.posts}}"
+        output: posts
+        map:
+          id: "{{item.id}}"
+          score: "{{item.score.total}}"
+          favCount: "{{item.fav_count}}"
+          previewUrl: "{{item.preview.url}}"
+          fileUrl: "{{item.file.url}}"
+          tags: "{{item.tags.general}}"
+          artist: "{{item.tags.artist}}"
+      - type: returnData
+        value:
+          count: "{{posts.length}}"
+          posts: "{{posts}}"
+
+  getPopular:
+    description: Get popular posts from a time period
+    parameters:
+      date:
+        type: string
+        description: Date in YYYY-MM-DD format (defaults to today)
+      scale:
+        type: select
+        default: day
+        description: Time scale for popularity
+        options:
+          - day
+          - week
+          - month
+    steps:
+      - type: http
+        method: GET
+        url: "https://e926.net/popular.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+          date: "{{params.date}}"
+          scale: "{{params.scale}}"
+        retries: 2
+        response:
+          store: popular
+      - type: transform
+        input: "{{popular.posts}}"
+        output: posts
+        map:
+          id: "{{item.id}}"
+          score: "{{item.score.total}}"
+          favCount: "{{item.fav_count}}"
+          previewUrl: "{{item.preview.url}}"
+          fileUrl: "{{item.file.url}}"
+          artist: "{{item.tags.artist}}"
+      - type: returnData
+        value:
+          count: "{{posts.length}}"
+          posts: "{{posts}}"
+
+  getTags:
+    description: Search for tags
+    parameters:
+      query:
+        type: string
+        required: true
+        description: Tag name to search for
+      category:
+        type: select
+        description: Filter by tag category
+        options:
+          - general
+          - artist
+          - copyright
+          - character
+          - species
+          - meta
+    steps:
+      - type: http
+        method: GET
+        url: "https://e926.net/tags.json"
+        headers:
+          User-Agent: "Docan/1.0 (by {{config.username}})"
+        params:
+          login: "{{config.username}}"
+          api_key: "{{config.apiKey}}"
+          search[name_matches]: "{{params.query}}*"
+          search[order]: count
+          limit: "20"
+        retries: 2
+        response:
+          store: tags
+      - type: transform
+        input: "{{tags}}"
+        output: tagList
+        map:
+          name: "{{item.name}}"
+          count: "{{item.post_count}}"
+          category: "{{item.category}}"
+      - type: returnData
+        value:
+          tags: "{{tagList}}"

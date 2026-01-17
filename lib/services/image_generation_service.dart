@@ -103,6 +103,105 @@ class GeneratedImage {
   String get base64Data => base64Encode(imageData);
 }
 
+/// ComfyUI generation settings
+class ComfyUISettings {
+  final int steps;
+  final double cfgScale;
+  final int width;
+  final int height;
+  final int seed;
+  final String sampler;
+  final String scheduler;
+  final String negativePrompt;
+  final double denoise;
+
+  const ComfyUISettings({
+    this.steps = 20,
+    this.cfgScale = 7.0,
+    this.width = 512,
+    this.height = 512,
+    this.seed = -1, // -1 means random
+    this.sampler = 'euler',
+    this.scheduler = 'normal',
+    this.negativePrompt = 'bad quality, blurry, distorted',
+    this.denoise = 1.0,
+  });
+
+  ComfyUISettings copyWith({
+    int? steps,
+    double? cfgScale,
+    int? width,
+    int? height,
+    int? seed,
+    String? sampler,
+    String? scheduler,
+    String? negativePrompt,
+    double? denoise,
+  }) {
+    return ComfyUISettings(
+      steps: steps ?? this.steps,
+      cfgScale: cfgScale ?? this.cfgScale,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      seed: seed ?? this.seed,
+      sampler: sampler ?? this.sampler,
+      scheduler: scheduler ?? this.scheduler,
+      negativePrompt: negativePrompt ?? this.negativePrompt,
+      denoise: denoise ?? this.denoise,
+    );
+  }
+
+  /// Available samplers in ComfyUI
+  static const List<String> availableSamplers = [
+    'euler',
+    'euler_ancestral',
+    'heun',
+    'heunpp2',
+    'dpm_2',
+    'dpm_2_ancestral',
+    'lms',
+    'dpm_fast',
+    'dpm_adaptive',
+    'dpmpp_2s_ancestral',
+    'dpmpp_sde',
+    'dpmpp_sde_gpu',
+    'dpmpp_2m',
+    'dpmpp_2m_sde',
+    'dpmpp_2m_sde_gpu',
+    'dpmpp_3m_sde',
+    'dpmpp_3m_sde_gpu',
+    'ddpm',
+    'lcm',
+    'ddim',
+    'uni_pc',
+    'uni_pc_bh2',
+  ];
+
+  /// Available schedulers in ComfyUI
+  static const List<String> availableSchedulers = [
+    'normal',
+    'karras',
+    'exponential',
+    'sgm_uniform',
+    'simple',
+    'ddim_uniform',
+    'beta',
+  ];
+
+  /// Common resolution presets
+  static const List<Map<String, int>> resolutionPresets = [
+    {'width': 512, 'height': 512},
+    {'width': 768, 'height': 768},
+    {'width': 1024, 'height': 1024},
+    {'width': 512, 'height': 768},
+    {'width': 768, 'height': 512},
+    {'width': 768, 'height': 1024},
+    {'width': 1024, 'height': 768},
+    {'width': 1024, 'height': 1536},
+    {'width': 1536, 'height': 1024},
+  ];
+}
+
 /// Image size options
 enum ImageSize { small, medium, large, hd }
 
@@ -143,6 +242,7 @@ class ImageGenerationService extends ChangeNotifier {
   bool _isGenerating = false;
   String? _error;
   final List<GeneratedImage> _generatedImages = [];
+  ComfyUISettings _comfyUISettings = const ComfyUISettings();
 
   ImageGenerationService(this._storage);
 
@@ -152,6 +252,7 @@ class ImageGenerationService extends ChangeNotifier {
   bool get isGenerating => _isGenerating;
   String? get error => _error;
   List<GeneratedImage> get generatedImages => _generatedImages;
+  ComfyUISettings get comfyUISettings => _comfyUISettings;
 
   /// Initialize the service
   Future<void> initialize() async {
@@ -169,6 +270,12 @@ class ImageGenerationService extends ChangeNotifier {
   /// Set the selected model
   void setModel(String model) {
     _selectedModel = model;
+    notifyListeners();
+  }
+
+  /// Update ComfyUI settings
+  void updateComfyUISettings(ComfyUISettings settings) {
+    _comfyUISettings = settings;
     notifyListeners();
   }
 
@@ -547,44 +654,31 @@ class ImageGenerationService extends ChangeNotifier {
       throw Exception('ComfyUI URL not configured');
     }
 
-    // Get dimensions from size
-    int width;
-    int height;
-    switch (size) {
-      case ImageSize.small:
-        width = 256;
-        height = 256;
-        break;
-      case ImageSize.medium:
-        width = 512;
-        height = 512;
-        break;
-      case ImageSize.large:
-        width = 1024;
-        height = 1024;
-        break;
-      case ImageSize.hd:
-        width = 1792;
-        height = 1024;
-        break;
-    }
+    // Use ComfyUI settings for dimensions (ignore size parameter when using ComfyUI)
+    final settings = _comfyUISettings;
+    final width = settings.width;
+    final height = settings.height;
+    
+    // Generate seed - use random if -1
+    final seed = settings.seed == -1 
+        ? DateTime.now().millisecondsSinceEpoch % 4294967295
+        : settings.seed;
 
-    // Create a simple txt2img workflow for ComfyUI
-    // This is a basic workflow - users may need to customize based on their setup
+    // Create a txt2img workflow for ComfyUI using the settings
     final workflow = {
       "3": {
         "class_type": "KSampler",
         "inputs": {
-          "cfg": 8,
-          "denoise": 1,
+          "cfg": settings.cfgScale,
+          "denoise": settings.denoise,
           "latent_image": ["5", 0],
           "model": ["4", 0],
           "negative": ["7", 0],
           "positive": ["6", 0],
-          "sampler_name": "euler",
-          "scheduler": "normal",
-          "seed": DateTime.now().millisecondsSinceEpoch,
-          "steps": 20
+          "sampler_name": settings.sampler,
+          "scheduler": settings.scheduler,
+          "seed": seed,
+          "steps": settings.steps
         }
       },
       "4": {
@@ -603,7 +697,7 @@ class ImageGenerationService extends ChangeNotifier {
         "class_type": "CLIPTextEncode",
         "inputs": {
           "clip": ["4", 1],
-          "text": "bad quality, blurry, distorted"
+          "text": settings.negativePrompt
         }
       },
       "8": {
@@ -615,6 +709,9 @@ class ImageGenerationService extends ChangeNotifier {
         "inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}
       }
     };
+
+    debugPrint('[ImageGen] ComfyUI Settings: steps=${settings.steps}, cfg=${settings.cfgScale}, '
+        'size=${width}x$height, seed=$seed, sampler=${settings.sampler}, scheduler=${settings.scheduler}');
 
     try {
       // Queue the prompt

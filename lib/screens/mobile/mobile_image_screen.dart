@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../config/constants.dart';
+import '../../components/comfyui_settings_panel.dart';
 import '../../services/image_generation_service.dart';
 import '../../utils/liquid_glass_effects.dart';
 
@@ -160,6 +161,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
         selectedModel: service.selectedModel,
         selectedSize: _selectedSize,
         configuredProviders: _configuredProviders,
+        comfyUISettings: service.comfyUISettings,
         onProviderChanged: (provider) {
           service.setProvider(provider);
         },
@@ -171,6 +173,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
             _selectedSize = size;
           });
         },
+        onComfyUISettingsChanged: service.updateComfyUISettings,
         fetchModels: service.getAvailableModels,
       ),
     );
@@ -745,9 +748,11 @@ class _SettingsBottomSheet extends StatefulWidget {
   final String selectedModel;
   final ImageSize selectedSize;
   final Map<ImageGenProvider, bool> configuredProviders;
+  final ComfyUISettings comfyUISettings;
   final ValueChanged<ImageGenProvider> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final ValueChanged<ImageSize> onSizeChanged;
+  final ValueChanged<ComfyUISettings> onComfyUISettingsChanged;
   final Future<List<String>> Function(ImageGenProvider) fetchModels;
 
   const _SettingsBottomSheet({
@@ -756,9 +761,11 @@ class _SettingsBottomSheet extends StatefulWidget {
     required this.selectedModel,
     required this.selectedSize,
     required this.configuredProviders,
+    required this.comfyUISettings,
     required this.onProviderChanged,
     required this.onModelChanged,
     required this.onSizeChanged,
+    required this.onComfyUISettingsChanged,
     required this.fetchModels,
   });
 
@@ -772,6 +779,7 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isComfyUI = widget.selectedProvider == ImageGenProvider.comfyui;
 
     return Container(
       decoration: BoxDecoration(
@@ -831,20 +839,50 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
             },
           ),
 
-          // Size
-          ListTile(
-            leading: const Icon(Icons.aspect_ratio),
-            title: const Text('Image Size'),
-            subtitle: Text(widget.selectedSize.displayName),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.pop(context);
-              _showSizePicker(widget.parentContext);
-            },
-          ),
+          // Size (hide when ComfyUI is selected - it has its own resolution settings)
+          if (!isComfyUI)
+            ListTile(
+              leading: const Icon(Icons.aspect_ratio),
+              title: const Text('Image Size'),
+              subtitle: Text(widget.selectedSize.displayName),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.pop(context);
+                _showSizePicker(widget.parentContext);
+              },
+            ),
+
+          // ComfyUI Settings (only when ComfyUI is selected)
+          if (isComfyUI)
+            ListTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('ComfyUI Settings'),
+              subtitle: Text(
+                '${widget.comfyUISettings.width}x${widget.comfyUISettings.height}, '
+                '${widget.comfyUISettings.steps} steps, '
+                'CFG ${widget.comfyUISettings.cfgScale}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.pop(context);
+                _showComfyUISettings(widget.parentContext);
+              },
+            ),
 
           const SizedBox(height: AppConstants.spacingL),
         ],
+      ),
+    );
+  }
+
+  void _showComfyUISettings(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => ComfyUISettingsSheet(
+        settings: widget.comfyUISettings,
+        onSettingsChanged: widget.onComfyUISettingsChanged,
       ),
     );
   }

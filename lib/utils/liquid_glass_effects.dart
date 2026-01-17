@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../config/constants.dart';
 
 /// Liquid Glass elastic animation curve
@@ -436,6 +437,7 @@ class LiquidGlassTextField extends StatefulWidget {
   final bool autofocus;
   final FocusNode? focusNode;
   final bool enabled;
+  final List<TextInputFormatter>? inputFormatters;
 
   const LiquidGlassTextField({
     super.key,
@@ -453,6 +455,7 @@ class LiquidGlassTextField extends StatefulWidget {
     this.autofocus = false,
     this.focusNode,
     this.enabled = true,
+    this.inputFormatters,
   });
 
   @override
@@ -521,6 +524,7 @@ class _LiquidGlassTextFieldState extends State<LiquidGlassTextField> {
         onSubmitted: widget.onSubmitted,
         autofocus: widget.autofocus,
         enabled: widget.enabled,
+        inputFormatters: widget.inputFormatters,
         style: theme.textTheme.bodyLarge,
         decoration: InputDecoration(
           hintText: widget.hintText,

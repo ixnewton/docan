@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../config/constants.dart';
+import '../../components/comfyui_settings_panel.dart';
 import '../../services/image_generation_service.dart';
 import '../../utils/liquid_glass_effects.dart';
 
@@ -21,6 +22,7 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
   Map<ImageGenProvider, bool> _configuredProviders = {};
   ImageSize _selectedSize = ImageSize.large;
   GeneratedImage? _selectedImage;
+  bool _showComfyUISettings = false;
 
   @override
   void initState() {
@@ -116,6 +118,7 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
       builder: (context, service, child) {
         final hasApiKey =
             _configuredProviders[service.selectedProvider] ?? false;
+        final isComfyUI = service.selectedProvider == ImageGenProvider.comfyui;
 
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
@@ -132,7 +135,18 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
                     _buildToolbar(context, service),
 
                     // Image display area
-                    Expanded(child: _buildImageArea(context, service)),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          // Image area
+                          Expanded(child: _buildImageArea(context, service)),
+                          
+                          // ComfyUI Settings Panel (only when ComfyUI is selected)
+                          if (isComfyUI && _showComfyUISettings)
+                            _buildComfyUISettingsPanel(context, service, isDark),
+                        ],
+                      ),
+                    ),
 
                     // Prompt input
                     _buildPromptInput(context, service, hasApiKey),
@@ -143,6 +157,68 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildComfyUISettingsPanel(
+    BuildContext context,
+    ImageGenerationService service,
+    bool isDark,
+  ) {
+    final theme = Theme.of(context);
+    
+    return Container(
+      width: 300,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.black.withValues(alpha: 0.3)
+            : Colors.white.withValues(alpha: 0.5),
+        border: Border(
+          left: BorderSide(
+            color: theme.dividerColor.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(AppConstants.spacingM),
+            child: Row(
+              children: [
+                const Icon(Icons.tune, size: 18),
+                const SizedBox(width: AppConstants.spacingS),
+                Text(
+                  'ComfyUI Settings',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                LiquidGlassIconButton(
+                  icon: Icons.close,
+                  size: 32,
+                  onPressed: () {
+                    setState(() {
+                      _showComfyUISettings = false;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Settings
+          Expanded(
+            child: ComfyUISettingsPanel(
+              settings: service.comfyUISettings,
+              onSettingsChanged: service.updateComfyUISettings,
+              isCompact: false,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -286,17 +362,32 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
           const Spacer(),
 
-          // Size selector
-          _SizeSelector(
-            selectedSize: _selectedSize,
-            onChanged: (size) {
-              setState(() {
-                _selectedSize = size;
-              });
-            },
-          ),
+          // ComfyUI Settings toggle (only when ComfyUI is selected)
+          if (service.selectedProvider == ImageGenProvider.comfyui) ...[
+            LiquidGlassIconButton(
+              icon: _showComfyUISettings ? Icons.tune : Icons.tune_outlined,
+              tooltip: 'ComfyUI Settings',
+              onPressed: () {
+                setState(() {
+                  _showComfyUISettings = !_showComfyUISettings;
+                });
+              },
+            ),
+            const SizedBox(width: AppConstants.spacingM),
+          ],
 
-          const SizedBox(width: AppConstants.spacingM),
+          // Size selector (hide when ComfyUI is selected - it has its own resolution settings)
+          if (service.selectedProvider != ImageGenProvider.comfyui) ...[
+            _SizeSelector(
+              selectedSize: _selectedSize,
+              onChanged: (size) {
+                setState(() {
+                  _selectedSize = size;
+                });
+              },
+            ),
+            const SizedBox(width: AppConstants.spacingM),
+          ],
 
           // Actions for selected image
           if (_selectedImage != null) ...[

@@ -16,6 +16,7 @@ class AppConstants {
   static const String deepSeekBaseUrl = 'https://api.deepseek.com';
   static const String ollamaDefaultUrl = 'http://localhost:11434';
   static const String lmStudioDefaultUrl = 'http://localhost:1234/v1';
+  static const String comfyUIDefaultUrl = 'http://localhost:8188';
 
   // Default Models
   static const String defaultGeminiModel = 'gemini-2.5-flash';
@@ -83,6 +84,7 @@ class AppConstants {
   static const String keyDeepSeekApiKey = 'deepseek_api_key';
   static const String keyOllamaUrl = 'ollama_url';
   static const String keyLMStudioUrl = 'lmstudio_url';
+  static const String keyComfyUIUrl = 'comfyui_url';
   static const String keyThemeMode = 'theme_mode';
   static const String keyTemperature = 'temperature';
   static const String keyMaxTokens = 'max_tokens';

@@ -570,7 +570,7 @@ class _MobileImageViewer extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      Icons.auto_awesome,
+                      image.provider.icon,
                       size: 16,
                       color: theme.primaryColor,
                     ),
@@ -808,7 +808,7 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
 
           // Provider
           ListTile(
-            leading: const Icon(Icons.auto_awesome),
+            leading: Icon(widget.selectedProvider.icon),
             title: const Text('Provider'),
             subtitle: Text(widget.selectedProvider.displayName),
             trailing: const Icon(Icons.chevron_right),
@@ -858,9 +858,7 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
         selectedItem: widget.selectedProvider,
         itemBuilder: (provider) => ListTile(
           leading: Icon(
-            provider == ImageGenProvider.gemini
-                ? Icons.auto_awesome
-                : Icons.palette,
+            provider.icon,
           ),
           title: Text(provider.displayName),
           subtitle: Text(provider.description),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../config/constants.dart';
@@ -9,7 +10,7 @@ import '../utils/api_error_parser.dart';
 import 'storage_service.dart';
 
 /// Image provider for image generation
-enum ImageGenProvider { gemini, openai }
+enum ImageGenProvider { gemini, openai, comfyui }
 
 /// Extension methods for ImageGenProvider
 extension ImageGenProviderExtension on ImageGenProvider {
@@ -19,6 +20,8 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return 'Gemini';
       case ImageGenProvider.openai:
         return 'DALL-E';
+      case ImageGenProvider.comfyui:
+        return 'ComfyUI';
     }
   }
 
@@ -28,6 +31,8 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return 'Google Gemini Image Generation';
       case ImageGenProvider.openai:
         return 'OpenAI DALL-E';
+      case ImageGenProvider.comfyui:
+        return 'ComfyUI Local Image Generation';
     }
   }
 
@@ -38,6 +43,8 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return ['gemini-2.0-flash-exp-image-generation'];
       case ImageGenProvider.openai:
         return ['dall-e-3', 'dall-e-2', 'gpt-image-1'];
+      case ImageGenProvider.comfyui:
+        return ['default'];
     }
   }
 
@@ -47,6 +54,25 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return 'gemini-2.0-flash-exp-image-generation';
       case ImageGenProvider.openai:
         return 'dall-e-3';
+      case ImageGenProvider.comfyui:
+        return 'default';
+    }
+  }
+
+  /// Whether this provider requires a URL instead of an API key
+  bool get requiresUrl {
+    return this == ImageGenProvider.comfyui;
+  }
+
+  /// Icon for the provider
+  IconData get icon {
+    switch (this) {
+      case ImageGenProvider.gemini:
+        return Icons.auto_awesome;
+      case ImageGenProvider.openai:
+        return Icons.palette;
+      case ImageGenProvider.comfyui:
+        return Icons.brush;
     }
   }
 }
@@ -150,10 +176,15 @@ class ImageGenerationService extends ChangeNotifier {
   Future<Map<ImageGenProvider, bool>> getConfiguredProviders() async {
     final result = <ImageGenProvider, bool>{};
     for (final provider in ImageGenProvider.values) {
-      final aiProvider = provider == ImageGenProvider.gemini
-          ? AIProvider.gemini
-          : AIProvider.openai;
-      final hasKey = await _storage.hasApiKey(aiProvider);
+      bool hasKey;
+      if (provider == ImageGenProvider.comfyui) {
+        hasKey = await _storage.hasComfyUIUrl();
+      } else {
+        final aiProvider = provider == ImageGenProvider.gemini
+            ? AIProvider.gemini
+            : AIProvider.openai;
+        hasKey = await _storage.hasApiKey(aiProvider);
+      }
       result[provider] = hasKey;
     }
     return result;
@@ -166,6 +197,8 @@ class ImageGenerationService extends ChangeNotifier {
         return _fetchGeminiImageModels();
       case ImageGenProvider.openai:
         return _fetchOpenAIImageModels();
+      case ImageGenProvider.comfyui:
+        return _fetchComfyUIWorkflows();
     }
   }
 
@@ -287,6 +320,9 @@ class ImageGenerationService extends ChangeNotifier {
           break;
         case ImageGenProvider.openai:
           image = await _generateWithOpenAI(prompt, size);
+          break;
+        case ImageGenProvider.comfyui:
+          image = await _generateWithComfyUI(prompt, size);
           break;
       }
 
@@ -449,6 +485,185 @@ class ImageGenerationService extends ChangeNotifier {
       model: _selectedModel,
       revisedPrompt: revisedPrompt,
     );
+  }
+
+  /// Fetch available ComfyUI workflows
+  Future<List<String>> _fetchComfyUIWorkflows() async {
+    final baseUrl = await _storage.getComfyUIUrl();
+    if (baseUrl.isEmpty) {
+      return ImageGenProvider.comfyui.fallbackModels;
+    }
+
+    try {
+      // ComfyUI doesn't have a standard endpoint for listing workflows
+      // Return default workflow option
+      return ImageGenProvider.comfyui.fallbackModels;
+    } catch (e) {
+      debugPrint('[ImageGen] Error fetching ComfyUI workflows: $e');
+      return ImageGenProvider.comfyui.fallbackModels;
+    }
+  }
+
+  /// Generate image with ComfyUI
+  Future<GeneratedImage?> _generateWithComfyUI(
+    String prompt,
+    ImageSize size,
+  ) async {
+    final baseUrl = await _storage.getComfyUIUrl();
+    if (baseUrl.isEmpty) {
+      throw Exception('ComfyUI URL not configured');
+    }
+
+    // Get dimensions from size
+    int width;
+    int height;
+    switch (size) {
+      case ImageSize.small:
+        width = 256;
+        height = 256;
+        break;
+      case ImageSize.medium:
+        width = 512;
+        height = 512;
+        break;
+      case ImageSize.large:
+        width = 1024;
+        height = 1024;
+        break;
+      case ImageSize.hd:
+        width = 1792;
+        height = 1024;
+        break;
+    }
+
+    // Create a simple txt2img workflow for ComfyUI
+    // This is a basic workflow - users may need to customize based on their setup
+    final workflow = {
+      "3": {
+        "class_type": "KSampler",
+        "inputs": {
+          "cfg": 8,
+          "denoise": 1,
+          "latent_image": ["5", 0],
+          "model": ["4", 0],
+          "negative": ["7", 0],
+          "positive": ["6", 0],
+          "sampler_name": "euler",
+          "scheduler": "normal",
+          "seed": DateTime.now().millisecondsSinceEpoch,
+          "steps": 20
+        }
+      },
+      "4": {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}
+      },
+      "5": {
+        "class_type": "EmptyLatentImage",
+        "inputs": {"batch_size": 1, "height": height, "width": width}
+      },
+      "6": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {"clip": ["4", 1], "text": prompt}
+      },
+      "7": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+          "clip": ["4", 1],
+          "text": "bad quality, blurry, distorted"
+        }
+      },
+      "8": {
+        "class_type": "VAEDecode",
+        "inputs": {"samples": ["3", 0], "vae": ["4", 2]}
+      },
+      "9": {
+        "class_type": "SaveImage",
+        "inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}
+      }
+    };
+
+    try {
+      // Queue the prompt
+      final queueUrl = Uri.parse('$baseUrl/prompt');
+      debugPrint('[ImageGen] Sending request to ComfyUI at $queueUrl...');
+
+      final queueResponse = await http.post(
+        queueUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': workflow}),
+      );
+
+      if (queueResponse.statusCode != 200) {
+        debugPrint('[ImageGen] ComfyUI queue error: ${queueResponse.body}');
+        throw Exception('ComfyUI error: ${queueResponse.statusCode}');
+      }
+
+      final queueData = jsonDecode(queueResponse.body);
+      final promptId = queueData['prompt_id'] as String?;
+
+      if (promptId == null) {
+        throw Exception('Failed to queue prompt in ComfyUI');
+      }
+
+      debugPrint('[ImageGen] ComfyUI prompt queued: $promptId');
+
+      // Poll for completion
+      Uint8List? imageData;
+      int attempts = 0;
+      const maxAttempts = 120; // 2 minutes max
+
+      while (attempts < maxAttempts) {
+        await Future.delayed(const Duration(seconds: 1));
+        attempts++;
+
+        final historyUrl = Uri.parse('$baseUrl/history/$promptId');
+        final historyResponse = await http.get(historyUrl);
+
+        if (historyResponse.statusCode == 200) {
+          final historyData = jsonDecode(historyResponse.body);
+
+          if (historyData[promptId] != null) {
+            final outputs = historyData[promptId]['outputs'];
+            if (outputs != null && outputs['9'] != null) {
+              final images = outputs['9']['images'] as List<dynamic>?;
+              if (images != null && images.isNotEmpty) {
+                final imageInfo = images[0];
+                final filename = imageInfo['filename'] as String;
+                final subfolder = imageInfo['subfolder'] as String? ?? '';
+                final type = imageInfo['type'] as String? ?? 'output';
+
+                // Fetch the image
+                final imageUrl = Uri.parse(
+                  '$baseUrl/view?filename=$filename&subfolder=$subfolder&type=$type',
+                );
+                final imageResponse = await http.get(imageUrl);
+
+                if (imageResponse.statusCode == 200) {
+                  imageData = imageResponse.bodyBytes;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (imageData == null) {
+        throw Exception('ComfyUI generation timed out or failed');
+      }
+
+      return GeneratedImage(
+        prompt: prompt,
+        imageData: imageData,
+        mimeType: 'image/png',
+        provider: ImageGenProvider.comfyui,
+        model: _selectedModel,
+      );
+    } catch (e) {
+      debugPrint('[ImageGen] ComfyUI error: $e');
+      rethrow;
+    }
   }
 
   /// Clear generated images

@@ -675,9 +675,7 @@ class _ImageProviderSelectorState extends State<_ImageProviderSelector> {
                 child: Row(
                   children: [
                     Icon(
-                      provider == ImageGenProvider.gemini
-                          ? Icons.auto_awesome
-                          : Icons.palette,
+                      provider.icon,
                       size: 18,
                     ),
                     const SizedBox(width: AppConstants.spacingS),
@@ -706,9 +704,7 @@ class _ImageProviderSelectorState extends State<_ImageProviderSelector> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  widget.selectedProvider == ImageGenProvider.gemini
-                      ? Icons.auto_awesome
-                      : Icons.palette,
+                  widget.selectedProvider.icon,
                   size: 18,
                 ),
                 const SizedBox(width: AppConstants.spacingS),

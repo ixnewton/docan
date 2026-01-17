@@ -11,6 +11,7 @@ class SettingsForm extends StatefulWidget {
   final Map<AIProvider, String> apiKeys;
   final String ollamaUrl;
   final String lmStudioUrl;
+  final String comfyUIUrl;
   final LiquidGlassTheme theme;
   final Color accentColor;
   final double temperature;
@@ -19,6 +20,7 @@ class SettingsForm extends StatefulWidget {
   final Function(AIProvider, String) onApiKeyChanged;
   final ValueChanged<String> onOllamaUrlChanged;
   final ValueChanged<String> onLMStudioUrlChanged;
+  final ValueChanged<String> onComfyUIUrlChanged;
   final ValueChanged<LiquidGlassTheme> onThemeChanged;
   final ValueChanged<Color> onAccentColorChanged;
   final ValueChanged<double> onTemperatureChanged;
@@ -32,6 +34,7 @@ class SettingsForm extends StatefulWidget {
     required this.apiKeys,
     required this.ollamaUrl,
     required this.lmStudioUrl,
+    required this.comfyUIUrl,
     required this.theme,
     required this.accentColor,
     required this.temperature,
@@ -40,6 +43,7 @@ class SettingsForm extends StatefulWidget {
     required this.onApiKeyChanged,
     required this.onOllamaUrlChanged,
     required this.onLMStudioUrlChanged,
+    required this.onComfyUIUrlChanged,
     required this.onThemeChanged,
     required this.onAccentColorChanged,
     required this.onTemperatureChanged,
@@ -57,6 +61,7 @@ class _SettingsFormState extends State<SettingsForm> {
   final Map<AIProvider, TextEditingController> _controllers = {};
   final TextEditingController _ollamaController = TextEditingController();
   final TextEditingController _lmStudioController = TextEditingController();
+  final TextEditingController _comfyUIController = TextEditingController();
   final TextEditingController _systemPromptController = TextEditingController();
   String _appVersion = '';
 
@@ -70,6 +75,7 @@ class _SettingsFormState extends State<SettingsForm> {
     }
     _ollamaController.text = widget.ollamaUrl;
     _lmStudioController.text = widget.lmStudioUrl;
+    _comfyUIController.text = widget.comfyUIUrl;
     _systemPromptController.text = widget.systemPrompt;
     _loadVersion();
   }
@@ -90,6 +96,7 @@ class _SettingsFormState extends State<SettingsForm> {
     }
     _ollamaController.dispose();
     _lmStudioController.dispose();
+    _comfyUIController.dispose();
     _systemPromptController.dispose();
     super.dispose();
   }
@@ -111,6 +118,8 @@ class _SettingsFormState extends State<SettingsForm> {
             _buildOllamaUrlField(),
             const SizedBox(height: AppConstants.spacingM),
             _buildLMStudioUrlField(),
+            const SizedBox(height: AppConstants.spacingM),
+            _buildComfyUIUrlField(),
           ],
         ),
 
@@ -336,6 +345,42 @@ class _SettingsFormState extends State<SettingsForm> {
               ),
             ],
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildComfyUIUrlField() {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.brush,
+              size: 18,
+              color: Color(0xFFFF6B35), // ComfyUI Orange
+            ),
+            const SizedBox(width: AppConstants.spacingS),
+            Text('ComfyUI URL', style: theme.textTheme.labelLarge),
+            const SizedBox(width: AppConstants.spacingS),
+            Tooltip(
+              message: 'ComfyUI is used for local image generation',
+              child: Icon(
+                Icons.info_outline,
+                size: 16,
+                color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingS),
+        LiquidGlassTextField(
+          controller: _comfyUIController,
+          hintText: 'http://localhost:8188',
+          onChanged: widget.onComfyUIUrlChanged,
         ),
       ],
     );

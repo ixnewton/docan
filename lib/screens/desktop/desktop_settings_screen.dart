@@ -20,6 +20,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   Map<AIProvider, String> _apiKeys = {};
   String _ollamaUrl = AppConstants.ollamaDefaultUrl;
   String _lmStudioUrl = AppConstants.lmStudioDefaultUrl;
+  String _comfyUIUrl = AppConstants.comfyUIDefaultUrl;
   final Map<AIProvider, bool> _connectionStatus = {};
   bool _isLoading = true;
 
@@ -44,11 +45,13 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
 
     final ollamaUrl = await storage.getOllamaUrl();
     final lmStudioUrl = await storage.getLMStudioUrl();
+    final comfyUIUrl = await storage.getComfyUIUrl();
 
     setState(() {
       _apiKeys = apiKeys;
       _ollamaUrl = ollamaUrl;
       _lmStudioUrl = lmStudioUrl;
+      _comfyUIUrl = comfyUIUrl;
       _isLoading = false;
     });
 
@@ -142,6 +145,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                           apiKeys: _apiKeys,
                           ollamaUrl: _ollamaUrl,
                           lmStudioUrl: _lmStudioUrl,
+                          comfyUIUrl: _comfyUIUrl,
                           theme: themeProvider.theme,
                           accentColor: themeProvider.accentColor,
                           temperature: chatService.temperature,
@@ -171,6 +175,13 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                               AIProvider.lmstudio,
                               url,
                             );
+                          },
+                          onComfyUIUrlChanged: (url) async {
+                            setState(() {
+                              _comfyUIUrl = url;
+                            });
+                            final storage = await StorageService.getInstance();
+                            await storage.setComfyUIUrl(url);
                           },
                           onThemeChanged: (theme) async {
                             themeProvider.setTheme(theme);

@@ -189,6 +189,22 @@ class StorageService {
         AppConstants.lmStudioDefaultUrl;
   }
 
+  // ComfyUI URL
+
+  Future<void> setComfyUIUrl(String url) async {
+    await _prefs?.setString(AppConstants.keyComfyUIUrl, url);
+  }
+
+  Future<String> getComfyUIUrl() async {
+    return _prefs?.getString(AppConstants.keyComfyUIUrl) ??
+        AppConstants.comfyUIDefaultUrl;
+  }
+
+  Future<bool> hasComfyUIUrl() async {
+    final url = await getComfyUIUrl();
+    return url.isNotEmpty;
+  }
+
   // Theme Settings
 
   Future<void> setTheme(LiquidGlassTheme theme) async {

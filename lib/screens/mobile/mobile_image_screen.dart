@@ -150,27 +150,26 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
 
   void _showSettings() {
     final service = context.read<ImageGenerationService>();
+    final parentContext = context;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => _SettingsBottomSheet(
+        parentContext: parentContext,
         selectedProvider: service.selectedProvider,
         selectedModel: service.selectedModel,
         selectedSize: _selectedSize,
         configuredProviders: _configuredProviders,
         onProviderChanged: (provider) {
           service.setProvider(provider);
-          Navigator.pop(context);
         },
         onModelChanged: (model) {
           service.setModel(model);
-          Navigator.pop(context);
         },
         onSizeChanged: (size) {
           setState(() {
             _selectedSize = size;
           });
-          Navigator.pop(context);
         },
         fetchModels: service.getAvailableModels,
       ),
@@ -741,6 +740,7 @@ class _GalleryBottomSheet extends StatelessWidget {
 
 /// Settings bottom sheet
 class _SettingsBottomSheet extends StatefulWidget {
+  final BuildContext parentContext;
   final ImageGenProvider selectedProvider;
   final String selectedModel;
   final ImageSize selectedSize;
@@ -751,6 +751,7 @@ class _SettingsBottomSheet extends StatefulWidget {
   final Future<List<String>> Function(ImageGenProvider) fetchModels;
 
   const _SettingsBottomSheet({
+    required this.parentContext,
     required this.selectedProvider,
     required this.selectedModel,
     required this.selectedSize,
@@ -814,7 +815,7 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.pop(context);
-              _showProviderPicker(context);
+              _showProviderPicker(widget.parentContext);
             },
           ),
 
@@ -826,7 +827,7 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.pop(context);
-              _showModelPicker(context);
+              _showModelPicker(widget.parentContext);
             },
           ),
 
@@ -838,7 +839,7 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.pop(context);
-              _showSizePicker(context);
+              _showSizePicker(widget.parentContext);
             },
           ),
 

@@ -487,7 +487,7 @@ class ImageGenerationService extends ChangeNotifier {
     );
   }
 
-  /// Fetch available ComfyUI workflows
+  /// Fetch available ComfyUI checkpoints/models
   Future<List<String>> _fetchComfyUIWorkflows() async {
     final baseUrl = await _storage.getComfyUIUrl();
     if (baseUrl.isEmpty) {
@@ -495,11 +495,44 @@ class ImageGenerationService extends ChangeNotifier {
     }
 
     try {
-      // ComfyUI doesn't have a standard endpoint for listing workflows
-      // Return default workflow option
+      // Fetch object_info to get available checkpoints
+      final url = Uri.parse('$baseUrl/object_info/CheckpointLoaderSimple');
+      debugPrint('[ImageGen] Fetching ComfyUI checkpoints from $url');
+      
+      final response = await http.get(url).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => throw Exception('Connection timeout'),
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint('[ImageGen] ComfyUI object_info failed: ${response.statusCode}');
+        return ImageGenProvider.comfyui.fallbackModels;
+      }
+
+      final data = jsonDecode(response.body);
+      final checkpointLoader = data['CheckpointLoaderSimple'];
+      if (checkpointLoader == null) {
+        debugPrint('[ImageGen] CheckpointLoaderSimple not found in response');
+        return ImageGenProvider.comfyui.fallbackModels;
+      }
+
+      final input = checkpointLoader['input'];
+      final required = input?['required'];
+      final ckptName = required?['ckpt_name'];
+      
+      if (ckptName != null && ckptName is List && ckptName.isNotEmpty) {
+        final checkpoints = ckptName[0];
+        if (checkpoints is List) {
+          final models = checkpoints.cast<String>().toList();
+          debugPrint('[ImageGen] Found ${models.length} ComfyUI checkpoints');
+          return models.isEmpty ? ImageGenProvider.comfyui.fallbackModels : models;
+        }
+      }
+
+      debugPrint('[ImageGen] Could not parse ComfyUI checkpoints');
       return ImageGenProvider.comfyui.fallbackModels;
     } catch (e) {
-      debugPrint('[ImageGen] Error fetching ComfyUI workflows: $e');
+      debugPrint('[ImageGen] Error fetching ComfyUI checkpoints: $e');
       return ImageGenProvider.comfyui.fallbackModels;
     }
   }
@@ -556,7 +589,7 @@ class ImageGenerationService extends ChangeNotifier {
       },
       "4": {
         "class_type": "CheckpointLoaderSimple",
-        "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}
+        "inputs": {"ckpt_name": _selectedModel}
       },
       "5": {
         "class_type": "EmptyLatentImage",

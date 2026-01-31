@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../utils/file_processor.dart';
 import 'ai_service.dart';
 
 /// LM Studio Service Implementation (OpenAI-compatible API)
@@ -304,15 +305,22 @@ class LMStudioService implements AIService {
           break;
       }
 
-      // Check if message has image attachments (LM Studio may support vision models)
-      if (msg.attachments.any((a) => a.type == AttachmentType.image)) {
+      // Check if message has any attachments
+      if (msg.attachments.isNotEmpty) {
         final content = <Map<String, dynamic>>[];
 
         // Add text first
         content.add({'type': 'text', 'text': msg.content});
 
-        // Add images
+        // Add attachments
         for (final attachment in msg.attachments) {
+          // Validate attachment for LM Studio
+          final validationError = FileProcessor.validateAttachment(attachment, providerName);
+          if (validationError != null) {
+            debugPrint('[LMStudio] Skipping attachment ${attachment.name}: $validationError');
+            continue;
+          }
+          
           if (attachment.type == AttachmentType.image) {
             content.add({
               'type': 'image_url',
@@ -320,6 +328,13 @@ class LMStudioService implements AIService {
                 'url':
                     'data:${attachment.mimeType};base64,${attachment.base64Data}',
               },
+            });
+          } else if (attachment.type == AttachmentType.file) {
+            // For files, extract text content and include it
+            final textContent = FileProcessor.extractTextContentSync(attachment);
+            content.add({
+              'type': 'text',
+              'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
             });
           }
         }
@@ -331,18 +346,24 @@ class LMStudioService implements AIService {
     }
 
     // Build current message content
-    if (attachments != null &&
-        attachments.any((a) => a.type == AttachmentType.image)) {
+    if (attachments != null && attachments.isNotEmpty) {
       final content = <Map<String, dynamic>>[];
 
       // Add text first
       content.add({
         'type': 'text',
-        'text': message.isNotEmpty ? message : 'Describe this image.',
+        'text': message.isNotEmpty ? message : 'Please analyze the attached file(s).',
       });
 
-      // Add images
+      // Add attachments
       for (final attachment in attachments) {
+        // Validate attachment for LM Studio
+        final validationError = FileProcessor.validateAttachment(attachment, providerName);
+        if (validationError != null) {
+          debugPrint('[LMStudio] Skipping attachment ${attachment.name}: $validationError');
+          continue;
+        }
+        
         if (attachment.type == AttachmentType.image) {
           content.add({
             'type': 'image_url',
@@ -350,6 +371,13 @@ class LMStudioService implements AIService {
               'url':
                   'data:${attachment.mimeType};base64,${attachment.base64Data}',
             },
+          });
+        } else if (attachment.type == AttachmentType.file) {
+          // For files, extract text content and include it
+          final textContent = FileProcessor.extractTextContentSync(attachment);
+          content.add({
+            'type': 'text',
+            'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
           });
         }
       }

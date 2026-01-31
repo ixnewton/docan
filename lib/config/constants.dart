@@ -21,7 +21,7 @@ class AppConstants {
   // Default Models
   static const String defaultGeminiModel = 'gemini-2.5-flash';
   static const String defaultOpenAIModel = 'gpt-4o';
-  static const String defaultClaudeModel = 'claude-sonnet-4-20250514';
+  static const String defaultClaudeModel = 'claude-3-5-sonnet-20241022';
   static const String defaultDeepSeekModel = 'deepseek-chat';
   static const String defaultOllamaModel = 'llama3.2';
   static const String defaultLMStudioModel = 'default';

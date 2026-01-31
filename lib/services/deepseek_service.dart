@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../utils/file_processor.dart';
 import 'ai_service.dart';
 
 /// DeepSeek AI Service Implementation
@@ -318,13 +319,20 @@ class DeepSeekService implements AIService {
           break;
       }
 
-      // Check if message has image attachments
-      if (msg.attachments.any((a) => a.type == AttachmentType.image)) {
+      // Check if message has any attachments
+      if (msg.attachments.isNotEmpty) {
         final content = <Map<String, dynamic>>[];
 
         content.add({'type': 'text', 'text': msg.content});
 
         for (final attachment in msg.attachments) {
+          // Validate attachment for DeepSeek
+          final validationError = FileProcessor.validateAttachment(attachment, providerName);
+          if (validationError != null) {
+            debugPrint('[DeepSeek] Skipping attachment ${attachment.name}: $validationError');
+            continue;
+          }
+          
           if (attachment.type == AttachmentType.image) {
             content.add({
               'type': 'image_url',
@@ -332,6 +340,13 @@ class DeepSeekService implements AIService {
                 'url':
                     'data:${attachment.mimeType};base64,${attachment.base64Data}',
               },
+            });
+          } else if (attachment.type == AttachmentType.file) {
+            // For files, extract text content and include it
+            final textContent = FileProcessor.extractTextContentSync(attachment);
+            content.add({
+              'type': 'text',
+              'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
             });
           }
         }
@@ -343,16 +358,22 @@ class DeepSeekService implements AIService {
     }
 
     // Build current message content
-    if (attachments != null &&
-        attachments.any((a) => a.type == AttachmentType.image)) {
+    if (attachments != null && attachments.isNotEmpty) {
       final content = <Map<String, dynamic>>[];
 
       content.add({
         'type': 'text',
-        'text': message.isNotEmpty ? message : 'Describe this image.',
+        'text': message.isNotEmpty ? message : 'Please analyze the attached file(s).',
       });
 
       for (final attachment in attachments) {
+        // Validate attachment for DeepSeek
+        final validationError = FileProcessor.validateAttachment(attachment, providerName);
+        if (validationError != null) {
+          debugPrint('[DeepSeek] Skipping attachment ${attachment.name}: $validationError');
+          continue;
+        }
+        
         if (attachment.type == AttachmentType.image) {
           content.add({
             'type': 'image_url',
@@ -360,6 +381,13 @@ class DeepSeekService implements AIService {
               'url':
                   'data:${attachment.mimeType};base64,${attachment.base64Data}',
             },
+          });
+        } else if (attachment.type == AttachmentType.file) {
+          // For files, extract text content and include it
+          final textContent = FileProcessor.extractTextContentSync(attachment);
+          content.add({
+            'type': 'text',
+            'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
           });
         }
       }

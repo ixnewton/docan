@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 3.0.0
 
 environment:
-  sdk: ^3.10.3
+  sdk: ^3.10.1
 
 dependencies:
   flutter:
@@ -36,6 +36,7 @@ dependencies:
   intl: ^0.18.1
   url_launcher: ^6.2.1
   package_info_plus: ^8.0.0
+  crypto: ^3.0.3
   
   # File picking
   file_picker: ^8.0.0

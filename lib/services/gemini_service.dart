@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../utils/file_processor.dart';
 import '../utils/api_error_parser.dart';
 import 'ai_service.dart';
 
@@ -420,15 +421,28 @@ class GeminiService implements AIService {
 
       final parts = <Map<String, dynamic>>[];
 
-      // Add any image attachments from history
+      // Add any attachments from history
       if (msg.attachments.isNotEmpty) {
         for (final attachment in msg.attachments) {
+          // Validate attachment for Gemini
+          final validationError = FileProcessor.validateAttachment(attachment, providerName);
+          if (validationError != null) {
+            debugPrint('[Gemini] Skipping attachment ${attachment.name}: $validationError');
+            continue;
+          }
+          
           if (attachment.type == AttachmentType.image) {
             parts.add({
               'inline_data': {
                 'mime_type': attachment.mimeType,
                 'data': attachment.base64Data,
               },
+            });
+          } else if (attachment.type == AttachmentType.file) {
+            // For files, extract text content and include it
+            final textContent = FileProcessor.extractTextContentSync(attachment);
+            parts.add({
+              'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
             });
           }
         }
@@ -446,9 +460,16 @@ class GeminiService implements AIService {
     // Build parts for current message
     final currentParts = <Map<String, dynamic>>[];
 
-    // Add image attachments first
+    // Add attachments
     if (attachments != null) {
       for (final attachment in attachments) {
+        // Validate attachment for Gemini
+        final validationError = FileProcessor.validateAttachment(attachment, providerName);
+        if (validationError != null) {
+          debugPrint('[Gemini] Skipping attachment ${attachment.name}: $validationError');
+          continue;
+        }
+        
         if (attachment.type == AttachmentType.image) {
           currentParts.add({
             'inline_data': {
@@ -456,13 +477,19 @@ class GeminiService implements AIService {
               'data': attachment.base64Data,
             },
           });
+        } else if (attachment.type == AttachmentType.file) {
+          // For files, extract text content and include it
+          final textContent = FileProcessor.extractTextContentSync(attachment);
+          currentParts.add({
+            'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
+          });
         }
       }
     }
 
     // Add text content
     currentParts.add({
-      'text': message.isNotEmpty ? message : 'Describe this image.',
+      'text': message.isNotEmpty ? message : 'Please analyze the attached file(s).',
     });
 
     // Add current message

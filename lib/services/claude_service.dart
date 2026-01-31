@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../utils/file_processor.dart';
 import 'ai_service.dart';
 
 /// Anthropic Claude Service Implementation
@@ -112,6 +113,7 @@ class ClaudeService implements AIService {
     final url = Uri.parse('${AppConstants.claudeBaseUrl}/messages');
     debugPrint('[Claude] URL: $url');
     final messages = _buildMessages(message, history, attachments: attachments);
+    debugPrint('[Claude] Messages: ${_sanitizeMessagesForDebug(messages)}');
 
     final body = <String, dynamic>{
       'model': _modelId,
@@ -198,6 +200,7 @@ class ClaudeService implements AIService {
     request.headers['anthropic-version'] = '2023-06-01';
     request.body = jsonEncode(body);
 
+    debugPrint('[Claude] Request body: ${_sanitizeRequestBodyForDebug(request.body)}');
     debugPrint('[Claude] Sending stream request...');
     final client = http.Client();
     try {
@@ -208,8 +211,10 @@ class ClaudeService implements AIService {
 
       if (streamedResponse.statusCode != 200) {
         debugPrint('[Claude] Stream ERROR: ${streamedResponse.statusCode}');
+        final responseBody = await streamedResponse.stream.bytesToString();
+        debugPrint('[Claude] Stream ERROR body: $responseBody');
         throw Exception(
-          'Claude streaming error: ${streamedResponse.statusCode}',
+          'Claude streaming error: ${streamedResponse.statusCode} - $responseBody',
         );
       }
 
@@ -276,12 +281,25 @@ class ClaudeService implements AIService {
       // Skip error messages and empty content
       if (msg.error != null || msg.content.trim().isEmpty) continue;
       
-      // Check if message has image attachments
-      if (msg.attachments.any((a) => a.type == AttachmentType.image)) {
+      // Check if message has any attachments
+      if (msg.attachments.isNotEmpty) {
         final content = <Map<String, dynamic>>[];
         
-        // Add images first
+        // Add text content first (Claude prefers text first)
+        content.add({
+          'type': 'text',
+          'text': msg.content,
+        });
+        
+        // Add attachments
         for (final attachment in msg.attachments) {
+          // Validate attachment for Claude
+          final validationError = FileProcessor.validateAttachment(attachment, providerName);
+          if (validationError != null) {
+            debugPrint('[Claude] Skipping attachment ${attachment.name}: $validationError');
+            continue;
+          }
+          
           if (attachment.type == AttachmentType.image) {
             content.add({
               'type': 'image',
@@ -291,19 +309,23 @@ class ClaudeService implements AIService {
                 'data': attachment.base64Data,
               },
             });
+          } else if (attachment.type == AttachmentType.file) {
+            // For files, extract text content and include it as a document
+            final textContent = FileProcessor.extractTextContentSync(attachment);
+            content.add({
+              'type': 'text',
+              'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
+            });
           }
         }
         
-        // Add text
-        content.add({
-          'type': 'text',
-          'text': msg.content,
-        });
-        
-        messages.add({
-          'role': msg.role == MessageRole.user ? 'user' : 'assistant',
-          'content': content,
-        });
+        // Only add message if content is not empty
+        if (content.isNotEmpty) {
+          messages.add({
+            'role': msg.role == MessageRole.user ? 'user' : 'assistant',
+            'content': content,
+          });
+        }
       } else {
         messages.add({
           'role': msg.role == MessageRole.user ? 'user' : 'assistant',
@@ -313,11 +335,24 @@ class ClaudeService implements AIService {
     }
 
     // Build current message content
-    if (attachments != null && attachments.any((a) => a.type == AttachmentType.image)) {
+    if (attachments != null && attachments.isNotEmpty) {
       final content = <Map<String, dynamic>>[];
       
-      // Add images first
+      // Add text first (Claude prefers text first)
+      content.add({
+        'type': 'text',
+        'text': message.isNotEmpty ? message : 'Please analyze the attached file(s).',
+      });
+      
+      // Add attachments
       for (final attachment in attachments) {
+        // Validate attachment for Claude
+        final validationError = FileProcessor.validateAttachment(attachment, providerName);
+        if (validationError != null) {
+          debugPrint('[Claude] Skipping attachment ${attachment.name}: $validationError');
+          continue;
+        }
+        
         if (attachment.type == AttachmentType.image) {
           content.add({
             'type': 'image',
@@ -327,20 +362,85 @@ class ClaudeService implements AIService {
               'data': attachment.base64Data,
             },
           });
+        } else if (attachment.type == AttachmentType.file) {
+          // For files, extract text content and include it as a document
+          final textContent = FileProcessor.extractTextContentSync(attachment);
+          content.add({
+            'type': 'text',
+            'text': '\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent',
+          });
         }
       }
       
-      // Add text
-      content.add({
-        'type': 'text',
-        'text': message.isNotEmpty ? message : 'Describe this image.',
-      });
-      
-      messages.add({'role': 'user', 'content': content});
+      // Only add message if content is not empty
+      if (content.isNotEmpty) {
+        messages.add({'role': 'user', 'content': content});
+      }
     } else {
       messages.add({'role': 'user', 'content': message});
     }
 
     return messages;
+  }
+
+  /// Sanitize messages for debug output to prevent sensitive data exposure
+  String _sanitizeMessagesForDebug(List<Map<String, dynamic>> messages) {
+    if (messages.isEmpty) return '[]';
+    
+    final sanitized = messages.map((msg) {
+      final role = msg['role'] ?? 'unknown';
+      final content = msg['content'];
+      
+      if (content is String) {
+        // Truncate long text content
+        final truncated = content.length > 100 
+            ? '${content.substring(0, 100)}...' 
+            : content;
+        return {'role': role, 'content': truncated};
+      } else if (content is List) {
+        // Handle mixed content (text + images)
+        final sanitizedContent = content.map((item) {
+          if (item is Map && item['type'] == 'text') {
+            final text = item['text'] as String? ?? '';
+            final truncated = text.length > 100 
+                ? '${text.substring(0, 100)}...' 
+                : text;
+            return {'type': 'text', 'text': truncated};
+          } else if (item is Map && item['type'] == 'image') {
+            return {'type': 'image', 'source': '[IMAGE_DATA]'};
+          }
+          return item;
+        }).toList();
+        return {'role': role, 'content': sanitizedContent};
+      }
+      
+      return {'role': role, 'content': '[UNSUPPORTED_CONTENT_TYPE]'};
+    }).toList();
+    
+    return jsonEncode(sanitized);
+  }
+
+  /// Sanitize request body for debug output
+  String _sanitizeRequestBodyForDebug(String requestBody) {
+    try {
+      final body = jsonDecode(requestBody) as Map<String, dynamic>;
+      final sanitized = Map<String, dynamic>.from(body);
+      
+      // Sanitize messages if present
+      if (sanitized['messages'] != null) {
+        sanitized['messages'] = jsonDecode(_sanitizeMessagesForDebug(
+          List<Map<String, dynamic>>.from(sanitized['messages'])
+        ));
+      }
+      
+      // Sanitize system prompt if present
+      if (sanitized['system'] != null && sanitized['system'].toString().length > 100) {
+        sanitized['system'] = '${sanitized['system'].toString().substring(0, 100)}...';
+      }
+      
+      return jsonEncode(sanitized);
+    } catch (e) {
+      return '[REQUEST_BODY_PARSE_ERROR]';
+    }
   }
 }

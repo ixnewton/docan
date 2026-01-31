@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../utils/file_processor.dart';
 import 'ai_service.dart';
 
 /// Ollama Local AI Service Implementation
@@ -262,16 +263,36 @@ class OllamaService implements AIService {
           break;
       }
       
-      // Check if message has image attachments (Ollama uses 'images' array)
-      if (msg.attachments.any((a) => a.type == AttachmentType.image)) {
-        final images = msg.attachments
-            .where((a) => a.type == AttachmentType.image)
-            .map((a) => a.base64Data)
-            .toList();
+      // Check if message has any attachments
+      if (msg.attachments.isNotEmpty) {
+        final messageContent = <String>[];
+        final images = <String>[];
+        
+        // Process images and files
+        for (final attachment in msg.attachments) {
+          // Validate attachment for Ollama
+          final validationError = FileProcessor.validateAttachment(attachment, providerName);
+          if (validationError != null) {
+            debugPrint('[Ollama] Skipping attachment ${attachment.name}: $validationError');
+            continue;
+          }
+          
+          if (attachment.type == AttachmentType.image) {
+            images.add(attachment.base64Data);
+          } else if (attachment.type == AttachmentType.file) {
+            // For files, extract text content and include it
+            final textContent = FileProcessor.extractTextContentSync(attachment);
+            messageContent.add('\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent');
+          }
+        }
+        
+        // Add original text content
+        messageContent.insert(0, msg.content);
+        
         messages.add({
           'role': role,
-          'content': msg.content,
-          'images': images,
+          'content': messageContent.join('\n'),
+          if (images.isNotEmpty) 'images': images,
         });
       } else {
         messages.add({'role': role, 'content': msg.content});
@@ -279,15 +300,35 @@ class OllamaService implements AIService {
     }
 
     // Build current message
-    if (attachments != null && attachments.any((a) => a.type == AttachmentType.image)) {
-      final images = attachments
-          .where((a) => a.type == AttachmentType.image)
-          .map((a) => a.base64Data)
-          .toList();
+    if (attachments != null && attachments.isNotEmpty) {
+      final messageContent = <String>[];
+      final images = <String>[];
+      
+      // Process attachments
+      for (final attachment in attachments) {
+        // Validate attachment for Ollama
+        final validationError = FileProcessor.validateAttachment(attachment, providerName);
+        if (validationError != null) {
+          debugPrint('[Ollama] Skipping attachment ${attachment.name}: $validationError');
+          continue;
+        }
+        
+        if (attachment.type == AttachmentType.image) {
+          images.add(attachment.base64Data);
+        } else if (attachment.type == AttachmentType.file) {
+          // For files, extract text content and include it
+          final textContent = FileProcessor.extractTextContentSync(attachment);
+          messageContent.add('\n\n--- Document: ${attachment.name} ---\n${FileProcessor.formatFileInfo(attachment)}\n\n$textContent');
+        }
+      }
+      
+      // Add original text content
+      messageContent.insert(0, message.isNotEmpty ? message : 'Please analyze the attached file(s).');
+      
       messages.add({
         'role': 'user',
-        'content': message.isNotEmpty ? message : 'Describe this image.',
-        'images': images,
+        'content': messageContent.join('\n'),
+        if (images.isNotEmpty) 'images': images,
       });
     } else {
       messages.add({'role': 'user', 'content': message});

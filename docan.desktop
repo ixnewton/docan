@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Docan
+Comment=Universal AI chat application
+Exec=docan
+Icon=docan
+Terminal=false
+Type=Application
+Categories=Office;Utility;
+Keywords=AI;Chat;Assistant;

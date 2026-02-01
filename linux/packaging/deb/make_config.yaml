@@ -7,7 +7,7 @@ priority: optional
 section: utils
 essential: false
 installed_size: 50000
-icon: assets/icon_1024.png
+icon: linux/data/icons/hicolor/512x512/apps/docan.png
 keywords:
   - ai
   - chat

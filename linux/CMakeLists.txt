@@ -128,3 +128,13 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Install desktop file
+install(FILES "${CMAKE_SOURCE_DIR}/docan.desktop"
+  DESTINATION "share/applications"
+  COMPONENT Runtime)
+
+# Install icons in various sizes for desktop environments
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/data/icons/"
+  DESTINATION "share/icons/hicolor"
+  COMPONENT Runtime)

@@ -1,0 +1,68 @@
+pkgname=docan-bin
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Universal AI chat application with file attachment support"
+arch=('x86_64')
+url="https://gitlab.com/i.newton/docan"
+license=('MIT')
+depends=('gtk3' 'glib2' 'hicolor-icon-theme' 'libsecret' 'json-glib')
+provides=('docan')
+conflicts=('docan')
+
+# Source files - these will be copied from the build during package creation
+source=(
+  "docan"
+  "docan.desktop"
+  "flutter_assets.tar.gz"
+  "lib.tar.gz"
+  "plugins.tar.gz"
+  "icons.tar.gz"
+)
+
+sha256sums=(
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+)
+
+package() {
+  # Install binary to /opt to maintain bundle structure
+  install -Dm755 "${srcdir}/docan" "${pkgdir}/opt/docan/docan"
+  
+  # Install desktop file with correct path
+  install -Dm644 "${srcdir}/docan.desktop" "${pkgdir}/usr/share/applications/docan.desktop"
+  
+  # Extract and install Flutter assets
+  tar -xzf flutter_assets.tar.gz -C "${pkgdir}/opt/docan/"
+  
+  # Extract and install libraries
+  tar -xzf lib.tar.gz -C "${pkgdir}/opt/docan/"
+  
+  # Extract and install plugins (if exists)
+  if [ -f "plugins.tar.gz" ]; then
+    tar -xzf plugins.tar.gz -C "${pkgdir}/opt/docan/"
+  fi
+  
+  # Extract and install icons
+  tar -xzf icons.tar.gz -C "${pkgdir}/usr/share/icons/hicolor/"
+  
+  # Create symlink for system-wide access
+  install -dm755 "${pkgdir}/usr/bin"
+  ln -sf "/opt/docan/docan" "${pkgdir}/usr/bin/docan"
+  
+  # Create Wayland-compatible wrapper
+  cat > "${pkgdir}/usr/bin/docan-wrapper" << 'EOF'
+#!/bin/bash
+# Wayland compatibility wrapper
+export GDK_BACKEND=wayland
+export XDG_SESSION_TYPE=wayland
+cd /opt/docan && exec ./docan "$@"
+EOF
+  chmod +x "${pkgdir}/usr/bin/docan-wrapper"
+  
+  # Update desktop file to use wrapper
+  sed -i 's|Exec=.*|Exec=/usr/bin/docan-wrapper|' "${pkgdir}/usr/share/applications/docan.desktop"
+}

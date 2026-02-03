@@ -46,3 +46,6 @@ app.*.map.json
 /android/app/release
 assets/playbooks/e926.yaml
 .vscode/settings.json
+
+# AUR package files
+linux/packaging/aur

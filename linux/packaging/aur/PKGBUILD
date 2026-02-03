@@ -1,5 +1,5 @@
 pkgname=docan-bin
-pkgver=1.0.0
+pkgver=3.0.1
 pkgrel=1
 pkgdesc="Universal AI chat application with file attachment support"
 arch=('x86_64')
@@ -15,12 +15,10 @@ source=(
   "docan.desktop"
   "flutter_assets.tar.gz"
   "lib.tar.gz"
-  "plugins.tar.gz"
   "icons.tar.gz"
 )
 
 sha256sums=(
-  'SKIP'
   'SKIP'
   'SKIP'
   'SKIP'
@@ -47,6 +45,7 @@ package() {
   fi
   
   # Extract and install icons
+  mkdir -p "${pkgdir}/usr/share/icons/hicolor"
   tar -xzf icons.tar.gz -C "${pkgdir}/usr/share/icons/hicolor/"
   
   # Create symlink for system-wide access

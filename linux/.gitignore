@@ -1,1 +1,7 @@
 flutter/ephemeral
+
+# AUR package files
+!linux/packaging/aur/PKGBUILD
+!linux/packaging/aur/build.sh
+!linux/packaging/aur/README.md
+

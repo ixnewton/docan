@@ -48,12 +48,13 @@ else
     echo "Warning: No lib directory found in build"
 fi
 
-# Create plugins archive
+# Create plugins archive (optional)
 echo "Creating plugins archive..."
 if [ -d "$BUILD_DIR/plugins" ]; then
     tar -czf plugins.tar.gz -C "$BUILD_DIR" plugins/
+    echo "Plugins archive created."
 else
-    echo "Warning: No plugins directory found in build"
+    echo "No plugins directory found - skipping plugins archive."
 fi
 
 # Create icons archive

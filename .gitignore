@@ -45,3 +45,4 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 assets/playbooks/e926.yaml
+.vscode/settings.json

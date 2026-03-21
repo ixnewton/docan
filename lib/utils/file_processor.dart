@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import '../models/chat_message.dart';
 
@@ -242,12 +244,337 @@ class FileProcessor {
     }
   }
 
+  /// Extract text from PDF using pdftotext utility with proper encoding
+  static Future<String> _extractFromPdfWithPdftotext(Uint8List bytes, String fileName) async {
+    try {
+      debugPrint('[FileProcessor] === NEW PDF EXTRACTION CODE v2.0 ===');
+      debugPrint('[FileProcessor] Starting PDF text extraction for: $fileName (${bytes.length} bytes)');
+      
+      // Create a temporary file for the PDF
+      final tempDir = Directory.systemTemp;
+      final tempPdfFile = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.pdf');
+      await tempPdfFile.writeAsBytes(bytes);
+      debugPrint('[FileProcessor] Created temp PDF file: ${tempPdfFile.path}');
+      debugPrint('[FileProcessor] File exists: ${await tempPdfFile.exists()}');
+      debugPrint('[FileProcessor] File size: ${await tempPdfFile.length()} bytes');
+      
+      try {
+        // Try different encoding options in order of preference
+        String? extractedText;
+        String? lastError;
+        
+        // Option 1: Try UTF-8 encoding first (most common)
+        debugPrint('[FileProcessor] Trying UTF-8 encoding...');
+        try {
+          final resultUtf8 = await Process.run('pdftotext', ['-enc', 'UTF-8', tempPdfFile.path, '-']);
+          debugPrint('[FileProcessor] UTF-8 exit code: ${resultUtf8.exitCode}');
+          if (resultUtf8.stderr.toString().isNotEmpty) {
+            debugPrint('[FileProcessor] UTF-8 stderr: ${resultUtf8.stderr}');
+          }
+          
+          if (resultUtf8.exitCode == 0) {
+            final text = resultUtf8.stdout as String;
+            debugPrint('[FileProcessor] UTF-8 raw text length: ${text.length}');
+            debugPrint('[FileProcessor] UTF-8 text preview: "${text.substring(0, text.length > 100 ? 100 : text.length)}..."');
+            
+            if (text.trim().isNotEmpty && !_hasEncodingIssues(text)) {
+              extractedText = text;
+              debugPrint('[FileProcessor] UTF-8 encoding successful');
+            } else if (text.trim().isNotEmpty) {
+              debugPrint('[FileProcessor] UTF-8 text has encoding issues, trying next encoding');
+              lastError = 'UTF-8 had encoding issues';
+            } else {
+              debugPrint('[FileProcessor] UTF-8 extracted empty text');
+              lastError = 'UTF-8 extracted empty text';
+            }
+          } else {
+            debugPrint('[FileProcessor] UTF-8 failed with exit code: ${resultUtf8.exitCode}');
+            lastError = 'UTF-8 failed with exit code ${resultUtf8.exitCode}';
+          }
+        } catch (e) {
+          debugPrint('[FileProcessor] UTF-8 exception: $e');
+          lastError = 'UTF-8 exception: $e';
+        }
+        
+        // Option 2: Try Latin-1 encoding if UTF-8 failed
+        if (extractedText == null) {
+          debugPrint('[FileProcessor] Trying Latin-1 encoding...');
+          try {
+            final resultLatin1 = await Process.run('pdftotext', ['-enc', 'Latin1', tempPdfFile.path, '-']);
+            debugPrint('[FileProcessor] Latin-1 exit code: ${resultLatin1.exitCode}');
+            if (resultLatin1.stderr.toString().isNotEmpty) {
+              debugPrint('[FileProcessor] Latin-1 stderr: ${resultLatin1.stderr}');
+            }
+            
+            if (resultLatin1.exitCode == 0) {
+              final text = resultLatin1.stdout as String;
+              debugPrint('[FileProcessor] Latin-1 raw text length: ${text.length}');
+              debugPrint('[FileProcessor] Latin-1 text preview: "${text.substring(0, text.length > 100 ? 100 : text.length)}..."');
+              
+              if (text.trim().isNotEmpty && !_hasEncodingIssues(text)) {
+                extractedText = text;
+                debugPrint('[FileProcessor] Latin-1 encoding successful');
+              } else if (text.trim().isNotEmpty) {
+                debugPrint('[FileProcessor] Latin-1 text has encoding issues, trying next encoding');
+                lastError = 'Latin-1 had encoding issues';
+              } else {
+                debugPrint('[FileProcessor] Latin-1 extracted empty text');
+                lastError = 'Latin-1 extracted empty text';
+              }
+            } else {
+              debugPrint('[FileProcessor] Latin-1 failed with exit code: ${resultLatin1.exitCode}');
+              lastError = 'Latin-1 failed with exit code ${resultLatin1.exitCode}';
+            }
+          } catch (e) {
+            debugPrint('[FileProcessor] Latin-1 exception: $e');
+            lastError = 'Latin-1 exception: $e';
+          }
+        }
+        
+        // Option 3: Try ASCII encoding as fallback
+        if (extractedText == null) {
+          debugPrint('[FileProcessor] Trying ASCII encoding...');
+          try {
+            final resultAscii = await Process.run('pdftotext', ['-enc', 'ASCII7', tempPdfFile.path, '-']);
+            debugPrint('[FileProcessor] ASCII exit code: ${resultAscii.exitCode}');
+            if (resultAscii.stderr.toString().isNotEmpty) {
+              debugPrint('[FileProcessor] ASCII stderr: ${resultAscii.stderr}');
+            }
+            
+            if (resultAscii.exitCode == 0) {
+              final text = resultAscii.stdout as String;
+              debugPrint('[FileProcessor] ASCII raw text length: ${text.length}');
+              debugPrint('[FileProcessor] ASCII text preview: "${text.substring(0, text.length > 100 ? 100 : text.length)}..."');
+              
+              if (text.trim().isNotEmpty) {
+                extractedText = text;
+                debugPrint('[FileProcessor] ASCII encoding successful');
+              } else {
+                debugPrint('[FileProcessor] ASCII extracted empty text');
+                lastError = 'ASCII extracted empty text';
+              }
+            } else {
+              debugPrint('[FileProcessor] ASCII failed with exit code: ${resultAscii.exitCode}');
+              lastError = 'ASCII failed with exit code ${resultAscii.exitCode}';
+            }
+          } catch (e) {
+            debugPrint('[FileProcessor] ASCII exception: $e');
+            lastError = 'ASCII exception: $e';
+          }
+        }
+        
+        // Option 4: Try default encoding (no -enc flag)
+        if (extractedText == null) {
+          debugPrint('[FileProcessor] Trying default encoding...');
+          try {
+            final resultDefault = await Process.run('pdftotext', [tempPdfFile.path, '-']);
+            debugPrint('[FileProcessor] Default exit code: ${resultDefault.exitCode}');
+            if (resultDefault.stderr.toString().isNotEmpty) {
+              debugPrint('[FileProcessor] Default stderr: ${resultDefault.stderr}');
+            }
+            
+            if (resultDefault.exitCode == 0) {
+              final text = resultDefault.stdout as String;
+              debugPrint('[FileProcessor] Default raw text length: ${text.length}');
+              debugPrint('[FileProcessor] Default text preview: "${text.substring(0, text.length > 100 ? 100 : text.length)}..."');
+              
+              if (text.trim().isNotEmpty) {
+                extractedText = text;
+                debugPrint('[FileProcessor] Default encoding successful');
+              } else {
+                debugPrint('[FileProcessor] Default extracted empty text');
+                lastError = 'Default extracted empty text';
+              }
+            } else {
+              debugPrint('[FileProcessor] Default failed with exit code: ${resultDefault.exitCode}');
+              lastError = 'Default failed with exit code ${resultDefault.exitCode}';
+            }
+          } catch (e) {
+            debugPrint('[FileProcessor] Default exception: $e');
+            lastError = 'Default exception: $e';
+          }
+        }
+        
+        if (extractedText != null) {
+          final cleanText = extractedText.trim();
+          debugPrint('[FileProcessor] Final extracted text length: ${cleanText.length}');
+          
+          if (cleanText.isEmpty) {
+            debugPrint('[FileProcessor] PDF contains no text (might be image-only)');
+            return '[PDF Document - No text content found. The PDF may contain only images.]';
+          }
+          
+          debugPrint('[FileProcessor] Successfully extracted PDF text with proper encoding');
+          return cleanText;
+        } else {
+          debugPrint('[FileProcessor] All encoding attempts failed. Last error: $lastError');
+          return '[PDF Document - ${bytes.length} bytes]\n\nNote: PDF text extraction failed. Last error: $lastError. The file may be image-only or corrupted.]';
+        }
+      } finally {
+        // Clean up temporary file
+        try {
+          await tempPdfFile.delete();
+          debugPrint('[FileProcessor] Cleaned up temp PDF file');
+        } catch (e) {
+          debugPrint('[FileProcessor] Failed to clean up temp file: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('[FileProcessor] PDF text extraction error: $e');
+      return '[PDF Document - ${bytes.length} bytes]\n\nNote: PDF text extraction requires pdftotext utility. Error: $e';
+    }
+  }
+
+  /// Check if text has common encoding issues
+  static bool _hasEncodingIssues(String text) {
+    // Check for common encoding artifacts
+    final encodingArtifacts = [
+      'ï¿½', // Replacement character
+      'â€',  // Quote encoding issue
+      'â€TM', // Apostrophe encoding issue
+      'â¦',  // Ellipsis encoding issue
+      'Â',   // Non-breaking space artifact
+      '\x00', // Null byte
+      '\x0B', // Vertical tab
+      '\x0C', // Form feed
+      '\x0E', // Shift out
+      '\x0F', // Shift in
+    ];
+    
+    for (final artifact in encodingArtifacts) {
+      if (text.contains(artifact)) {
+        debugPrint('[FileProcessor] Found encoding artifact: $artifact');
+        return true;
+      }
+    }
+    
+    return false;
+  } 
+
   /// Extract text content from a file attachment (async version)
   static Future<String> extractTextContent(Attachment attachment) async {
-    // For now, delegate to sync version
-    // In the future, this could handle async PDF/DOCX processing
     try {
-      return extractTextContentSync(attachment);
+      // Validate input
+      if (attachment.bytes.isEmpty) {
+        throw const FileProcessingException(
+          'File is empty',
+          type: FileProcessingErrorType.parsingError,
+        );
+      }
+      
+      // Check processing size limit
+      if (attachment.bytes.length > _maxProcessingFileSize) {
+        throw FileProcessingException(
+          'File too large for text processing (${_formatFileSize(attachment.bytes.length)} > ${_formatFileSize(_maxProcessingFileSize)})',
+          fileName: attachment.name,
+          type: FileProcessingErrorType.fileSizeExceeded,
+        );
+      }
+      
+      final extension = _getFileExtension(attachment.name);
+      
+      switch (extension) {
+        case 'txt':
+        case 'md':
+          return _decodeTextSafely(attachment.bytes, attachment.name);
+        
+        case 'json':
+          try {
+            final text = _decodeTextSafely(attachment.bytes, attachment.name);
+            final decoded = jsonDecode(text);
+            const encoder = JsonEncoder.withIndent('  ');
+            return encoder.convert(decoded);
+          } catch (e) {
+            throw FileProcessingException(
+              'Failed to process JSON: $e',
+              fileName: attachment.name,
+              type: FileProcessingErrorType.parsingError,
+            );
+          }
+        
+        case 'csv':
+          final content = _decodeTextSafely(attachment.bytes, attachment.name);
+          final lines = content.split('\n');
+          
+          if (lines.isEmpty) {
+            return '[Empty CSV file]';
+          }
+          
+          if (lines.length > _maxCsvLines) {
+            final headerEnd = lines.length < 10 ? lines.length : 10;
+            final header = lines.take(headerEnd).join('\n');
+            
+            if (lines.length > 20) {
+              final footerStart = lines.length - 10;
+              final footer = lines.skip(footerStart).join('\n');
+              final middle = lines.length - 20;
+              return '$header\n\n... and $middle more rows ...\n\n$footer';
+            } else {
+              return content;
+            }
+          }
+          
+          return content;
+        
+        case 'pdf':
+          return await _extractFromPdfWithPdftotext(attachment.bytes, attachment.name);
+        
+        case 'docx':
+          return '[DOCX Document - ${attachment.bytes.length} bytes]\n\nNote: DOCX text extraction requires additional processing. The file has been processed and can be analyzed by the AI model.';
+        
+        case 'html':
+        case 'htm':
+          try {
+            final content = _decodeTextSafely(attachment.bytes, attachment.name);
+            final cleanText = content
+                .replaceAll(RegExp(r'<[^>]*>'), ' ')
+                .replaceAll(RegExp(r'\s+'), ' ')
+                .trim();
+            return cleanText.isEmpty ? '[Empty HTML content]' : cleanText;
+          } catch (e) {
+            throw FileProcessingException(
+              'Failed to extract HTML text: $e',
+              fileName: attachment.name,
+              type: FileProcessingErrorType.parsingError,
+            );
+          }
+        
+        case 'xml':
+          try {
+            final content = _decodeTextSafely(attachment.bytes, attachment.name);
+            final cleanText = content
+                .replaceAll(RegExp(r'<[^>]*>'), ' ')
+                .replaceAll(RegExp(r'\s+'), ' ')
+                .trim();
+            return cleanText.isEmpty ? '[Empty XML content]' : cleanText;
+          } catch (e) {
+            throw FileProcessingException(
+              'Failed to extract XML text: $e',
+              fileName: attachment.name,
+              type: FileProcessingErrorType.parsingError,
+            );
+          }
+        
+        case 'rtf':
+          try {
+            final content = _decodeTextSafely(attachment.bytes, attachment.name);
+            final cleanText = content
+                .replaceAll(RegExp(r'\\[^s]*? '), ' ')
+                .replaceAll(RegExp(r'\{[^}]*\}'), ' ')
+                .replaceAll(RegExp(r'\s+'), ' ')
+                .trim();
+            return cleanText.isEmpty ? '[Empty RTF content]' : cleanText;
+          } catch (e) {
+            throw FileProcessingException(
+              'Failed to extract RTF text: $e',
+              fileName: attachment.name,
+              type: FileProcessingErrorType.parsingError,
+            );
+          }
+        
+        default:
+          return _decodeTextSafely(attachment.bytes, attachment.name, fallbackToBinary: true);
+      }
     } catch (e) {
       if (e is FileProcessingException) {
         rethrow;

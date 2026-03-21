@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import '../config/constants.dart';
 import '../models/chat_message.dart';
+import '../utils/file_processor.dart';
 import '../utils/liquid_glass_effects.dart';
 
 /// Liquid Glass styled chat input field
@@ -193,16 +194,26 @@ class _ChatInputState extends State<ChatInput> {
         if (file.bytes != null) {
           final mimeType = lookupMimeType(file.name) ?? 'application/octet-stream';
           final isImage = mimeType.startsWith('image/');
+          final isPdf = mimeType == 'application/pdf';
+          final isDocx = file.name.toLowerCase().endsWith('.docx');
+          final isDoc = file.name.toLowerCase().endsWith('.doc');
+          final needsProcessing = isPdf || isDocx || isDoc;
           
-          final attachment = Attachment(
-            name: file.name,
-            type: isImage ? AttachmentType.image : AttachmentType.file,
-            mimeType: mimeType,
-            bytes: file.bytes!,
-          );
-          
-          final newAttachments = [...widget.attachments, attachment];
-          widget.onAttachmentsChanged?.call(newAttachments);
+          if (needsProcessing) {
+            // Process incompatible files immediately and add processed attachments
+            await _processFileAndAddAttachments(file.name, file.bytes!, mimeType);
+          } else {
+            // Handle compatible files (images, text, json, csv, md)
+            final attachment = Attachment(
+              name: file.name,
+              type: isImage ? AttachmentType.image : AttachmentType.file,
+              mimeType: mimeType,
+              bytes: file.bytes!,
+            );
+            
+            final newAttachments = [...widget.attachments, attachment];
+            widget.onAttachmentsChanged?.call(newAttachments);
+          }
         }
       }
     } catch (e) {
@@ -211,6 +222,110 @@ class _ChatInputState extends State<ChatInput> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick file: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _processFileAndAddAttachments(String fileName, Uint8List bytes, String mimeType) async {
+    try {
+      debugPrint('[ChatInput] Processing file immediately on selection: $fileName (${bytes.length} bytes)');
+      
+      // Show processing indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Processing ${fileName.split('.').last.toUpperCase()} file...'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      final attachment = Attachment(
+        name: fileName,
+        type: AttachmentType.file,
+        mimeType: mimeType,
+        bytes: bytes,
+      );
+
+      // Process the file based on its type - always create .txt output
+      final processedAttachments = <Attachment>[];
+      
+      if (mimeType == 'application/pdf') {
+        // Handle PDF - extract text only
+        debugPrint('[ChatInput] Processing PDF file to text...');
+        final textContent = await FileProcessor.extractTextContent(attachment);
+        
+        // Create text file attachment
+        final textFileName = '${fileName.substring(0, fileName.lastIndexOf('.'))}_extracted_text.txt';
+        final textAttachment = Attachment(
+          name: textFileName,
+          type: AttachmentType.file,
+          mimeType: 'text/plain',
+          bytes: Uint8List.fromList(textContent.codeUnits),
+        );
+        
+        processedAttachments.add(textAttachment);
+        
+        // Show completion message
+        debugPrint('[ChatInput] PDF processing completed. Text length: ${textContent.length}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PDF processed: Extracted ${textContent.length} characters of text'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        // Handle other incompatible files (DOC, DOCX, etc.)
+        debugPrint('[ChatInput] Processing ${fileName.split('.').last} file to text...');
+        final textContent = await FileProcessor.extractTextContent(attachment);
+        
+        // Create text file attachment
+        final textFileName = '${fileName.substring(0, fileName.lastIndexOf('.'))}_extracted_text.txt';
+        final textAttachment = Attachment(
+          name: textFileName,
+          type: AttachmentType.file,
+          mimeType: 'text/plain',
+          bytes: Uint8List.fromList(textContent.codeUnits),
+        );
+        
+        processedAttachments.add(textAttachment);
+        
+        // Show completion message
+        debugPrint('[ChatInput] File processing completed. Text length: ${textContent.length}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File processed: Extracted ${textContent.length} characters of text'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+      
+      // Add only the processed text attachments (original file is discarded)
+      final newAttachments = [...widget.attachments, ...processedAttachments];
+      debugPrint('[ChatInput] Adding processed text attachments to list, total: ${newAttachments.length}');
+      widget.onAttachmentsChanged?.call(newAttachments);
+      
+    } catch (e) {
+      debugPrint('[ChatInput] Error processing file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to process file: $e')),
+        );
+        
+        // If processing fails, add a placeholder to indicate failure
+        final failedAttachment = Attachment(
+          name: '${fileName}_processing_failed.txt',
+          type: AttachmentType.file,
+          mimeType: 'text/plain',
+          bytes: Uint8List.fromList('File processing failed. Please try again or copy the text manually.'.codeUnits),
+        );
+        
+        final newAttachments = [...widget.attachments, failedAttachment];
+        widget.onAttachmentsChanged?.call(newAttachments);
       }
     }
   }

@@ -425,6 +425,116 @@ class FileProcessor {
     }
   }
 
+  /// Extract text from DOCX using unzip utility
+  static Future<String> _extractFromDocxWithUnzip(Uint8List bytes, String fileName) async {
+    try {
+      debugPrint('[FileProcessor] Starting DOCX text extraction for: $fileName (${bytes.length} bytes)');
+      
+      // Create a temporary file for the DOCX
+      final tempDir = Directory.systemTemp;
+      final tempDocxFile = File('${tempDir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.docx');
+      await tempDocxFile.writeAsBytes(bytes);
+      debugPrint('[FileProcessor] Created temp DOCX file: ${tempDocxFile.path}');
+      
+      try {
+        // Extract document.xml from DOCX file
+        debugPrint('[FileProcessor] Extracting document.xml from DOCX...');
+        final result = await Process.run('unzip', ['-p', tempDocxFile.path, 'word/document.xml']);
+        debugPrint('[FileProcessor] Unzip exit code: ${result.exitCode}');
+        
+        if (result.exitCode == 0) {
+          final xmlContent = result.stdout as String;
+          debugPrint('[FileProcessor] Extracted XML length: ${xmlContent.length}');
+          
+          if (xmlContent.trim().isEmpty) {
+            debugPrint('[FileProcessor] No XML content found in DOCX');
+            return '[DOCX Document - No text content found. The file may be corrupted.]';
+          }
+          
+          // Extract text from XML content
+          final textContent = _extractTextFromDocxXml(xmlContent);
+          debugPrint('[FileProcessor] Extracted text length: ${textContent.length}');
+          
+          if (textContent.trim().isEmpty) {
+            debugPrint('[FileProcessor] DOCX contains no text (might be images only)');
+            return '[DOCX Document - No text content found. The document may contain only images.]';
+          }
+          
+          debugPrint('[FileProcessor] Successfully extracted DOCX text');
+          return textContent.trim();
+        } else {
+          debugPrint('[FileProcessor] Unzip failed with stderr: ${result.stderr}');
+          return '[DOCX Document - ${bytes.length} bytes]\n\nNote: DOCX text extraction failed. The file has been processed and can be analyzed by the AI model.]';
+        }
+      } finally {
+        // Clean up temporary file
+        try {
+          await tempDocxFile.delete();
+          debugPrint('[FileProcessor] Cleaned up temp DOCX file');
+        } catch (e) {
+          debugPrint('[FileProcessor] Failed to clean up temp file: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('[FileProcessor] DOCX text extraction error: $e');
+      return '[DOCX Document - ${bytes.length} bytes]\n\nNote: DOCX text extraction requires unzip utility. Error: $e';
+    }
+  }
+
+  /// Extract text content from DOCX XML
+  static String _extractTextFromDocxXml(String xmlContent) {
+    try {
+      // Simple regex-based text extraction from DOCX XML
+      // Remove XML tags and decode entities
+      String text = xmlContent;
+      
+      // Extract text between <w:t> tags (Word text elements)
+      final RegExp textRegex = RegExp(r'<w:t[^>]*>(.*?)</w:t>', dotAll: true);
+      final matches = textRegex.allMatches(text);
+      
+      final StringBuffer extractedText = StringBuffer();
+      for (final match in matches) {
+        String textContent = match.group(1) ?? '';
+        // Decode common XML entities
+        textContent = textContent
+            .replaceAll('&lt;', '<')
+            .replaceAll('&gt;', '>')
+            .replaceAll('&amp;', '&')
+            .replaceAll('&quot;', '"')
+            .replaceAll('&apos;', "'");
+        
+        extractedText.write(textContent);
+      }
+      
+      // Clean up the extracted text and ensure UTF-8 compatibility
+      String cleanText = extractedText.toString();
+      
+      // Remove any non-UTF-8 characters and normalize
+      cleanText = cleanText
+          .replaceAll(RegExp(r'[^\x20-\x7E\n\t\r]'), '') // Remove non-printable except basic whitespace
+          .replaceAll(RegExp(r'\s+'), ' ') // Normalize whitespace
+          .replaceAll(RegExp(r'\n{3,}'), '\n\n') // Reduce multiple line breaks
+          .trim();
+      
+      // Ensure the result is valid UTF-8 by encoding and decoding
+      try {
+        final utf8Bytes = utf8.encode(cleanText);
+        cleanText = utf8.decode(utf8Bytes, allowMalformed: false);
+      } catch (e) {
+        debugPrint('[FileProcessor] UTF-8 encoding issue, cleaning further: $e');
+        // If UTF-8 encoding fails, clean more aggressively
+        cleanText = cleanText
+            .replaceAll(RegExp(r'[^\x20-\x7E\n\t ]'), '') // Keep only basic ASCII and whitespace
+            .trim();
+      }
+      
+      return cleanText;
+    } catch (e) {
+      debugPrint('[FileProcessor] Error extracting text from DOCX XML: $e');
+      return '[Error extracting text from DOCX XML: $e]';
+    }
+  }
+
   /// Check if text has common encoding issues
   static bool _hasEncodingIssues(String text) {
     // Check for common encoding artifacts
@@ -520,7 +630,7 @@ class FileProcessor {
           return await _extractFromPdfWithPdftotext(attachment.bytes, attachment.name);
         
         case 'docx':
-          return '[DOCX Document - ${attachment.bytes.length} bytes]\n\nNote: DOCX text extraction requires additional processing. The file has been processed and can be analyzed by the AI model.';
+          return await _extractFromDocxWithUnzip(attachment.bytes, attachment.name);
         
         case 'html':
         case 'htm':

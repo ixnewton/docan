@@ -1,4 +1,6 @@
 import 'dart:io' show Platform;
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -257,11 +259,26 @@ class _ChatInputState extends State<ChatInput> {
         
         // Create text file attachment
         final textFileName = '${fileName.substring(0, fileName.lastIndexOf('.'))}_extracted_text.txt';
+        
+        // Ensure UTF-8 encoding for the text content
+        String cleanTextContent = textContent;
+        try {
+          // Validate and ensure UTF-8 encoding
+          final utf8Bytes = utf8.encode(textContent);
+          cleanTextContent = utf8.decode(utf8Bytes, allowMalformed: false);
+        } catch (e) {
+          debugPrint('[ChatInput] UTF-8 encoding issue, cleaning text: $e');
+          // Fallback to ASCII if UTF-8 fails
+          cleanTextContent = textContent
+              .replaceAll(RegExp(r'[^\x20-\x7E\n\t ]'), '') // Keep only basic ASCII and whitespace
+              .trim();
+        }
+        
         final textAttachment = Attachment(
           name: textFileName,
           type: AttachmentType.file,
-          mimeType: 'text/plain',
-          bytes: Uint8List.fromList(textContent.codeUnits),
+          mimeType: 'text/plain; charset=utf-8',
+          bytes: Uint8List.fromList(cleanTextContent.codeUnits),
         );
         
         processedAttachments.add(textAttachment);
@@ -283,11 +300,26 @@ class _ChatInputState extends State<ChatInput> {
         
         // Create text file attachment
         final textFileName = '${fileName.substring(0, fileName.lastIndexOf('.'))}_extracted_text.txt';
+        
+        // Ensure UTF-8 encoding for the text content
+        String cleanTextContent = textContent;
+        try {
+          // Validate and ensure UTF-8 encoding
+          final utf8Bytes = utf8.encode(textContent);
+          cleanTextContent = utf8.decode(utf8Bytes, allowMalformed: false);
+        } catch (e) {
+          debugPrint('[ChatInput] UTF-8 encoding issue, cleaning text: $e');
+          // Fallback to ASCII if UTF-8 fails
+          cleanTextContent = textContent
+              .replaceAll(RegExp(r'[^\x20-\x7E\n\t ]'), '') // Keep only basic ASCII and whitespace
+              .trim();
+        }
+        
         final textAttachment = Attachment(
           name: textFileName,
           type: AttachmentType.file,
-          mimeType: 'text/plain',
-          bytes: Uint8List.fromList(textContent.codeUnits),
+          mimeType: 'text/plain; charset=utf-8',
+          bytes: Uint8List.fromList(cleanTextContent.codeUnits),
         );
         
         processedAttachments.add(textAttachment);

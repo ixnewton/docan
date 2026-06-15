@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/constants.dart';
 import '../config/themes.dart';
 import '../models/chat_message.dart';
+import '../services/clipboard_service.dart';
 import '../utils/liquid_glass_effects.dart';
 
 /// Liquid Glass styled message bubble
@@ -37,6 +39,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   bool _isHovered = false;
+  Timer? _selectionDebounce;
 
   @override
   void initState() {
@@ -61,7 +64,27 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
   @override
   void dispose() {
     _controller.dispose();
+    _selectionDebounce?.cancel();
     super.dispose();
+  }
+
+  void _onTextSelectionChanged(TextSelection selection, String fullText) {
+    // Cancel previous debounce timer
+    _selectionDebounce?.cancel();
+    
+    // Set PRIMARY selection when text is selected for middle-click paste
+    if (selection.isValid && !selection.isCollapsed) {
+      // Debounce to avoid rapid clipboard updates during selection
+      _selectionDebounce = Timer(const Duration(milliseconds: 300), () {
+        final selectedText = fullText.substring(
+          selection.start,
+          selection.end,
+        );
+        if (selectedText.isNotEmpty) {
+          ClipboardService.setText(selectedText);
+        }
+      });
+    }
   }
 
   @override
@@ -202,13 +225,19 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                           color: isUser ? Colors.white : theme.primaryColor,
                         )
                       : isUser
-                      ? SelectableText(
-                          widget.message.content,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: textColor,
+                      ? SelectionArea(
+                          child: SelectableText(
+                            widget.message.content,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: textColor,
+                            ),
+                            onSelectionChanged: (selection, cause) {
+                              _onTextSelectionChanged(selection, widget.message.content);
+                            },
                           ),
                         )
-                      : MarkdownBody(
+                      : SelectionArea(
+                          child: MarkdownBody(
                           data: widget.message.content,
                           selectable: true,
                           builders: {
@@ -346,6 +375,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                             ),
                           ),
                         ),
+                      ),
                 ),
             ],
           ),
@@ -503,8 +533,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
           _ActionButton(
             icon: Icons.copy,
             tooltip: 'Copy',
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: widget.message.content));
+            onPressed: () async {
+              await ClipboardService.setText(widget.message.content);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Copied to clipboard'),
@@ -540,8 +570,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
             ListTile(
               leading: const Icon(Icons.copy),
               title: const Text('Copy'),
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: widget.message.content));
+              onTap: () async {
+                await ClipboardService.setText(widget.message.content);
                 Navigator.pop(context);
               },
             ),

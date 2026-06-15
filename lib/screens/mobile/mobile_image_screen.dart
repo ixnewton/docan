@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../config/constants.dart';
 import '../../components/comfyui_settings_panel.dart';
+import '../../services/clipboard_service.dart';
 import '../../services/image_generation_service.dart';
 import '../../utils/liquid_glass_effects.dart';
 
@@ -97,9 +98,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
 
   Future<void> _copyPrompt(GeneratedImage image) async {
     try {
-      await Clipboard.setData(
-        ClipboardData(text: image.revisedPrompt ?? image.prompt),
-      );
+      await ClipboardService.setText(image.revisedPrompt ?? image.prompt);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

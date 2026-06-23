@@ -211,12 +211,17 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
   Widget _buildNavBar(BuildContext context, ImageGenerationService service) {
     final theme = Theme.of(context);
 
-    return LiquidGlassNavBar(
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingM),
       child: Row(
         children: [
           // Back button
-          LiquidGlassIconButton(
-            icon: Icons.arrow_back,
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context),
           ),
 
@@ -236,8 +241,8 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
           if (service.generatedImages.isNotEmpty)
             Stack(
               children: [
-                LiquidGlassIconButton(
-                  icon: Icons.photo_library,
+                IconButton(
+                  icon: const Icon(Icons.photo_library),
                   onPressed: _showGallery,
                 ),
                 Positioned(
@@ -265,7 +270,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
           const SizedBox(width: AppConstants.spacingXS),
 
           // Settings button
-          LiquidGlassIconButton(icon: Icons.tune, onPressed: _showSettings),
+          IconButton(icon: const Icon(Icons.tune), onPressed: _showSettings),
         ],
       ),
     );

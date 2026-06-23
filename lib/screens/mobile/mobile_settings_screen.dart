@@ -134,7 +134,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                           ollamaUrl: _ollamaUrl,
                           lmStudioUrl: _lmStudioUrl,
                           comfyUIUrl: _comfyUIUrl,
-                          theme: themeProvider.theme,
+                          isDarkMode: themeProvider.isDarkMode,
                           accentColor: themeProvider.accentColor,
                           temperature: chatService.temperature,
                           maxTokens: chatService.maxTokens,
@@ -171,10 +171,10 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                             final storage = await StorageService.getInstance();
                             await storage.setComfyUIUrl(url);
                           },
-                          onThemeChanged: (theme) async {
-                            themeProvider.setTheme(theme);
+                          onThemeChanged: (isDark) async {
+                            themeProvider.setDarkMode(isDark);
                             final storage = await StorageService.getInstance();
-                            await storage.setTheme(theme);
+                            await storage.setTheme(isDark ? 'dark' : 'light');
                           },
                           onAccentColorChanged: (color) {
                             themeProvider.setAccentColor(color);

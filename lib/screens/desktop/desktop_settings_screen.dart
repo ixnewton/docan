@@ -99,12 +99,13 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
     final screenSize = MediaQuery.of(context).size;
 
     return Dialog(
-      backgroundColor: Colors.transparent,
-      child: LiquidGlassContainer(
+      child: Container(
         width: screenSize.width * 0.5 > 700 ? screenSize.width * 0.5 : 700,
         height: screenSize.height * 0.85,
-        borderRadius: AppConstants.radiusL,
-        animateOnHover: false,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppConstants.radiusL),
+        ),
         child: Column(
           children: [
             // Header
@@ -113,7 +114,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.3),
+                    color: theme.dividerColor,
                     width: 1,
                   ),
                 ),
@@ -127,8 +128,8 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                     ),
                   ),
                   const Spacer(),
-                  LiquidGlassIconButton(
-                    icon: Icons.close,
+                  IconButton(
+                    icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -146,7 +147,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                           ollamaUrl: _ollamaUrl,
                           lmStudioUrl: _lmStudioUrl,
                           comfyUIUrl: _comfyUIUrl,
-                          theme: themeProvider.theme,
+                          isDarkMode: themeProvider.isDarkMode,
                           accentColor: themeProvider.accentColor,
                           temperature: chatService.temperature,
                           maxTokens: chatService.maxTokens,
@@ -183,10 +184,10 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                             final storage = await StorageService.getInstance();
                             await storage.setComfyUIUrl(url);
                           },
-                          onThemeChanged: (theme) async {
-                            themeProvider.setTheme(theme);
+                          onThemeChanged: (isDark) async {
+                            themeProvider.setDarkMode(isDark);
                             final storage = await StorageService.getInstance();
-                            await storage.setTheme(theme);
+                            await storage.setTheme(isDark ? 'dark' : 'light');
                           },
                           onAccentColorChanged: (color) {
                             themeProvider.setAccentColor(color);

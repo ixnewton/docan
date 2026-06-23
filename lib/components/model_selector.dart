@@ -189,14 +189,17 @@ class _ModelSelectorState extends State<ModelSelector> {
   void _showProviderBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
       isScrollControlled: true,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.7,
       ),
-      builder: (context) => LiquidGlassContainer(
-        borderRadius: AppConstants.radiusL,
-        margin: const EdgeInsets.all(AppConstants.spacingM),
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radiusL),
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,11 +339,14 @@ class _ModelSelectorState extends State<ModelSelector> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => LiquidGlassContainer(
-        borderRadius: AppConstants.radiusL,
-        margin: const EdgeInsets.all(AppConstants.spacingM),
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radiusL),
+          ),
+        ),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.6,

@@ -313,8 +313,8 @@ class _PlaybookSidebar extends StatelessWidget {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  tooltip: 'Close',
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  tooltip: 'Back',
                   onPressed: () => Navigator.of(context).pop(),
                 ),
                 Icon(Icons.auto_stories, color: theme.colorScheme.primary),

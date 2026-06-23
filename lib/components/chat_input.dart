@@ -111,10 +111,13 @@ class _ChatInputState extends State<ChatInput> {
     
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => LiquidGlassContainer(
-        borderRadius: AppConstants.radiusL,
-        margin: const EdgeInsets.all(AppConstants.spacingM),
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radiusL),
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -398,25 +401,20 @@ class _ChatInputState extends State<ChatInput> {
                 ),
               ),
             // Input field
-            LiquidGlassContainer(
-              borderRadius: AppConstants.radiusNavBar,
-              padding: EdgeInsets.zero,
-              blurIntensity: 25,
-              animateOnHover: false,
-              child: AnimatedContainer(
-                duration: AppConstants.hoverDuration,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
-                  border: Border.all(
-                    color: _isFocused && !isDisabled
-                        ? theme.primaryColor.withValues(alpha: 0.5)
-                        : Colors.transparent,
-                    width: 2,
-                  ),
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
+                border: Border.all(
+                  color: _isFocused && !isDisabled
+                      ? theme.primaryColor.withValues(alpha: 0.5)
+                      : theme.dividerColor,
+                  width: 1,
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
                     // Attachment button
                     Padding(
                       padding: const EdgeInsets.only(
@@ -530,7 +528,6 @@ class _ChatInputState extends State<ChatInput> {
                   ],
                 ),
               ),
-            ),
           ],
         ),
       ),

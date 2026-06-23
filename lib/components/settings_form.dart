@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/constants.dart';
 import '../config/themes.dart';
 import '../models/ai_provider.dart';
-import '../utils/liquid_glass_effects.dart';
 
 /// Settings form for API keys and configuration
 class SettingsForm extends StatefulWidget {
@@ -12,7 +11,7 @@ class SettingsForm extends StatefulWidget {
   final String ollamaUrl;
   final String lmStudioUrl;
   final String comfyUIUrl;
-  final LiquidGlassTheme theme;
+  final bool isDarkMode;
   final Color accentColor;
   final double temperature;
   final int maxTokens;
@@ -21,7 +20,7 @@ class SettingsForm extends StatefulWidget {
   final ValueChanged<String> onOllamaUrlChanged;
   final ValueChanged<String> onLMStudioUrlChanged;
   final ValueChanged<String> onComfyUIUrlChanged;
-  final ValueChanged<LiquidGlassTheme> onThemeChanged;
+  final ValueChanged<bool> onThemeChanged;
   final ValueChanged<Color> onAccentColorChanged;
   final ValueChanged<double> onTemperatureChanged;
   final ValueChanged<int> onMaxTokensChanged;
@@ -35,7 +34,7 @@ class SettingsForm extends StatefulWidget {
     required this.ollamaUrl,
     required this.lmStudioUrl,
     required this.comfyUIUrl,
-    required this.theme,
+    required this.isDarkMode,
     required this.accentColor,
     required this.temperature,
     required this.maxTokens,
@@ -174,7 +173,12 @@ class _SettingsFormState extends State<SettingsForm> {
   }) {
     final theme = Theme.of(context);
 
-    return LiquidGlassContainer(
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppConstants.radiusM),
+        border: Border.all(color: theme.dividerColor),
+      ),
       padding: const EdgeInsets.all(AppConstants.spacingL),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,17 +236,26 @@ class _SettingsFormState extends State<SettingsForm> {
           Row(
             children: [
               Expanded(
-                child: LiquidGlassTextField(
+                child: TextField(
                   controller: _controllers[provider],
-                  hintText: 'Enter your ${provider.displayName} API key',
                   obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your ${provider.displayName} API key',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusS),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppConstants.spacingM,
+                      vertical: AppConstants.spacingS,
+                    ),
+                  ),
                   onChanged: (value) => widget.onApiKeyChanged(provider, value),
                 ),
               ),
               if (widget.onTestConnection != null) ...[
                 const SizedBox(width: AppConstants.spacingS),
-                LiquidGlassIconButton(
-                  icon: Icons.refresh,
+                IconButton(
+                  icon: const Icon(Icons.refresh),
                   tooltip: 'Test Connection',
                   onPressed: () => widget.onTestConnection!(provider),
                 ),
@@ -282,16 +295,25 @@ class _SettingsFormState extends State<SettingsForm> {
         Row(
           children: [
             Expanded(
-              child: LiquidGlassTextField(
+              child: TextField(
                 controller: _ollamaController,
-                hintText: 'http://localhost:11434',
+                decoration: InputDecoration(
+                  hintText: 'http://localhost:11434',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusS),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppConstants.spacingM,
+                    vertical: AppConstants.spacingS,
+                  ),
+                ),
                 onChanged: widget.onOllamaUrlChanged,
               ),
             ),
             if (widget.onTestConnection != null) ...[
               const SizedBox(width: AppConstants.spacingS),
-              LiquidGlassIconButton(
-                icon: Icons.refresh,
+              IconButton(
+                icon: const Icon(Icons.refresh),
                 tooltip: 'Test Connection',
                 onPressed: () => widget.onTestConnection!(AIProvider.ollama),
               ),
@@ -330,16 +352,25 @@ class _SettingsFormState extends State<SettingsForm> {
         Row(
           children: [
             Expanded(
-              child: LiquidGlassTextField(
+              child: TextField(
                 controller: _lmStudioController,
-                hintText: 'http://localhost:1234/v1',
+                decoration: InputDecoration(
+                  hintText: 'http://localhost:1234/v1',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusS),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppConstants.spacingM,
+                    vertical: AppConstants.spacingS,
+                  ),
+                ),
                 onChanged: widget.onLMStudioUrlChanged,
               ),
             ),
             if (widget.onTestConnection != null) ...[
               const SizedBox(width: AppConstants.spacingS),
-              LiquidGlassIconButton(
-                icon: Icons.refresh,
+              IconButton(
+                icon: const Icon(Icons.refresh),
                 tooltip: 'Test Connection',
                 onPressed: () => widget.onTestConnection!(AIProvider.lmstudio),
               ),
@@ -377,9 +408,18 @@ class _SettingsFormState extends State<SettingsForm> {
           ],
         ),
         const SizedBox(height: AppConstants.spacingS),
-        LiquidGlassTextField(
+        TextField(
           controller: _comfyUIController,
-          hintText: 'http://localhost:8188',
+          decoration: InputDecoration(
+            hintText: 'http://localhost:8188',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusS),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.spacingM,
+              vertical: AppConstants.spacingS,
+            ),
+          ),
           onChanged: widget.onComfyUIUrlChanged,
         ),
       ],
@@ -392,73 +432,20 @@ class _SettingsFormState extends State<SettingsForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Liquid Glass Style', style: theme.textTheme.labelLarge),
+        Text('Theme', style: theme.textTheme.labelLarge),
         const SizedBox(height: AppConstants.spacingS),
-        Wrap(
-          spacing: AppConstants.spacingS,
-          runSpacing: AppConstants.spacingS,
-          children: LiquidGlassTheme.values.map((t) {
-            final isSelected = t == widget.theme;
-            return GestureDetector(
-              onTap: () => widget.onThemeChanged(t),
-              child: AnimatedContainer(
-                duration: AppConstants.hoverDuration,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.spacingM,
-                  vertical: AppConstants.spacingS,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? theme.primaryColor.withValues(alpha: 0.15)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppConstants.radiusS),
-                  border: Border.all(
-                    color: isSelected ? theme.primaryColor : theme.dividerColor,
-                    width: isSelected ? 2 : 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _getThemePreviewColor(t),
-                        border: Border.all(color: theme.dividerColor),
-                      ),
-                    ),
-                    const SizedBox(width: AppConstants.spacingS),
-                    Text(
-                      t.name[0].toUpperCase() + t.name.substring(1),
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
+        Row(
+          children: [
+            Switch(
+              value: widget.isDarkMode,
+              onChanged: widget.onThemeChanged,
+            ),
+            const SizedBox(width: AppConstants.spacingS),
+            Text(widget.isDarkMode ? 'Dark' : 'Light'),
+          ],
         ),
       ],
     );
-  }
-
-  Color _getThemePreviewColor(LiquidGlassTheme t) {
-    switch (t) {
-      case LiquidGlassTheme.clear:
-        return Colors.black;
-      case LiquidGlassTheme.light:
-        return Colors.white;
-      case LiquidGlassTheme.dark:
-        return const Color(0xFF1C1C1E);
-      case LiquidGlassTheme.tinted:
-        return widget.accentColor.withValues(alpha: 0.3);
-    }
   }
 
   Widget _buildAccentColorSelector() {

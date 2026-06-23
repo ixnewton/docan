@@ -10,9 +10,8 @@ import '../config/constants.dart';
 import '../config/themes.dart';
 import '../models/chat_message.dart';
 import '../services/clipboard_service.dart';
-import '../utils/liquid_glass_effects.dart';
 
-/// Liquid Glass styled message bubble
+/// Standard Material Design message bubble
 class ChatMessageBubble extends StatefulWidget {
   final ChatMessage message;
   final double maxWidth;
@@ -51,12 +50,12 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: LiquidGlassCurves.smoothEntry,
+        curve: Curves.easeInOut,
       ),
     );
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-          CurvedAnimation(parent: _controller, curve: LiquidGlassCurves.liquid),
+          CurvedAnimation(parent: _controller, curve: Curves.easeOut),
         );
     _controller.forward();
   }
@@ -171,12 +170,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
     }
 
     final bubbleColor = isUser
-        ? (isDark
-              ? LiquidGlassColors.userBubbleDark
-              : LiquidGlassColors.userBubbleLight)
-        : (isDark
-              ? LiquidGlassColors.aiBubbleDark
-              : LiquidGlassColors.aiBubbleLight);
+        ? theme.primaryColor
+        : (isDark ? theme.colorScheme.surface : Colors.grey[100]);
 
     final textColor = isUser
         ? Colors.white
@@ -198,7 +193,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
         ),
         child: Container(
           decoration: BoxDecoration(
-            color: bubbleColor.withValues(alpha: isUser ? 1.0 : 0.8),
+            color: bubbleColor,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(isUser ? AppConstants.radiusM : 4),
               topRight: Radius.circular(isUser ? 4 : AppConstants.radiusM),
@@ -221,8 +216,12 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                   child:
                       widget.message.isStreaming &&
                           widget.message.content.isEmpty
-                      ? LiquidGlassTypingIndicator(
-                          color: isUser ? Colors.white : theme.primaryColor,
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
                         )
                       : isUser
                       ? SelectionArea(
@@ -560,10 +559,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
   void _showContextMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => LiquidGlassContainer(
-        borderRadius: AppConstants.radiusL,
-        margin: const EdgeInsets.all(AppConstants.spacingM),
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radiusL),
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

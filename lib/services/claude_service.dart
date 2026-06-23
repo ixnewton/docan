@@ -119,7 +119,6 @@ class ClaudeService implements AIService {
       'model': _modelId,
       'messages': messages,
       'max_tokens': maxTokens,
-      'temperature': temperature,
     };
 
     if (systemPrompt != null && systemPrompt.isNotEmpty) {
@@ -186,7 +185,6 @@ class ClaudeService implements AIService {
       'model': _modelId,
       'messages': messages,
       'max_tokens': maxTokens,
-      'temperature': temperature,
       'stream': true,
     };
 

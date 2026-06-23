@@ -197,9 +197,9 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
                   ),
                 ),
                 const Spacer(),
-                LiquidGlassIconButton(
-                  icon: Icons.close,
-                  size: 32,
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  iconSize: 32,
                   onPressed: () {
                     setState(() {
                       _showComfyUISettings = false;
@@ -250,10 +250,15 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
             padding: const EdgeInsets.all(AppConstants.spacingM),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Back to Chat',
+                  onPressed: () => Navigator.pop(context),
+                ),
                 Icon(Icons.image, color: theme.primaryColor),
                 const SizedBox(width: AppConstants.spacingS),
                 Text(
-                  'Generated Images',
+                  'Image Creator',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -365,8 +370,8 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
           // ComfyUI Settings toggle (only when ComfyUI is selected)
           if (service.selectedProvider == ImageGenProvider.comfyui) ...[
-            LiquidGlassIconButton(
-              icon: _showComfyUISettings ? Icons.tune : Icons.tune_outlined,
+            IconButton(
+              icon: Icon(_showComfyUISettings ? Icons.tune : Icons.tune_outlined),
               tooltip: 'ComfyUI Settings',
               onPressed: () {
                 setState(() {
@@ -392,14 +397,14 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
           // Actions for selected image
           if (_selectedImage != null) ...[
-            LiquidGlassIconButton(
-              icon: Icons.save_alt,
+            IconButton(
+              icon: const Icon(Icons.save_alt),
               tooltip: 'Save Image',
               onPressed: () => _saveImage(_selectedImage!),
             ),
             const SizedBox(width: AppConstants.spacingS),
-            LiquidGlassIconButton(
-              icon: Icons.copy,
+            IconButton(
+              icon: const Icon(Icons.copy),
               tooltip: 'Copy Prompt',
               onPressed: () => _copyImageToClipboard(_selectedImage!),
             ),
@@ -431,8 +436,12 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
     if (service.error != null) {
       return Center(
-        child: LiquidGlassContainer(
+        child: Container(
           padding: const EdgeInsets.all(AppConstants.spacingL),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.errorContainer,
+            borderRadius: BorderRadius.circular(AppConstants.radiusM),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

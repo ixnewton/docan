@@ -32,18 +32,23 @@ class ConversationList extends StatelessWidget {
         // New Chat Button
         Padding(
           padding: const EdgeInsets.all(AppConstants.spacingM),
-          child: LiquidGlassButton(
+          child: ElevatedButton(
             onPressed: onNewChat,
-            backgroundColor: theme.primaryColor,
-            borderRadius: AppConstants.radiusS,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppConstants.spacingM,
-              vertical: AppConstants.spacingS,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusS),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppConstants.spacingM,
+                vertical: AppConstants.spacingS,
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.add, color: Colors.white, size: 20),
+                const Icon(Icons.add, size: 20),
                 const SizedBox(width: AppConstants.spacingS),
                 Text(
                   'New Chat',
@@ -283,10 +288,13 @@ class _ConversationTileState extends State<_ConversationTile> {
   void _showContextMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => LiquidGlassContainer(
-        borderRadius: AppConstants.radiusL,
-        margin: const EdgeInsets.all(AppConstants.spacingM),
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radiusL),
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

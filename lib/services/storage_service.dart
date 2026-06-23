@@ -207,17 +207,13 @@ class StorageService {
 
   // Theme Settings
 
-  Future<void> setTheme(LiquidGlassTheme theme) async {
-    await _prefs?.setString(AppConstants.keyThemeMode, theme.name);
+  Future<void> setTheme(String theme) async {
+    await _prefs?.setString(AppConstants.keyThemeMode, theme);
   }
 
-  Future<LiquidGlassTheme> getTheme() async {
+  Future<String> getTheme() async {
     final themeName = _prefs?.getString(AppConstants.keyThemeMode);
-    if (themeName == null) return LiquidGlassTheme.light;
-    return LiquidGlassTheme.values.firstWhere(
-      (e) => e.name == themeName,
-      orElse: () => LiquidGlassTheme.light,
-    );
+    return themeName ?? 'light';
   }
 
   // AI Parameters

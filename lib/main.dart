@@ -22,18 +22,19 @@ void main() async {
 
   // Load saved theme
   final savedTheme = await storageService.getTheme();
+  final isDarkMode = savedTheme == 'dark';
 
-  runApp(DocanApp(storageService: storageService, initialTheme: savedTheme));
+  runApp(DocanApp(storageService: storageService, initialDarkMode: isDarkMode));
 }
 
 class DocanApp extends StatelessWidget {
   final StorageService storageService;
-  final LiquidGlassTheme initialTheme;
+  final bool initialDarkMode;
 
   const DocanApp({
     super.key,
     required this.storageService,
-    required this.initialTheme,
+    required this.initialDarkMode,
   });
 
   @override
@@ -51,7 +52,7 @@ class DocanApp extends StatelessWidget {
         // Theme provider
         ChangeNotifierProvider(
           create: (_) =>
-              ThemeProvider()..loadFromPreferences(theme: initialTheme),
+              ThemeProvider()..loadFromPreferences(isDarkMode: initialDarkMode),
         ),
         // Playbook service (created first)
         ChangeNotifierProvider.value(value: playbookService),

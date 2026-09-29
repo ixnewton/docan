@@ -91,5 +91,6 @@ class AppConstants {
   static const String keySystemPrompt = 'system_prompt';
   static const String keySelectedProvider = 'selected_provider';
   static const String keySelectedModel = 'selected_model';
+  static const String keySelectedModelPrefix = 'selected_model_';
   static const String keyConversations = 'conversations';
 }

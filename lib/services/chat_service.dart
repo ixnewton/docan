@@ -94,7 +94,9 @@ class ChatService extends ChangeNotifier {
     // Load settings
     _selectedProvider = await _storage.getSelectedProvider();
     _selectedModel =
-        await _storage.getSelectedModel() ?? _selectedProvider.defaultModel;
+        await _storage.getSelectedModelForProvider(_selectedProvider) ??
+        await _storage.getSelectedModel() ??
+        _selectedProvider.defaultModel;
     _temperature = await _storage.getTemperature();
     _maxTokens = await _storage.getMaxTokens();
     _systemPrompt = await _storage.getSystemPrompt();
@@ -124,7 +126,11 @@ class ChatService extends ChangeNotifier {
   /// Set the selected provider
   Future<void> setProvider(AIProvider provider) async {
     _selectedProvider = provider;
-    _selectedModel = provider.defaultModel;
+    // Restore the last-used model for this provider (falls back to default)
+    _selectedModel =
+        await _storage.getSelectedModelForProvider(provider) ??
+        provider.defaultModel;
+    currentService.setModel(_selectedModel);
     await _storage.setSelectedProvider(provider);
     await _storage.setSelectedModel(_selectedModel);
     notifyListeners();
@@ -134,6 +140,7 @@ class ChatService extends ChangeNotifier {
   Future<void> setModel(String modelId) async {
     _selectedModel = modelId;
     currentService.setModel(modelId);
+    await _storage.setSelectedModelForProvider(_selectedProvider, modelId);
     await _storage.setSelectedModel(modelId);
     notifyListeners();
   }
@@ -869,6 +876,12 @@ class ChatService extends ChangeNotifier {
               '[ChatService] Successfully fell back to model: $modelToTry',
             );
             _selectedModel = modelToTry;
+            // Persist the working provider+model combination
+            await _storage.setSelectedModelForProvider(
+              _selectedProvider,
+              modelToTry,
+            );
+            await _storage.setSelectedModel(modelToTry);
           }
           break; // Success, exit loop
         } catch (e) {

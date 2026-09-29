@@ -267,6 +267,24 @@ class StorageService {
     return _prefs?.getString(AppConstants.keySelectedModel);
   }
 
+  // Per-provider selected model (remembers last-used model for each provider)
+
+  Future<void> setSelectedModelForProvider(
+    AIProvider provider,
+    String modelId,
+  ) async {
+    await _prefs?.setString(
+      '${AppConstants.keySelectedModelPrefix}${provider.name}',
+      modelId,
+    );
+  }
+
+  Future<String?> getSelectedModelForProvider(AIProvider provider) async {
+    return _prefs?.getString(
+      '${AppConstants.keySelectedModelPrefix}${provider.name}',
+    );
+  }
+
   // Conversations
 
   Future<void> saveConversations(List<Conversation> conversations) async {

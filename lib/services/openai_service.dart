@@ -196,10 +196,24 @@ class OpenAIService implements AIService {
       );
 
       if (streamedResponse.statusCode != 200) {
-        debugPrint('[OpenAI] Stream ERROR: ${streamedResponse.statusCode}');
-        throw Exception(
-          'OpenAI streaming error: ${streamedResponse.statusCode}',
-        );
+        // Read the error body to surface OpenAI's actual reason
+        // (e.g. rate_limit_exceeded vs insufficient_quota)
+        final errorBody = await streamedResponse.stream.bytesToString();
+        String errorMessage =
+            'OpenAI streaming error: ${streamedResponse.statusCode}';
+        try {
+          final error = jsonDecode(errorBody);
+          final message = error['error']?['message'] as String?;
+          final type = error['error']?['type'] as String?;
+          if (message != null && message.isNotEmpty) {
+            errorMessage =
+                '$errorMessage - $message${type != null ? ' [$type]' : ''}';
+          }
+        } catch (_) {
+          // Body wasn't JSON; keep the status-code-only message
+        }
+        debugPrint('[OpenAI] Stream ERROR: $errorMessage');
+        throw Exception(errorMessage);
       }
 
       int chunkCount = 0;

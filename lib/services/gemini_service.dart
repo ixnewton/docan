@@ -264,10 +264,25 @@ class GeminiService implements AIService {
       );
 
       if (streamedResponse.statusCode != 200) {
-        debugPrint('[Gemini] Stream ERROR: ${streamedResponse.statusCode}');
+        // Read the error body so Google's actual reason reaches the parser
+        // (quota details, retry timing, invalid key, etc.)
+        final errorBody = await streamedResponse.stream.bytesToString();
+        String errorMessage = 'Gemini streaming error';
+        try {
+          final error = jsonDecode(errorBody);
+          final message = error['error']?['message'] as String?;
+          if (message != null && message.isNotEmpty) {
+            errorMessage = message;
+          }
+        } catch (_) {
+          // Body wasn't JSON; keep the generic message
+        }
+        debugPrint(
+          '[Gemini] Stream ERROR: ${streamedResponse.statusCode} - $errorMessage',
+        );
         throw Exception(
           ApiErrorParser.parse(
-            'Gemini streaming error',
+            errorMessage,
             streamedResponse.statusCode,
           ),
         );

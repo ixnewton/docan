@@ -33,6 +33,9 @@ class ChatService extends ChangeNotifier {
   // AI Services
   final Map<AIProvider, AIService> _services = {};
 
+  // Cached model lists (fetched live from provider APIs)
+  final Map<AIProvider, List<String>> _modelCache = {};
+
   ChatService(this._storage) {
     _initServices();
   }
@@ -65,9 +68,30 @@ class ChatService extends ChangeNotifier {
 
   AIService get currentService => _services[_selectedProvider]!;
 
-  /// Get available models for a provider (fetches from API)
+  /// Get available models for a provider (cached after first fetch)
   Future<List<String>> getAvailableModels(AIProvider provider) async {
-    return await _services[provider]!.getAvailableModels();
+    final cached = _modelCache[provider];
+    if (cached != null) return cached;
+    final models = await _services[provider]!.getAvailableModels();
+    _modelCache[provider] = models;
+    return models;
+  }
+
+  /// Prefetch model lists for all configured providers (non-blocking).
+  /// Cloud providers are skipped when no API key is set; local servers
+  /// (Ollama/LM Studio) are always attempted and fail fast to defaults.
+  Future<void> prefetchModelLists() async {
+    for (final provider in AIProvider.values) {
+      if (provider != AIProvider.ollama && provider != AIProvider.lmstudio) {
+        if (!await _storage.hasApiKey(provider)) continue;
+      }
+      try {
+        await getAvailableModels(provider);
+      } catch (_) {
+        // Services fall back to default lists; nothing to do
+      }
+    }
+    notifyListeners();
   }
 
   /// Get map of configured providers (has API key or Ollama/LM Studio URL)
@@ -121,6 +145,9 @@ class ChatService extends ChangeNotifier {
     }
 
     notifyListeners();
+
+    // Warm the model list cache for configured providers in the background
+    unawaited(prefetchModelLists());
   }
 
   /// Set the selected provider
@@ -149,6 +176,8 @@ class ChatService extends ChangeNotifier {
   Future<void> setApiKey(AIProvider provider, String apiKey) async {
     await _storage.setApiKey(provider, apiKey);
     _services[provider]?.setApiKey(apiKey);
+    // Key (or local server URL) changed — drop the cached model list
+    _modelCache.remove(provider);
     notifyListeners();
   }
 

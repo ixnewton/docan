@@ -1,9 +1,9 @@
 pkgname=docan-bin
-pkgver=3.0.1
+pkgver=3.0.2
 pkgrel=1
 pkgdesc="Universal AI chat application with file attachment support"
 arch=('x86_64')
-url="https://gitlab.com/i.newton/docan"
+url="https://github.com/i-newton/docan"
 license=('MIT')
 depends=('gtk3' 'glib2' 'hicolor-icon-theme' 'libsecret' 'json-glib')
 provides=('docan')

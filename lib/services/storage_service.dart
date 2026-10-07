@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 import '../config/constants.dart';
-import '../config/themes.dart';
 import '../models/conversation.dart';
 import '../models/ai_provider.dart';
 
@@ -287,27 +288,67 @@ class StorageService {
 
   // Conversations
 
+  static Directory? _supportDir;
+
+  /// Conversations live in their own file (not shared_preferences) so the
+  /// prefs file stays small and fast to rewrite.
+  Future<File> _conversationsFile() async {
+    _supportDir ??= await getApplicationSupportDirectory();
+    return File('${_supportDir!.path}/conversations.json');
+  }
+
   Future<void> saveConversations(List<Conversation> conversations) async {
     final jsonList = conversations.map((c) => c.toJson()).toList();
-    await _prefs?.setString(
-      AppConstants.keyConversations,
-      jsonEncode(jsonList),
-    );
+    final jsonString = jsonEncode(jsonList);
+    try {
+      // Write to a temp file first so a crash can't corrupt the data
+      final file = await _conversationsFile();
+      final tmp = File('${file.path}.tmp');
+      await tmp.writeAsString(jsonString, flush: true);
+      await tmp.rename(file.path);
+      // Drop the legacy in-prefs copy once the file write succeeds
+      await _prefs?.remove(AppConstants.keyConversations);
+    } catch (e) {
+      debugPrint('Conversations file write failed, using prefs: $e');
+      await _prefs?.setString(AppConstants.keyConversations, jsonString);
+    }
   }
 
   Future<List<Conversation>> loadConversations() async {
-    final jsonString = _prefs?.getString(AppConstants.keyConversations);
-    if (jsonString == null || jsonString.isEmpty) return [];
+    List<Conversation>? parse(String jsonString) {
+      try {
+        final jsonList = jsonDecode(jsonString) as List<dynamic>;
+        return jsonList
+            .map((json) => Conversation.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        debugPrint('Error loading conversations: $e');
+        return null;
+      }
+    }
+
+    final legacy = _prefs?.getString(AppConstants.keyConversations);
 
     try {
-      final jsonList = jsonDecode(jsonString) as List<dynamic>;
-      return jsonList
-          .map((json) => Conversation.fromJson(json as Map<String, dynamic>))
-          .toList();
+      final file = await _conversationsFile();
+      if (await file.exists()) {
+        // The file wins; clean up the legacy prefs copy if present
+        if (legacy != null) {
+          await _prefs?.remove(AppConstants.keyConversations);
+        }
+        return parse(await file.readAsString()) ?? [];
+      }
     } catch (e) {
-      debugPrint('Error loading conversations: $e');
-      return [];
+      debugPrint('Error reading conversations file: $e');
     }
+
+    // Migrate: write the legacy prefs copy to the file, then remove it
+    if (legacy == null || legacy.isEmpty) return [];
+    final parsed = parse(legacy);
+    if (parsed != null) {
+      await saveConversations(parsed);
+    }
+    return parsed ?? [];
   }
 
   Future<void> saveConversation(Conversation conversation) async {
@@ -333,6 +374,12 @@ class StorageService {
 
   Future<void> clearAllConversations() async {
     await _prefs?.remove(AppConstants.keyConversations);
+    try {
+      final file = await _conversationsFile();
+      if (await file.exists()) await file.delete();
+    } catch (e) {
+      debugPrint('Error deleting conversations file: $e');
+    }
   }
 
   // Clear all data
@@ -340,5 +387,11 @@ class StorageService {
   Future<void> clearAllData() async {
     await _prefs?.clear();
     await _secureStorage?.deleteAll();
+    try {
+      final file = await _conversationsFile();
+      if (await file.exists()) await file.delete();
+    } catch (e) {
+      debugPrint('Error deleting conversations file: $e');
+    }
   }
 }

@@ -33,9 +33,16 @@ class _ModelSelectorState extends State<ModelSelector> {
   String? _vendor; // OpenRouter vendor ("provider") filter
 
   @override
+  void initState() {
+    super.initState();
+    _vendor = _modelVendor(widget.selectedModel);
+  }
+
+  @override
   void didUpdateWidget(ModelSelector oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedProvider != widget.selectedProvider) {
+    if (oldWidget.selectedProvider != widget.selectedProvider ||
+        _modelVendor(widget.selectedModel) != _vendor) {
       _vendor = _modelVendor(widget.selectedModel);
     }
   }

@@ -4,28 +4,34 @@
   <img src="assets/icon_1024.png" alt="Docan Logo" width="128" height="128">
 </p>
 
-A multi-provider AI chat client with a Liquid Glass UI. Runs on iOS, Android, macOS, Windows, Linux, and web.
+A multi-provider AI chat client with a clean Material Design UI that follows your system theme, with configurable accent colors. Runs on iOS, Android, macOS, Windows, Linux, and web.
 
 ## Features
 
-- **Liquid Glass UI** — Glassmorphic design with blur and transparency effects
-- **Multi-provider support** — Gemini, ChatGPT, Claude, and Ollama in one app
-- **Conversation history** — Save and organize your chats
+- **Multi-provider support** — Gemini, ChatGPT, Claude, DeepSeek, OpenRouter, Ollama, and LM Studio in one app
+- **OpenRouter integration** — Browse all OpenRouter vendors and their models with brand icons, via a three-level selector (provider → vendor → model)
+- **Live model lists** — Model menus are populated from each provider's API, so only currently available models are listed; stale saved models self-heal automatically
+- **Per-provider memory** — Each provider remembers its last-used model across restarts
+- **Conversation history** — Save and organize your chats (stored in a dedicated file for fast saves)
+- **Attachments** — Drag-and-drop images and documents (txt, pdf, docx, md, json, csv and more)
 - **Playbooks** — Extend Docan with custom YAML-based API integrations
-- **Responsive layout** — Works on phones and desktops
-- **Dark mode** — Glass effects that actually look good
+- **Image Creator** — Generate images with Gemini and DALL-E
 - **Auto-retry** — Falls back to alternate models on rate limits
-- **Local storage** — API keys stay on your device
-- **Markdown rendering** — Code blocks with syntax highlighting
+- **Local storage** — API keys stay on your device (keyring on Linux)
+- **Markdown rendering** — Code blocks with syntax highlighting and LaTeX math
+- **Responsive layout** — Works on phones and desktops, with dark mode and configurable accent colors
 
 ## Supported Providers
 
 | Provider | Models | Type |
 |----------|--------|------|
-| Google Gemini | Gemini 3 Pro, 2.5 Pro/Flash/Lite, 2.0 Flash, 1.5 Pro/Flash | Cloud |
-| OpenAI | GPT-4o, GPT-4o Mini, GPT-4 Turbo, GPT-3.5 Turbo | Cloud |
-| Anthropic | Claude Sonnet 4, Claude 3.5 Sonnet/Haiku, Claude 3 Opus | Cloud |
-| Ollama | Llama, Mistral, CodeLlama, etc. | Local |
+| Google Gemini | Gemini 3.8/3.7/3.6/3.5 Flash, Pro, Flash-Lite (fetched live) | Cloud |
+| OpenAI | GPT-4o family (fetched live) | Cloud |
+| OpenRouter | All vendors and models (fetched live, browsed by vendor) | Cloud |
+| Anthropic | Claude Sonnet/Opus/Haiku 5.x (fetched live) | Cloud |
+| DeepSeek | deepseek-chat, deepseek-reasoner | Cloud |
+| Ollama | Any locally installed model | Local |
+| LM Studio | Any loaded model (OpenAI-compatible) | Local |
 
 ## Screenshots
 
@@ -41,12 +47,15 @@ A multi-provider AI chat client with a Liquid Glass UI. Runs on iOS, Android, ma
 
 ## Installation
 
-### Linux
+### Linux (Arch-based)
 
-Download from releases:
+```bash
+yay -S docan-gtk-bin
+```
 
-- **AppImage** — Portable, just run it
-- **DEB** — `sudo dpkg -i docan-*.deb`
+### Linux (other)
+
+Download the zip from [releases](https://github.com/ixnewton/docan/releases), unpack, and run `docan` (or install the AppImage/DEB from the same page).
 
 ### From Source
 
@@ -57,7 +66,7 @@ Download from releases:
 - Windows: Visual Studio 2022 with C++ workload
 
 ```bash
-git clone https://gitlab.com/openlyst/docan.git
+git clone https://github.com/ixnewton/docan.git
 cd docan
 flutter pub get
 flutter run
@@ -94,8 +103,11 @@ Go to Settings and add your keys:
 
 - **Gemini** — [Google AI Studio](https://aistudio.google.com/apikey)
 - **OpenAI** — [OpenAI Platform](https://platform.openai.com/api-keys)
+- **OpenRouter** — [OpenRouter Keys](https://openrouter.ai/keys)
 - **Claude** — [Anthropic Console](https://console.anthropic.com/)
+- **DeepSeek** — [DeepSeek Platform](https://platform.deepseek.com/)
 - **Ollama** — Runs locally at `http://localhost:11434`
+- **LM Studio** — Runs locally at `http://localhost:1234/v1`
 
 ### Ollama
 
@@ -174,27 +186,39 @@ lib/
 ├── models/
 │   ├── ai_provider.dart
 │   ├── chat_message.dart
-│   └── conversation.dart
+│   ├── conversation.dart
+│   └── playbook.dart
 ├── services/
 │   ├── ai_service.dart
 │   ├── chat_service.dart
 │   ├── gemini_service.dart
 │   ├── openai_service.dart
+│   ├── openrouter_service.dart
 │   ├── claude_service.dart
+│   ├── deepseek_service.dart
 │   ├── ollama_service.dart
+│   ├── lmstudio_service.dart
+│   ├── image_generation_service.dart
+│   ├── playbook_service.dart
+│   ├── playbook_executor.dart
+│   ├── clipboard_service.dart
 │   └── storage_service.dart
 ├── screens/
-│   ├── mobile_chat_screen.dart
-│   └── desktop_chat_screen.dart
+│   ├── mobile/
+│   └── desktop/
 ├── components/
-│   ├── liquid_glass_container.dart
 │   ├── chat_bubble.dart
 │   ├── chat_input.dart
 │   ├── conversation_list.dart
 │   ├── model_selector.dart
 │   └── settings_form.dart
-└── theme/
-    └── liquid_glass_theme.dart
+├── config/
+│   ├── constants.dart
+│   └── themes.dart
+└── utils/
+    ├── theme_provider.dart
+    ├── file_processor.dart
+    └── api_error_parser.dart
 ```
 
 ## Contributing
@@ -206,4 +230,4 @@ lib/
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE)
+AGPL-3.0 — see [LICENSE](LICENSE)

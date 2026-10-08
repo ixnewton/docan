@@ -52,3 +52,6 @@ linux/packaging/aur
 # Devin local configs (contain API keys)
 .devin/config.local.json
 .devin/mcp_config.local.json
+
+# devin-memory CLI creates a relative memory.db in CWD if --db is omitted
+memory.db

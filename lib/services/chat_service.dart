@@ -73,13 +73,44 @@ class ChatService extends ChangeNotifier {
 
   AIService get currentService => _services[_selectedProvider]!;
 
-  /// Get available models for a provider (cached after first fetch)
+  /// Get available models for a provider (cached after first fetch).
+  /// The returned list is the provider's live model list — only models the
+  /// provider confirms as available. When the selected provider's saved
+  /// model is missing from it, the selection self-heals.
   Future<List<String>> getAvailableModels(AIProvider provider) async {
     final cached = _modelCache[provider];
     if (cached != null) return cached;
     final models = await _services[provider]!.getAvailableModels();
     _modelCache[provider] = models;
-    return models;
+    if (provider == _selectedProvider) {
+      await _validateSelectedModel(provider, models);
+    }
+    return _modelCache[provider] ?? models;
+  }
+
+  /// If the saved model for the selected provider is not in the confirmed
+  /// list (e.g. retired by the vendor), switch to a valid model and persist.
+  /// Provider defaults are trusted as-is (LM Studio's "default", etc.).
+  Future<void> _validateSelectedModel(
+    AIProvider provider,
+    List<String> models,
+  ) async {
+    if (models.isEmpty) return;
+    if (models.length == 1 && models.first.startsWith('Select a model')) {
+      return;
+    }
+    if (_selectedModel.isEmpty || _selectedModel == provider.defaultModel) {
+      return;
+    }
+    if (models.contains(_selectedModel)) return;
+    final corrected = models.contains(provider.defaultModel)
+        ? provider.defaultModel
+        : models.first;
+    debugPrint(
+      '[ChatService] Saved model "$_selectedModel" is no longer available '
+      'for ${provider.displayName}; using "$corrected"',
+    );
+    await setModel(corrected);
   }
 
   /// Prefetch model lists for all configured providers (non-blocking).
@@ -158,10 +189,15 @@ class ChatService extends ChangeNotifier {
       lmStudioUrl,
     );
 
-    // Set models
-    for (final service in _services.values) {
-      service.setModel(_selectedModel);
+    // Set each service to its own provider's saved model (or default) —
+    // never the current provider's model, which belongs to another API
+    for (final provider in AIProvider.values) {
+      final model =
+          await _storage.getSelectedModelForProvider(provider) ??
+          provider.defaultModel;
+      _services[provider]?.setModel(model);
     }
+    currentService.setModel(_selectedModel);
 
     notifyListeners();
 
@@ -176,6 +212,11 @@ class ChatService extends ChangeNotifier {
     _selectedModel =
         await _storage.getSelectedModelForProvider(provider) ??
         provider.defaultModel;
+    // Self-heal against the cached live list when one exists
+    final cached = _modelCache[provider];
+    if (cached != null) {
+      await _validateSelectedModel(provider, cached);
+    }
     currentService.setModel(_selectedModel);
     await _storage.setSelectedProvider(provider);
     await _storage.setSelectedModel(_selectedModel);
@@ -1138,9 +1179,11 @@ Give a helpful response based on this data. Be concise and format nicely with ma
 
   /// Get fallback models for a provider when rate limited
   List<String> _getFallbackModels(AIProvider provider, String currentModel) {
-    final allModels = provider.availableModels;
-    // Return all models except the current one, prioritizing similar tier models
-    return allModels.where((m) => m != currentModel).toList();
+    // Prefer the provider's live (confirmed-available) list when cached;
+    // cap the candidates so a rate-limit retry doesn't loop through
+    // hundreds of models.
+    final live = _modelCache[provider] ?? provider.availableModels;
+    return live.where((m) => m != currentModel).take(4).toList();
   }
 
   /// Update conversation in list

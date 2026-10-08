@@ -20,10 +20,10 @@ class AppConstants {
   static const String comfyUIDefaultUrl = 'http://localhost:8188';
 
   // Default Models
-  static const String defaultGeminiModel = 'gemini-2.5-flash';
+  static const String defaultGeminiModel = 'gemini-3.8-flash';
   static const String defaultOpenAIModel = 'gpt-4o';
   static const String defaultOpenRouterModel = 'anthropic/claude-sonnet-5.5';
-  static const String defaultClaudeModel = 'claude-3-5-sonnet-20241022';
+  static const String defaultClaudeModel = 'claude-sonnet-5-5';
   static const String defaultDeepSeekModel = 'deepseek-chat';
   static const String defaultOllamaModel = 'llama3.2';
   static const String defaultLMStudioModel = 'default';

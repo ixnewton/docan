@@ -85,12 +85,16 @@ extension AIProviderExtension on AIProvider {
     switch (this) {
       case AIProvider.gemini:
         return [
-          'gemini-3-pro-preview',
+          'gemini-3.8-flash',
+          'gemini-3.7-flash',
+          'gemini-3.6-flash',
+          'gemini-3.5-flash',
+          'gemini-3.5-flash-lite',
+          'gemini-flash-latest',
+          'gemini-flash-lite-latest',
+          'gemini-pro-latest',
+          'gemini-3.1-pro-preview',
           'gemini-3-pro-image-preview',
-          'gemini-2.5-pro',
-          'gemini-2.5-flash',
-          'gemini-2.5-flash-image',
-          'gemini-2.5-flash-lite',
         ];
       case AIProvider.openai:
         return ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
@@ -105,8 +109,10 @@ extension AIProviderExtension on AIProvider {
         ];
       case AIProvider.claude:
         return [
-          'claude-3-5-sonnet-20241022',
-          'claude-3-5-haiku-20241022',
+          'claude-sonnet-5-5',
+          'claude-opus-5-5',
+          'claude-haiku-5-5',
+          'claude-sonnet-4-6',
         ];
       case AIProvider.deepseek:
         return [
@@ -132,13 +138,13 @@ extension AIProviderExtension on AIProvider {
   String get defaultModel {
     switch (this) {
       case AIProvider.gemini:
-        return 'gemini-2.5-flash';
+        return 'gemini-3.8-flash';
       case AIProvider.openai:
         return 'gpt-4o';
       case AIProvider.openrouter:
         return 'anthropic/claude-sonnet-5.5';
       case AIProvider.claude:
-        return 'claude-3-5-sonnet-20241022';
+        return 'claude-sonnet-5-5';
       case AIProvider.deepseek:
         return 'deepseek-chat';
       case AIProvider.ollama:

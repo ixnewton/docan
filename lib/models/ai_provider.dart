@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Supported AI Providers
-enum AIProvider { gemini, openai, claude, deepseek, ollama, lmstudio }
+enum AIProvider { gemini, openai, openrouter, claude, deepseek, ollama, lmstudio }
 
 /// Extension methods for AIProvider
 extension AIProviderExtension on AIProvider {
@@ -11,6 +11,8 @@ extension AIProviderExtension on AIProvider {
         return 'Gemini';
       case AIProvider.openai:
         return 'ChatGPT';
+      case AIProvider.openrouter:
+        return 'OpenRouter';
       case AIProvider.claude:
         return 'Claude';
       case AIProvider.deepseek:
@@ -28,6 +30,8 @@ extension AIProviderExtension on AIProvider {
         return 'Google\'s Gemini AI';
       case AIProvider.openai:
         return 'OpenAI ChatGPT';
+      case AIProvider.openrouter:
+        return 'OpenRouter';
       case AIProvider.claude:
         return 'Anthropic Claude';
       case AIProvider.deepseek:
@@ -45,6 +49,8 @@ extension AIProviderExtension on AIProvider {
         return Icons.auto_awesome;
       case AIProvider.openai:
         return Icons.psychology;
+      case AIProvider.openrouter:
+        return Icons.hub;
       case AIProvider.claude:
         return Icons.smart_toy;
       case AIProvider.deepseek:
@@ -62,6 +68,8 @@ extension AIProviderExtension on AIProvider {
         return const Color(0xFF4285F4); // Google Blue
       case AIProvider.openai:
         return const Color(0xFF10A37F); // OpenAI Green
+      case AIProvider.openrouter:
+        return const Color(0xFF6467F2); // OpenRouter Blue-Violet
       case AIProvider.claude:
         return const Color(0xFFCC785C); // Anthropic Orange
       case AIProvider.deepseek:
@@ -86,6 +94,15 @@ extension AIProviderExtension on AIProvider {
         ];
       case AIProvider.openai:
         return ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+      case AIProvider.openrouter:
+        return [
+          'anthropic/claude-sonnet-5.5',
+          'anthropic/claude-opus-5.5',
+          'openai/gpt-5.5',
+          'google/gemini-3.8-flash',
+          'deepseek/deepseek-v4-flash',
+          'moonshotai/kimi-k2.7-code',
+        ];
       case AIProvider.claude:
         return [
           'claude-3-5-sonnet-20241022',
@@ -118,6 +135,8 @@ extension AIProviderExtension on AIProvider {
         return 'gemini-2.5-flash';
       case AIProvider.openai:
         return 'gpt-4o';
+      case AIProvider.openrouter:
+        return 'anthropic/claude-sonnet-5.5';
       case AIProvider.claude:
         return 'claude-3-5-sonnet-20241022';
       case AIProvider.deepseek:
@@ -135,6 +154,8 @@ extension AIProviderExtension on AIProvider {
         return 'Gemini API Key';
       case AIProvider.openai:
         return 'OpenAI API Key';
+      case AIProvider.openrouter:
+        return 'OpenRouter API Key';
       case AIProvider.claude:
         return 'Claude API Key';
       case AIProvider.deepseek:

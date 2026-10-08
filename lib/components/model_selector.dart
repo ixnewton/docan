@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
 import '../models/ai_provider.dart';
-import '../utils/liquid_glass_effects.dart';
 
 /// Model and provider selector dropdown
 class ModelSelector extends StatefulWidget {
@@ -31,6 +30,21 @@ class ModelSelector extends StatefulWidget {
 class _ModelSelectorState extends State<ModelSelector> {
   List<String>? _cachedModels;
   AIProvider? _cachedProvider;
+  String? _vendor; // OpenRouter vendor ("provider") filter
+
+  @override
+  void didUpdateWidget(ModelSelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedProvider != widget.selectedProvider) {
+      _vendor = _modelVendor(widget.selectedModel);
+    }
+  }
+
+  /// Extract the OpenRouter vendor prefix from a "vendor/model" id
+  String? _modelVendor(String modelId) {
+    final index = modelId.indexOf('/');
+    return index > 0 ? modelId.substring(0, index) : null;
+  }
 
   bool _isProviderConfigured(AIProvider provider) {
     if (widget.configuredProviders == null) return true;
@@ -57,6 +71,15 @@ class _ModelSelectorState extends State<ModelSelector> {
     return widget.selectedProvider.availableModels;
   }
 
+  /// Models visible in the model picker (filtered to the OpenRouter vendor)
+  Future<List<String>> _getVisibleModels() async {
+    final models = await _getModels();
+    if (widget.selectedProvider == AIProvider.openrouter && _vendor != null) {
+      return models.where((m) => _modelVendor(m) == _vendor).toList();
+    }
+    return models;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -72,6 +95,16 @@ class _ModelSelectorState extends State<ModelSelector> {
           color: widget.selectedProvider.color,
           onTap: (buttonContext) => _showProviderPicker(context, buttonContext),
         ),
+        // OpenRouter vendor ("provider") selector — only when OpenRouter is active
+        if (widget.selectedProvider == AIProvider.openrouter) ...[
+          const SizedBox(width: AppConstants.spacingS),
+          _SelectorButton(
+            icon: Icons.category,
+            label: widget.compact ? null : (_vendor ?? 'Provider'),
+            color: isDark ? Colors.white70 : Colors.black54,
+            onTap: (buttonContext) => _showVendorPicker(context, buttonContext),
+          ),
+        ],
         const SizedBox(width: AppConstants.spacingS),
         // Model selector
         _SelectorButton(
@@ -87,6 +120,11 @@ class _ModelSelectorState extends State<ModelSelector> {
   }
 
   String _getModelDisplayName(String modelId) {
+    // OpenRouter ids are "vendor/model" — show the model part
+    if (modelId.contains('/')) {
+      final suffix = modelId.split('/')[1];
+      return suffix.length > 14 ? '${suffix.substring(0, 12)}...' : suffix;
+    }
     // Shorten model names for display
     if (modelId.contains('gemini')) {
       if (modelId.contains('flash')) return 'Flash';
@@ -181,6 +219,7 @@ class _ModelSelectorState extends State<ModelSelector> {
       if (provider != null) {
         _cachedModels = null; // Clear cache when provider changes
         _cachedProvider = null;
+        _vendor = _modelVendor(widget.selectedModel);
         widget.onProviderChanged(provider);
       }
     });
@@ -255,6 +294,7 @@ class _ModelSelectorState extends State<ModelSelector> {
                           ? () {
                               _cachedModels = null;
                               _cachedProvider = null;
+                              _vendor = _modelVendor(widget.selectedModel);
                               widget.onProviderChanged(provider);
                               Navigator.pop(context);
                             }
@@ -279,7 +319,16 @@ class _ModelSelectorState extends State<ModelSelector> {
     }
   }
 
-  void _showModelDropdown(
+  void _showVendorPicker(BuildContext context, BuildContext buttonContext) {
+    if (_isDesktop(context)) {
+      _showVendorDropdown(context, buttonContext);
+    } else {
+      _showVendorBottomSheet(context);
+    }
+  }
+
+  /// OpenRouter vendor ("provider") dropdown for desktop
+  void _showVendorDropdown(
     BuildContext context,
     BuildContext buttonContext,
   ) async {
@@ -292,6 +341,154 @@ class _ModelSelectorState extends State<ModelSelector> {
     );
 
     final models = await _getModels();
+    if (!context.mounted) return;
+
+    final vendors = models
+        .map(_modelVendor)
+        .whereType<String>()
+        .toSet()
+        .toList()
+      ..sort();
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + 4,
+        offset.dx + button.size.width,
+        offset.dy + 4,
+      ),
+      items: vendors.map((vendor) {
+        return PopupMenuItem<String>(
+          value: vendor,
+          child: Row(
+            children: [
+              Icon(
+                Icons.category,
+                size: 18,
+                color: widget.selectedProvider.color,
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(vendor)),
+              if (vendor == _vendor)
+                Icon(
+                  Icons.check,
+                  size: 18,
+                  color: Theme.of(context).primaryColor,
+                ),
+            ],
+          ),
+        );
+      }).toList(),
+    ).then((vendor) {
+      if (vendor != null && vendor != _vendor) {
+        setState(() => _vendor = vendor);
+        // Keep the model consistent with the chosen vendor
+        final candidates = models
+            .where((m) => _modelVendor(m) == vendor)
+            .toList();
+        if (candidates.isNotEmpty &&
+            _modelVendor(widget.selectedModel) != vendor) {
+          widget.onModelChanged(candidates.first);
+        }
+      }
+    });
+  }
+
+  /// OpenRouter vendor ("provider") bottom sheet for mobile
+  void _showVendorBottomSheet(BuildContext context) async {
+    final models = await _getModels();
+    if (!context.mounted) return;
+
+    final vendors = models
+        .map(_modelVendor)
+        .whereType<String>()
+        .toSet()
+        .toList()
+      ..sort();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radiusL),
+          ),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(AppConstants.spacingM),
+                child: Text(
+                  'Select Provider',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: vendors.length,
+                  itemBuilder: (context, index) {
+                    final vendor = vendors[index];
+                    return ListTile(
+                      leading: Icon(
+                        Icons.category,
+                        color: widget.selectedProvider.color,
+                      ),
+                      title: Text(vendor),
+                      trailing: vendor == _vendor
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(context).primaryColor,
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (vendor != _vendor) {
+                          setState(() => _vendor = vendor);
+                          final candidates = models
+                              .where((m) => _modelVendor(m) == vendor)
+                              .toList();
+                          if (candidates.isNotEmpty &&
+                              _modelVendor(widget.selectedModel) != vendor) {
+                            widget.onModelChanged(candidates.first);
+                          }
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppConstants.spacingM),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showModelDropdown(
+    BuildContext context,
+    BuildContext buttonContext,
+  ) async {
+    final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset offset = button.localToGlobal(
+      Offset(0, button.size.height),
+      ancestor: overlay,
+    );
+
+    final models = await _getVisibleModels();
 
     if (!context.mounted) return;
 
@@ -333,7 +530,7 @@ class _ModelSelectorState extends State<ModelSelector> {
   }
 
   void _showModelBottomSheet(BuildContext context) async {
-    final models = await _getModels();
+    final models = await _getVisibleModels();
 
     if (!context.mounted) return;
 

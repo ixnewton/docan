@@ -80,6 +80,8 @@ class StorageService {
         return AppConstants.keyGeminiApiKey;
       case AIProvider.openai:
         return AppConstants.keyOpenAIApiKey;
+      case AIProvider.openrouter:
+        return AppConstants.keyOpenRouterApiKey;
       case AIProvider.claude:
         return AppConstants.keyClaudeApiKey;
       case AIProvider.deepseek:
@@ -157,6 +159,8 @@ class StorageService {
         return AppConstants.keyGeminiApiKey;
       case AIProvider.openai:
         return AppConstants.keyOpenAIApiKey;
+      case AIProvider.openrouter:
+        return AppConstants.keyOpenRouterApiKey;
       case AIProvider.claude:
         return AppConstants.keyClaudeApiKey;
       case AIProvider.deepseek:

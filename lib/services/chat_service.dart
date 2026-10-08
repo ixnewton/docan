@@ -8,6 +8,7 @@ import '../models/playbook.dart';
 import 'ai_service.dart';
 import 'gemini_service.dart';
 import 'openai_service.dart';
+import 'openrouter_service.dart';
 import 'claude_service.dart';
 import 'deepseek_service.dart';
 import 'ollama_service.dart';
@@ -48,6 +49,7 @@ class ChatService extends ChangeNotifier {
   void _initServices() {
     _services[AIProvider.gemini] = GeminiService();
     _services[AIProvider.openai] = OpenAIService();
+    _services[AIProvider.openrouter] = OpenRouterService();
     _services[AIProvider.claude] = ClaudeService();
     _services[AIProvider.deepseek] = DeepSeekService();
     _services[AIProvider.ollama] = OllamaService();

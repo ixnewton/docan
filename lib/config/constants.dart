@@ -12,6 +12,7 @@ class AppConstants {
   static const String geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta';
   static const String openAIBaseUrl = 'https://api.openai.com/v1';
+  static const String openRouterBaseUrl = 'https://openrouter.ai/api/v1';
   static const String claudeBaseUrl = 'https://api.anthropic.com/v1';
   static const String deepSeekBaseUrl = 'https://api.deepseek.com';
   static const String ollamaDefaultUrl = 'http://localhost:11434';
@@ -21,6 +22,7 @@ class AppConstants {
   // Default Models
   static const String defaultGeminiModel = 'gemini-2.5-flash';
   static const String defaultOpenAIModel = 'gpt-4o';
+  static const String defaultOpenRouterModel = 'anthropic/claude-sonnet-5.5';
   static const String defaultClaudeModel = 'claude-3-5-sonnet-20241022';
   static const String defaultDeepSeekModel = 'deepseek-chat';
   static const String defaultOllamaModel = 'llama3.2';
@@ -80,6 +82,7 @@ class AppConstants {
   // Storage Keys
   static const String keyGeminiApiKey = 'gemini_api_key';
   static const String keyOpenAIApiKey = 'openai_api_key';
+  static const String keyOpenRouterApiKey = 'openrouter_api_key';
   static const String keyClaudeApiKey = 'claude_api_key';
   static const String keyDeepSeekApiKey = 'deepseek_api_key';
   static const String keyOllamaUrl = 'ollama_url';

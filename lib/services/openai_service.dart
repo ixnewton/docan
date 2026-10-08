@@ -18,6 +18,25 @@ class OpenAIService implements AIService {
     if (modelId != null) _modelId = modelId;
   }
 
+  /// Base URL of the OpenAI-compatible API (overridable by subclasses
+  /// such as OpenRouter, which uses the same wire format)
+  @protected
+  String get baseUrl => AppConstants.openAIBaseUrl;
+
+  /// Auth headers sent with each request (overridable by subclasses)
+  @protected
+  Map<String, String> get authHeaders => {
+    'Authorization': 'Bearer $_apiKey',
+  };
+
+  /// Log prefix used in debug output (overridable by subclasses)
+  @protected
+  String get logTag => 'OpenAI';
+
+  /// API key, exposed for subclasses
+  @protected
+  String get apiKey => _apiKey;
+
   @override
   AIProvider get provider => AIProvider.openai;
 
@@ -44,16 +63,14 @@ class OpenAIService implements AIService {
     }
     
     try {
-      final url = Uri.parse('${AppConstants.openAIBaseUrl}/models');
+      final url = Uri.parse('$baseUrl/models');
       final response = await http.get(
         url,
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-        },
+        headers: authHeaders,
       );
       
       if (response.statusCode != 200) {
-        debugPrint('[OpenAI] Failed to fetch models: ${response.statusCode}');
+        debugPrint('[$logTag] Failed to fetch models: ${response.statusCode}');
         return AIProvider.openai.availableModels;
       }
       
@@ -71,10 +88,10 @@ class OpenAIService implements AIService {
           .toList()
         ..sort((a, b) => b.compareTo(a)); // Sort descending (newer first)
       
-      debugPrint('[OpenAI] Found ${availableModels.length} GPT models');
+      debugPrint('[$logTag] Found ${availableModels.length} GPT models');
       return availableModels.isEmpty ? AIProvider.openai.availableModels : availableModels;
     } catch (e) {
-      debugPrint('[OpenAI] Error fetching models: $e');
+      debugPrint('[$logTag] Error fetching models: $e');
       return AIProvider.openai.availableModels;
     }
   }
@@ -100,19 +117,19 @@ class OpenAIService implements AIService {
     int maxTokens = 2048,
     List<Attachment>? attachments,
   }) async {
-    debugPrint('[OpenAI] sendMessage called');
-    debugPrint('[OpenAI] Model: $_modelId');
-    debugPrint('[OpenAI] Message length: ${message.length}');
-    debugPrint('[OpenAI] History count: ${history.length}');
-    debugPrint('[OpenAI] Attachments: ${attachments?.length ?? 0}');
+    debugPrint('[$logTag] sendMessage called');
+    debugPrint('[$logTag] Model: $_modelId');
+    debugPrint('[$logTag] Message length: ${message.length}');
+    debugPrint('[$logTag] History count: ${history.length}');
+    debugPrint('[$logTag] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
-      debugPrint('[OpenAI] ERROR: API key not set');
-      throw Exception('OpenAI API key not set');
+      debugPrint('[$logTag] ERROR: API key not set');
+      throw Exception('$providerName API key not set');
     }
 
-    final url = Uri.parse('${AppConstants.openAIBaseUrl}/chat/completions');
-    debugPrint('[OpenAI] URL: $url');
+    final url = Uri.parse('$baseUrl/chat/completions');
+    debugPrint('[$logTag] URL: $url');
     final messages = _buildMessages(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
@@ -122,29 +139,29 @@ class OpenAIService implements AIService {
       'max_tokens': maxTokens,
     });
 
-    debugPrint('[OpenAI] Sending request...');
+    debugPrint('[$logTag] Sending request...');
     final response = await http.post(
       url,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
+        ...authHeaders,
       },
       body: body,
     );
-    debugPrint('[OpenAI] Response status: ${response.statusCode}');
+    debugPrint('[$logTag] Response status: ${response.statusCode}');
 
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
-      debugPrint('[OpenAI] ERROR: ${response.body}');
-      throw Exception(error['error']?['message'] ?? 'OpenAI API error');
+      debugPrint('[$logTag] ERROR: ${response.body}');
+      throw Exception(error['error']?['message'] ?? '$providerName API error');
     }
 
     final data = jsonDecode(response.body);
     final choices = data['choices'] as List<dynamic>;
-    debugPrint('[OpenAI] Choices count: ${choices.length}');
+    debugPrint('[$logTag] Choices count: ${choices.length}');
 
     if (choices.isEmpty) {
-      throw Exception('No response from OpenAI');
+      throw Exception('No response from $providerName');
     }
 
     return choices[0]['message']['content'] ?? '';
@@ -159,19 +176,19 @@ class OpenAIService implements AIService {
     int maxTokens = 2048,
     List<Attachment>? attachments,
   }) async* {
-    debugPrint('[OpenAI] sendMessageStream called');
+    debugPrint('[$logTag] sendMessageStream called');
     debugPrint(
-      '[OpenAI] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
+      '[$logTag] Model: $_modelId, Temp: $temperature, MaxTokens: $maxTokens',
     );
-    debugPrint('[OpenAI] Attachments: ${attachments?.length ?? 0}');
+    debugPrint('[$logTag] Attachments: ${attachments?.length ?? 0}');
 
     if (_apiKey.isEmpty) {
-      debugPrint('[OpenAI] ERROR: API key not set');
-      throw Exception('OpenAI API key not set');
+      debugPrint('[$logTag] ERROR: API key not set');
+      throw Exception('$providerName API key not set');
     }
 
-    final url = Uri.parse('${AppConstants.openAIBaseUrl}/chat/completions');
-    debugPrint('[OpenAI] Stream URL: $url');
+    final url = Uri.parse('$baseUrl/chat/completions');
+    debugPrint('[$logTag] Stream URL: $url');
     final messages = _buildMessages(message, history, systemPrompt, attachments: attachments);
 
     final body = jsonEncode({
@@ -184,15 +201,15 @@ class OpenAIService implements AIService {
 
     final request = http.Request('POST', url);
     request.headers['Content-Type'] = 'application/json';
-    request.headers['Authorization'] = 'Bearer $_apiKey';
+    request.headers.addAll(authHeaders);
     request.body = body;
 
-    debugPrint('[OpenAI] Sending stream request...');
+    debugPrint('[$logTag] Sending stream request...');
     final client = http.Client();
     try {
       final streamedResponse = await client.send(request);
       debugPrint(
-        '[OpenAI] Stream response status: ${streamedResponse.statusCode}',
+        '[$logTag] Stream response status: ${streamedResponse.statusCode}',
       );
 
       if (streamedResponse.statusCode != 200) {
@@ -200,7 +217,7 @@ class OpenAIService implements AIService {
         // (e.g. rate_limit_exceeded vs insufficient_quota)
         final errorBody = await streamedResponse.stream.bytesToString();
         String errorMessage =
-            'OpenAI streaming error: ${streamedResponse.statusCode}';
+            '$providerName streaming error: ${streamedResponse.statusCode}';
         try {
           final error = jsonDecode(errorBody);
           final message = error['error']?['message'] as String?;
@@ -212,7 +229,7 @@ class OpenAIService implements AIService {
         } catch (_) {
           // Body wasn't JSON; keep the status-code-only message
         }
-        debugPrint('[OpenAI] Stream ERROR: $errorMessage');
+        debugPrint('[$logTag] Stream ERROR: $errorMessage');
         throw Exception(errorMessage);
       }
 
@@ -234,7 +251,7 @@ class OpenAIService implements AIService {
           if (line.startsWith('data: ')) {
             final jsonStr = line.substring(6).trim();
             if (jsonStr == '[DONE]') {
-              debugPrint('[OpenAI] Stream complete. Total chunks: $chunkCount');
+              debugPrint('[$logTag] Stream complete. Total chunks: $chunkCount');
               continue;
             }
             if (jsonStr.isEmpty) continue;
@@ -248,18 +265,18 @@ class OpenAIService implements AIService {
                 if (content != null && content.isNotEmpty) {
                   chunkCount++;
                   if (chunkCount <= 3) {
-                    debugPrint('[OpenAI] Chunk $chunkCount received');
+                    debugPrint('[$logTag] Chunk $chunkCount received');
                   }
                   yield content;
                 }
               }
             } catch (e) {
-              debugPrint('[OpenAI] JSON parse error: $e');
+              debugPrint('[$logTag] JSON parse error: $e');
             }
           }
         }
       }
-      debugPrint('[OpenAI] Stream finished. Total chunks: $chunkCount');
+      debugPrint('[$logTag] Stream finished. Total chunks: $chunkCount');
     } finally {
       client.close();
     }
@@ -310,7 +327,7 @@ class OpenAIService implements AIService {
           // Validate attachment for OpenAI
           final validationError = FileProcessor.validateAttachment(attachment, providerName);
           if (validationError != null) {
-            debugPrint('[OpenAI] Skipping attachment ${attachment.name}: $validationError');
+            debugPrint('[$logTag] Skipping attachment ${attachment.name}: $validationError');
             continue;
           }
           
@@ -351,7 +368,7 @@ class OpenAIService implements AIService {
         // Validate attachment for OpenAI
         final validationError = FileProcessor.validateAttachment(attachment, providerName);
         if (validationError != null) {
-          debugPrint('[OpenAI] Skipping attachment ${attachment.name}: $validationError');
+          debugPrint('[$logTag] Skipping attachment ${attachment.name}: $validationError');
           continue;
         }
         

@@ -11,6 +11,7 @@ class ModelSelector extends StatefulWidget {
   final bool compact;
   final Map<AIProvider, bool>? configuredProviders;
   final Future<List<String>> Function(AIProvider)? fetchModels;
+  final Future<Map<String, String>> Function(AIProvider)? fetchVendorIcons;
 
   const ModelSelector({
     super.key,
@@ -21,6 +22,7 @@ class ModelSelector extends StatefulWidget {
     this.compact = false,
     this.configuredProviders,
     this.fetchModels,
+    this.fetchVendorIcons,
   });
 
   @override
@@ -85,6 +87,35 @@ class _ModelSelectorState extends State<ModelSelector> {
       return models.where((m) => _modelVendor(m) == _vendor).toList();
     }
     return models;
+  }
+
+  /// Vendor icon for the menu (favicon image, generic icon as fallback)
+  Widget _vendorIcon(String vendor, Map<String, String> icons, Color color) {
+    final url =
+        icons[vendor] ?? icons[vendor.replaceFirst('~', '')];
+    if (url == null) {
+      return Icon(Icons.category, size: 18, color: color);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        url,
+        width: 18,
+        height: 18,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(Icons.category, size: 18, color: color),
+      ),
+    );
+  }
+
+  /// Fetch vendor icons when available
+  Future<Map<String, String>> _getVendorIcons() async {
+    if (widget.fetchVendorIcons == null) return const {};
+    try {
+      return await widget.fetchVendorIcons!(widget.selectedProvider);
+    } catch (_) {
+      return const {};
+    }
   }
 
   @override
@@ -356,6 +387,8 @@ class _ModelSelectorState extends State<ModelSelector> {
         .toSet()
         .toList()
       ..sort();
+    final icons = await _getVendorIcons();
+    if (!context.mounted) return;
 
     showMenu<String>(
       context: context,
@@ -370,11 +403,7 @@ class _ModelSelectorState extends State<ModelSelector> {
           value: vendor,
           child: Row(
             children: [
-              Icon(
-                Icons.category,
-                size: 18,
-                color: widget.selectedProvider.color,
-              ),
+              _vendorIcon(vendor, icons, widget.selectedProvider.color),
               const SizedBox(width: 12),
               Expanded(child: Text(vendor)),
               if (vendor == _vendor)
@@ -413,6 +442,8 @@ class _ModelSelectorState extends State<ModelSelector> {
         .toSet()
         .toList()
       ..sort();
+    final icons = await _getVendorIcons();
+    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -447,9 +478,10 @@ class _ModelSelectorState extends State<ModelSelector> {
                   itemBuilder: (context, index) {
                     final vendor = vendors[index];
                     return ListTile(
-                      leading: Icon(
-                        Icons.category,
-                        color: widget.selectedProvider.color,
+                      leading: _vendorIcon(
+                        vendor,
+                        icons,
+                        widget.selectedProvider.color,
                       ),
                       title: Text(vendor),
                       trailing: vendor == _vendor

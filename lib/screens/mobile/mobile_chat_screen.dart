@@ -309,6 +309,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
             compact: true,
             configuredProviders: _configuredProviders,
             fetchModels: chatService.getAvailableModels,
+            fetchVendorIcons: chatService.getVendorIcons,
           ),
 
           const SizedBox(width: AppConstants.spacingS),

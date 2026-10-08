@@ -37,6 +37,9 @@ class ChatService extends ChangeNotifier {
   // Cached model lists (fetched live from provider APIs)
   final Map<AIProvider, List<String>> _modelCache = {};
 
+  // Cached vendor icon URLs (OpenRouter vendors -> favicon URLs)
+  final Map<AIProvider, Map<String, String>> _vendorIconsCache = {};
+
   ChatService(this._storage) {
     _initServices();
   }
@@ -89,11 +92,25 @@ class ChatService extends ChangeNotifier {
       }
       try {
         await getAvailableModels(provider);
+        if (provider == AIProvider.openrouter) await getVendorIcons(provider);
       } catch (_) {
         // Services fall back to default lists; nothing to do
       }
     }
     notifyListeners();
+  }
+
+  /// Vendor icon URLs for the OpenRouter vendor menu (empty for others)
+  Future<Map<String, String>> getVendorIcons(AIProvider provider) async {
+    final cached = _vendorIconsCache[provider];
+    if (cached != null) return cached;
+    final service = _services[provider];
+    if (service is OpenRouterService) {
+      final icons = await service.getVendorIcons();
+      _vendorIconsCache[provider] = icons;
+      return icons;
+    }
+    return _vendorIconsCache[provider] = {};
   }
 
   /// Get map of configured providers (has API key or Ollama/LM Studio URL)
@@ -180,6 +197,7 @@ class ChatService extends ChangeNotifier {
     _services[provider]?.setApiKey(apiKey);
     // Key (or local server URL) changed — drop the cached model list
     _modelCache.remove(provider);
+    _vendorIconsCache.remove(provider);
     notifyListeners();
   }
 

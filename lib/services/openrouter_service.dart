@@ -35,6 +35,69 @@ class OpenRouterService extends OpenAIService {
     'X-Title': 'Docan',
   };
 
+  /// Well-known vendor domains used to fetch favicon icons for the vendor
+  /// menu. Vendors missing from this map fall back to a generic icon.
+  static const Map<String, String> _vendorDomains = {
+    'amazon': 'amazon.com',
+    'anthropic': 'anthropic.com',
+    'arcee-ai': 'arcee.ai',
+    'baidu': 'baidu.com',
+    'bytedance': 'bytedance.com',
+    'cohere': 'cohere.com',
+    'deepseek': 'deepseek.com',
+    'fireworks': 'fireworks.ai',
+    'google': 'google.com',
+    'ibm-granite': 'ibm.com',
+    'liquid': 'liquid.ai',
+    'meituan': 'meituan.com',
+    'meta': 'meta.com',
+    'meta-llama': 'meta.com',
+    'microsoft': 'microsoft.com',
+    'minimax': 'minimax.io',
+    'mistralai': 'mistral.ai',
+    'moonshotai': 'moonshot.ai',
+    'nousresearch': 'nousresearch.com',
+    'nvidia': 'nvidia.com',
+    'openai': 'openai.com',
+    'openrouter': 'openrouter.ai',
+    'perplexity': 'perplexity.ai',
+    'qwen': 'qwen.ai',
+    'rekaai': 'reka.ai',
+    'stepfun': 'stepfun.com',
+    'tencent': 'tencent.com',
+    'upstage': 'upstage.ai',
+    'writer': 'writer.com',
+    'x-ai': 'x.ai',
+    'xiaomi': 'xiaomi.com',
+    'z-ai': 'z.ai',
+  };
+
+  /// Favicon URL for a vendor slug, or null when unknown.
+  /// "~"-prefixed special vendors map to their base vendor.
+  static String? vendorIconUrl(String vendor) {
+    final domain = _vendorDomains[vendor] ??
+        _vendorDomains[vendor.replaceFirst('~', '')];
+    if (domain == null) return null;
+    return 'https://www.google.com/s2/favicons?domain=$domain&sz=64';
+  }
+
+  Map<String, String>? _vendorIcons;
+
+  /// Map of vendor slug -> favicon URL for every known vendor
+  Future<Map<String, String>> getVendorIcons() async {
+    if (_vendorIcons != null) return _vendorIcons!;
+    final models = await getAvailableModels();
+    final icons = <String, String>{};
+    for (final model in models) {
+      final vendor = model.split('/').first;
+      if (icons.containsKey(vendor)) continue;
+      final url = vendorIconUrl(vendor);
+      if (url != null) icons[vendor] = url;
+    }
+    _vendorIcons = icons;
+    return icons;
+  }
+
   @override
   Future<List<String>> getAvailableModels() async {
     if (apiKey.isEmpty) {

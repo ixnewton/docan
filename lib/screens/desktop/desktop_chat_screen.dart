@@ -355,13 +355,16 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             padding: const EdgeInsets.symmetric(
               horizontal: AppConstants.spacingM,
             ),
-            child: ListTile(
-              leading: const Icon(Icons.image),
-              title: const Text('Image Creator'),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusS),
+            child: Material(
+              type: MaterialType.transparency,
+              child: ListTile(
+                leading: const Icon(Icons.image),
+                title: const Text('Image Creator'),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusS),
+                ),
+                onTap: () => _openImageCreator(context),
               ),
-              onTap: () => _openImageCreator(context),
             ),
           ),
 
@@ -370,26 +373,32 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             padding: const EdgeInsets.symmetric(
               horizontal: AppConstants.spacingM,
             ),
-            child: ListTile(
-              leading: const Icon(Icons.auto_stories),
-              title: const Text('Playbooks'),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusS),
+            child: Material(
+              type: MaterialType.transparency,
+              child: ListTile(
+                leading: const Icon(Icons.auto_stories),
+                title: const Text('Playbooks'),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusS),
+                ),
+                onTap: () => _openPlaybooks(context),
               ),
-              onTap: () => _openPlaybooks(context),
             ),
           ),
 
           // Settings button
           Padding(
             padding: const EdgeInsets.all(AppConstants.spacingM),
-            child: ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.radiusS),
+            child: Material(
+              type: MaterialType.transparency,
+              child: ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusS),
+                ),
+                onTap: () => _openSettings(context),
               ),
-              onTap: () => _openSettings(context),
             ),
           ),
         ],

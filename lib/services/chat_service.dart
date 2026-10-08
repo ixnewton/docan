@@ -137,7 +137,7 @@ class ChatService extends ChangeNotifier {
     if (cached != null) return cached;
     final service = _services[provider];
     if (service is OpenRouterService) {
-      final icons = await service.getVendorIcons();
+      final icons = await service.getVendorIcons(_modelCache[provider]);
       _vendorIconsCache[provider] = icons;
       return icons;
     }

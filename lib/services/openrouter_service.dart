@@ -83,10 +83,11 @@ class OpenRouterService extends OpenAIService {
 
   Map<String, String>? _vendorIcons;
 
-  /// Map of vendor slug -> favicon URL for every known vendor
-  Future<Map<String, String>> getVendorIcons() async {
+  /// Map of vendor slug -> favicon URL for every known vendor.
+  /// Pass a pre-fetched model list to avoid a second API call.
+  Future<Map<String, String>> getVendorIcons([List<String>? models]) async {
     if (_vendorIcons != null) return _vendorIcons!;
-    final models = await getAvailableModels();
+    models ??= await getAvailableModels();
     final icons = <String, String>{};
     for (final model in models) {
       final vendor = model.split('/').first;

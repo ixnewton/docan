@@ -206,49 +206,22 @@ class _ModelSelectorState extends State<ModelSelector> {
         offset.dx + button.size.width,
         offset.dy + 4,
       ),
-      items: AIProvider.values.map((provider) {
-        final isConfigured = _isProviderConfigured(provider);
+      items: AIProvider.values
+          .where((p) => _isProviderConfigured(p) || p == widget.selectedProvider)
+          .map((provider) {
         return PopupMenuItem<AIProvider>(
           value: provider,
-          enabled: isConfigured,
           child: Row(
             children: [
-              Icon(
-                provider.icon,
-                size: 20,
-                color: isConfigured ? provider.color : Colors.grey,
-              ),
+              Icon(provider.icon, size: 20, color: provider.color),
               const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      provider.displayName,
-                      style: TextStyle(
-                        color: isConfigured ? null : Colors.grey,
-                      ),
-                    ),
-                    if (!isConfigured)
-                      Text(
-                        'Not configured',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              Expanded(child: Text(provider.displayName)),
               if (provider == widget.selectedProvider)
                 Icon(
                   Icons.check,
                   size: 18,
                   color: Theme.of(context).primaryColor,
-                )
-              else if (!isConfigured)
-                const Icon(Icons.lock_outline, size: 16, color: Colors.grey),
+                ),
             ],
           ),
         );
@@ -293,25 +266,20 @@ class _ModelSelectorState extends State<ModelSelector> {
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: AIProvider.values.map((provider) {
-                    final isConfigured = _isProviderConfigured(provider);
+                  children: AIProvider.values
+                      .where(
+                        (p) =>
+                            _isProviderConfigured(p) ||
+                            p == widget.selectedProvider,
+                      )
+                      .map((provider) {
                     return ListTile(
-                      leading: Icon(
-                        provider.icon,
-                        color: isConfigured ? provider.color : Colors.grey,
-                      ),
-                      title: Text(
-                        provider.displayName,
-                        style: TextStyle(
-                          color: isConfigured ? null : Colors.grey,
-                        ),
-                      ),
+                      leading: Icon(provider.icon, color: provider.color),
+                      title: Text(provider.displayName),
                       subtitle: Text(
-                        isConfigured
-                            ? provider.description
-                            : 'Not configured - add API key in Settings',
+                        provider.description,
                         style: TextStyle(
-                          color: isConfigured ? null : Colors.grey.shade500,
+                          color: Colors.grey.shade500,
                           fontSize: 12,
                         ),
                       ),
@@ -320,23 +288,14 @@ class _ModelSelectorState extends State<ModelSelector> {
                               Icons.check,
                               color: Theme.of(context).primaryColor,
                             )
-                          : !isConfigured
-                          ? const Icon(
-                              Icons.lock_outline,
-                              color: Colors.grey,
-                              size: 18,
-                            )
                           : null,
-                      enabled: isConfigured,
-                      onTap: isConfigured
-                          ? () {
-                              _cachedModels = null;
-                              _cachedProvider = null;
-                              _vendor = _modelVendor(widget.selectedModel);
-                              widget.onProviderChanged(provider);
-                              Navigator.pop(context);
-                            }
-                          : null,
+                      onTap: () {
+                        _cachedModels = null;
+                        _cachedProvider = null;
+                        _vendor = _modelVendor(widget.selectedModel);
+                        widget.onProviderChanged(provider);
+                        Navigator.pop(context);
+                      },
                     );
                   }).toList(),
                 ),

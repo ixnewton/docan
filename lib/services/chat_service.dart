@@ -173,6 +173,14 @@ class ChatService extends ChangeNotifier {
       lmStudioUrl,
     );
 
+    // Load LM Studio API token (optional, secure storage)
+    final lmStudioToken = await _storage.getLMStudioToken();
+    if (lmStudioToken != null) {
+      (_services[AIProvider.lmstudio] as LMStudioService?)?.setToken(
+        lmStudioToken,
+      );
+    }
+
     // Set each service to its own provider's saved model (or default) —
     // never the current provider's model, which belongs to another API
     for (final provider in AIProvider.values) {
@@ -223,6 +231,13 @@ class ChatService extends ChangeNotifier {
     // Key (or local server URL) changed — drop the cached model list
     _modelCache.remove(provider);
     _vendorIconsCache.remove(provider);
+    notifyListeners();
+  }
+
+  /// Set the LM Studio API token (optional Bearer auth for secured servers)
+  Future<void> setLMStudioToken(String token) async {
+    await _storage.setLMStudioToken(token);
+    (_services[AIProvider.lmstudio] as LMStudioService?)?.setToken(token);
     notifyListeners();
   }
 

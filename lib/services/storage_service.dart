@@ -194,6 +194,43 @@ class StorageService {
         AppConstants.lmStudioDefaultUrl;
   }
 
+  // LM Studio API token (secure storage with fallback)
+
+  Future<void> setLMStudioToken(String token) async {
+    final storageKey = AppConstants.keyLMStudioToken;
+    final fallbackKey = '_api_$storageKey';
+
+    if (_secureStorageAvailable) {
+      try {
+        await _secureStorage?.write(key: storageKey, value: token);
+        await _prefs?.setString(fallbackKey, token);
+        return;
+      } catch (e) {
+        debugPrint('Secure storage write failed, using fallback: $e');
+        _secureStorageAvailable = false;
+      }
+    }
+    await _prefs?.setString(fallbackKey, token);
+  }
+
+  Future<String?> getLMStudioToken() async {
+    final storageKey = AppConstants.keyLMStudioToken;
+    final fallbackKey = '_api_$storageKey';
+
+    if (_secureStorageAvailable) {
+      try {
+        final value = await _secureStorage?.read(key: storageKey);
+        if (value != null && value.isNotEmpty) {
+          return value;
+        }
+      } catch (e) {
+        debugPrint('Secure storage read failed, using fallback: $e');
+        _secureStorageAvailable = false;
+      }
+    }
+    return _prefs?.getString(fallbackKey);
+  }
+
   // ComfyUI URL
 
   Future<void> setComfyUIUrl(String url) async {

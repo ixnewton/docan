@@ -20,6 +20,7 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
   Map<AIProvider, String> _apiKeys = {};
   String _ollamaUrl = AppConstants.ollamaDefaultUrl;
   String _lmStudioUrl = AppConstants.lmStudioDefaultUrl;
+  String _lmStudioToken = '';
   String _comfyUIUrl = AppConstants.comfyUIDefaultUrl;
   final Map<AIProvider, bool> _connectionStatus = {};
   bool _isLoading = true;
@@ -45,12 +46,14 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
 
     final ollamaUrl = await storage.getOllamaUrl();
     final lmStudioUrl = await storage.getLMStudioUrl();
+    final lmStudioToken = await storage.getLMStudioToken();
     final comfyUIUrl = await storage.getComfyUIUrl();
 
     setState(() {
       _apiKeys = apiKeys;
       _ollamaUrl = ollamaUrl;
       _lmStudioUrl = lmStudioUrl;
+      _lmStudioToken = lmStudioToken ?? '';
       _comfyUIUrl = comfyUIUrl;
       _isLoading = false;
     });
@@ -133,6 +136,13 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
                           apiKeys: _apiKeys,
                           ollamaUrl: _ollamaUrl,
                           lmStudioUrl: _lmStudioUrl,
+                          lmStudioToken: _lmStudioToken,
+                          onLMStudioTokenChanged: (token) async {
+                            setState(() {
+                              _lmStudioToken = token;
+                            });
+                            await chatService.setLMStudioToken(token);
+                          },
                           comfyUIUrl: _comfyUIUrl,
                           isDarkMode: themeProvider.isDarkMode,
                           accentColor: themeProvider.accentColor,

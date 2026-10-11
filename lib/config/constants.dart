@@ -87,6 +87,7 @@ class AppConstants {
   static const String keyDeepSeekApiKey = 'deepseek_api_key';
   static const String keyOllamaUrl = 'ollama_url';
   static const String keyLMStudioUrl = 'lmstudio_url';
+  static const String keyLMStudioToken = 'lmstudio_token';
   static const String keyComfyUIUrl = 'comfyui_url';
   static const String keyThemeMode = 'theme_mode';
   static const String keyTemperature = 'temperature';

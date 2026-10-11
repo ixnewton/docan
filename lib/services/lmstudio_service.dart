@@ -12,6 +12,7 @@ import 'ai_service.dart';
 class LMStudioService implements AIService {
   String _baseUrl = AppConstants.lmStudioDefaultUrl;
   String _modelId = AppConstants.defaultLMStudioModel;
+  String _token = '';
 
   LMStudioService({String? baseUrl, String? modelId}) {
     if (baseUrl != null) _baseUrl = baseUrl;
@@ -45,6 +46,16 @@ class LMStudioService implements AIService {
     _baseUrl = url;
   }
 
+  /// Set the API token (optional; sent as Bearer auth when provided —
+  /// see https://lmstudio.ai/docs/developer/core/authentication)
+  void setToken(String token) {
+    _token = token.trim();
+  }
+
+  /// Auth headers; empty when no token is configured
+  Map<String, String> get _authHeaders =>
+      _token.isNotEmpty ? {'Authorization': 'Bearer $_token'} : const {};
+
   @override
   Future<List<String>> getAvailableModels() async {
     try {
@@ -52,7 +63,7 @@ class LMStudioService implements AIService {
       debugPrint('[LMStudio] Fetching models from: $url');
 
       final response = await http
-          .get(url)
+          .get(url, headers: _authHeaders)
           .timeout(
             const Duration(seconds: 10),
             onTimeout: () {
@@ -93,7 +104,7 @@ class LMStudioService implements AIService {
       debugPrint('[LMStudio] Testing connection to: $url');
 
       final response = await http
-          .get(url)
+          .get(url, headers: _authHeaders)
           .timeout(
             const Duration(seconds: 5),
             onTimeout: () {
@@ -147,7 +158,7 @@ class LMStudioService implements AIService {
     debugPrint('[LMStudio] Sending request...');
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', ..._authHeaders},
       body: body,
     );
     debugPrint('[LMStudio] Response status: ${response.statusCode}');
@@ -207,6 +218,7 @@ class LMStudioService implements AIService {
 
     final request = http.Request('POST', url);
     request.headers['Content-Type'] = 'application/json';
+    request.headers.addAll(_authHeaders);
     request.body = body;
 
     debugPrint('[LMStudio] Sending stream request...');

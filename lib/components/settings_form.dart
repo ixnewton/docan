@@ -19,6 +19,8 @@ class SettingsForm extends StatefulWidget {
   final Function(AIProvider, String) onApiKeyChanged;
   final ValueChanged<String> onOllamaUrlChanged;
   final ValueChanged<String> onLMStudioUrlChanged;
+  final ValueChanged<String> onLMStudioTokenChanged;
+  final String lmStudioToken;
   final ValueChanged<String> onComfyUIUrlChanged;
   final ValueChanged<bool> onThemeChanged;
   final ValueChanged<Color> onAccentColorChanged;
@@ -42,6 +44,8 @@ class SettingsForm extends StatefulWidget {
     required this.onApiKeyChanged,
     required this.onOllamaUrlChanged,
     required this.onLMStudioUrlChanged,
+    required this.onLMStudioTokenChanged,
+    required this.lmStudioToken,
     required this.onComfyUIUrlChanged,
     required this.onThemeChanged,
     required this.onAccentColorChanged,
@@ -60,6 +64,7 @@ class _SettingsFormState extends State<SettingsForm> {
   final Map<AIProvider, TextEditingController> _controllers = {};
   final TextEditingController _ollamaController = TextEditingController();
   final TextEditingController _lmStudioController = TextEditingController();
+  final TextEditingController _lmStudioTokenController = TextEditingController();
   final TextEditingController _comfyUIController = TextEditingController();
   final TextEditingController _systemPromptController = TextEditingController();
   String _appVersion = '';
@@ -74,6 +79,7 @@ class _SettingsFormState extends State<SettingsForm> {
     }
     _ollamaController.text = widget.ollamaUrl;
     _lmStudioController.text = widget.lmStudioUrl;
+    _lmStudioTokenController.text = widget.lmStudioToken;
     _comfyUIController.text = widget.comfyUIUrl;
     _systemPromptController.text = widget.systemPrompt;
     _loadVersion();
@@ -95,6 +101,7 @@ class _SettingsFormState extends State<SettingsForm> {
     }
     _ollamaController.dispose();
     _lmStudioController.dispose();
+    _lmStudioTokenController.dispose();
     _comfyUIController.dispose();
     _systemPromptController.dispose();
     super.dispose();
@@ -376,6 +383,22 @@ class _SettingsFormState extends State<SettingsForm> {
               ),
             ],
           ],
+        ),
+        const SizedBox(height: AppConstants.spacingS),
+        TextField(
+          controller: _lmStudioTokenController,
+          obscureText: true,
+          decoration: InputDecoration(
+            hintText: 'API token (optional - for servers requiring authentication)',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusS),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.spacingM,
+              vertical: AppConstants.spacingS,
+            ),
+          ),
+          onChanged: widget.onLMStudioTokenChanged,
         ),
       ],
     );

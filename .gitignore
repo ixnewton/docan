@@ -55,3 +55,6 @@ linux/packaging/aur
 
 # devin-memory CLI creates a relative memory.db in CWD if --db is omitted
 memory.db
+
+# Local IDE workspace file
+docan.code-workspace

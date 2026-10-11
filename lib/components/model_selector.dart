@@ -10,6 +10,7 @@ class ModelSelector extends StatefulWidget {
   final ValueChanged<String> onModelChanged;
   final bool compact;
   final Map<AIProvider, ProviderStatus>? providerStatuses;
+  final Future<Map<AIProvider, ProviderStatus>> Function()? loadStatuses;
   final Future<List<String>> Function(AIProvider)? fetchModels;
   final Future<Map<String, String>> Function(AIProvider)? fetchVendorIcons;
 
@@ -21,6 +22,7 @@ class ModelSelector extends StatefulWidget {
     required this.onModelChanged,
     this.compact = false,
     this.providerStatuses,
+    this.loadStatuses,
     this.fetchModels,
     this.fetchVendorIcons,
   });
@@ -56,8 +58,15 @@ class _ModelSelectorState extends State<ModelSelector> {
   }
 
   ProviderStatus _statusOf(AIProvider provider) {
-    if (widget.providerStatuses == null) return ProviderStatus.available;
-    return widget.providerStatuses![provider] ?? ProviderStatus.notConfigured;
+    return _statusFor(widget.providerStatuses, provider);
+  }
+
+  static ProviderStatus _statusFor(
+    Map<AIProvider, ProviderStatus>? statuses,
+    AIProvider provider,
+  ) {
+    if (statuses == null) return ProviderStatus.available;
+    return statuses[provider] ?? ProviderStatus.notConfigured;
   }
 
   bool _isDesktop(BuildContext context) {
@@ -182,14 +191,36 @@ class _ModelSelectorState extends State<ModelSelector> {
   }
 
   void _showProviderPicker(BuildContext context, BuildContext buttonContext) {
+    _openProviderMenu(context, buttonContext);
+  }
+
+  /// Refresh provider statuses before opening the menu so local-server
+  /// state (running / not running) is current
+  Future<void> _openProviderMenu(
+    BuildContext context,
+    BuildContext buttonContext,
+  ) async {
+    Map<AIProvider, ProviderStatus>? fresh;
+    if (widget.loadStatuses != null) {
+      try {
+        fresh = await widget.loadStatuses!();
+      } catch (_) {
+        fresh = null;
+      }
+    }
+    if (!context.mounted) return;
     if (_isDesktop(context)) {
-      _showProviderDropdown(context, buttonContext);
+      _showProviderDropdown(context, buttonContext, fresh);
     } else {
-      _showProviderBottomSheet(context);
+      _showProviderBottomSheet(context, fresh);
     }
   }
 
-  void _showProviderDropdown(BuildContext context, BuildContext buttonContext) {
+  void _showProviderDropdown(
+    BuildContext context,
+    BuildContext buttonContext,
+    Map<AIProvider, ProviderStatus>? statuses,
+  ) {
     final RenderBox button = buttonContext.findRenderObject() as RenderBox;
     final RenderBox overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
@@ -197,6 +228,7 @@ class _ModelSelectorState extends State<ModelSelector> {
       Offset(0, button.size.height),
       ancestor: overlay,
     );
+    final effective = statuses ?? widget.providerStatuses;
 
     showMenu<AIProvider>(
       context: context,
@@ -207,9 +239,13 @@ class _ModelSelectorState extends State<ModelSelector> {
         offset.dy + 4,
       ),
       items: AIProvider.values
-          .where((p) => _statusOf(p) != ProviderStatus.notConfigured)
+          .where(
+            (p) =>
+                _statusFor(effective, p) != ProviderStatus.notConfigured,
+          )
           .map((provider) {
-        final stopped = _statusOf(provider) == ProviderStatus.stopped;
+        final stopped =
+            _statusFor(effective, provider) == ProviderStatus.stopped;
         return PopupMenuItem<AIProvider>(
           value: provider,
           enabled: !stopped,
@@ -261,7 +297,11 @@ class _ModelSelectorState extends State<ModelSelector> {
     });
   }
 
-  void _showProviderBottomSheet(BuildContext context) {
+  void _showProviderBottomSheet(
+    BuildContext context,
+    Map<AIProvider, ProviderStatus>? statuses,
+  ) {
+    final effective = statuses ?? widget.providerStatuses;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -292,10 +332,14 @@ class _ModelSelectorState extends State<ModelSelector> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: AIProvider.values
-                      .where((p) => _statusOf(p) != ProviderStatus.notConfigured)
+                      .where(
+                        (p) => _statusFor(effective, p) !=
+                            ProviderStatus.notConfigured,
+                      )
                       .map((provider) {
                     final stopped =
-                        _statusOf(provider) == ProviderStatus.stopped;
+                        _statusFor(effective, provider) ==
+                        ProviderStatus.stopped;
                     return ListTile(
                       leading: Icon(
                         provider.icon,

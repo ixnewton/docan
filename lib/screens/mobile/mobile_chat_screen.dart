@@ -66,7 +66,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
     _shouldAutoScroll = (maxScroll - currentScroll) < 100;
   }
 
-  Future<void> _loadProviderStatuses() async {
+  Future<Map<AIProvider, ProviderStatus>> _loadProviderStatuses() async {
     final chatService = context.read<ChatService>();
     final statuses = await chatService.getProviderStatuses();
     if (mounted) {
@@ -74,6 +74,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
         _providerStatuses = statuses;
       });
     }
+    return statuses;
   }
 
   @override
@@ -310,6 +311,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
             onModelChanged: chatService.setModel,
             compact: true,
             providerStatuses: _providerStatuses,
+            loadStatuses: _loadProviderStatuses,
             fetchModels: chatService.getAvailableModels,
             fetchVendorIcons: chatService.getVendorIcons,
           ),

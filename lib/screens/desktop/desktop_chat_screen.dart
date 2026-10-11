@@ -66,7 +66,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
     _shouldAutoScroll = (maxScroll - currentScroll) < 100;
   }
 
-  Future<void> _loadProviderStatuses() async {
+  Future<Map<AIProvider, ProviderStatus>> _loadProviderStatuses() async {
     final chatService = context.read<ChatService>();
     final statuses = await chatService.getProviderStatuses();
     if (mounted) {
@@ -74,6 +74,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
         _providerStatuses = statuses;
       });
     }
+    return statuses;
   }
 
   @override
@@ -460,6 +461,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             onProviderChanged: chatService.setProvider,
             onModelChanged: chatService.setModel,
             providerStatuses: _providerStatuses,
+            loadStatuses: _loadProviderStatuses,
             fetchModels: chatService.getAvailableModels,
             fetchVendorIcons: chatService.getVendorIcons,
           ),

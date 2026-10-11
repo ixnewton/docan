@@ -24,29 +24,44 @@ void main() async {
   final savedTheme = await storageService.getTheme();
   final isDarkMode = savedTheme == 'dark';
 
-  runApp(DocanApp(storageService: storageService, initialDarkMode: isDarkMode));
+  // Create services up front and await chat initialization so stored
+  // settings (API keys, local server URLs) are loaded before the UI
+  // tests provider availability
+  final playbookService = PlaybookService()..initialize();
+  final chatService = ChatService(storageService)
+    ..setPlaybookService(playbookService);
+  await chatService.initialize();
+  final imageService = ImageGenerationService(storageService)..initialize();
+
+  runApp(
+    DocanApp(
+      storageService: storageService,
+      initialDarkMode: isDarkMode,
+      chatService: chatService,
+      playbookService: playbookService,
+      imageService: imageService,
+    ),
+  );
 }
 
 class DocanApp extends StatelessWidget {
   final StorageService storageService;
   final bool initialDarkMode;
+  final ChatService chatService;
+  final PlaybookService playbookService;
+  final ImageGenerationService imageService;
 
   const DocanApp({
     super.key,
     required this.storageService,
     required this.initialDarkMode,
+    required this.chatService,
+    required this.playbookService,
+    required this.imageService,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Create playbook service first
-    final playbookService = PlaybookService()..initialize();
-
-    // Create chat service and connect playbook service
-    final chatService = ChatService(storageService)
-      ..setPlaybookService(playbookService)
-      ..initialize();
-
     return MultiProvider(
       providers: [
         // Theme provider
@@ -59,9 +74,7 @@ class DocanApp extends StatelessWidget {
         // Chat service (with playbook service connected)
         ChangeNotifierProvider.value(value: chatService),
         // Image generation service
-        ChangeNotifierProvider(
-          create: (_) => ImageGenerationService(storageService)..initialize(),
-        ),
+        ChangeNotifierProvider.value(value: imageService),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

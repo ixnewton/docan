@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 /// Supported AI Providers
 enum AIProvider { gemini, openai, openrouter, claude, deepseek, ollama, lmstudio }
 
+/// Availability of a provider in the selector menu:
+/// - notConfigured: no key set (cloud) or local server never tested OK — hidden
+/// - stopped: local server verified before but currently unreachable — shown
+///   as "Not running"
+/// - available: ready to use
+enum ProviderStatus { notConfigured, stopped, available }
+
 /// Extension methods for AIProvider
 extension AIProviderExtension on AIProvider {
   String get displayName {

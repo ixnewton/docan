@@ -290,6 +290,23 @@ class StorageService {
     );
   }
 
+  // Provider verification (local servers remembered as configured once a
+  // connection test has succeeded)
+
+  Future<void> setProviderVerified(AIProvider provider, bool verified) async {
+    await _prefs?.setBool(
+      '${AppConstants.keyProviderVerifiedPrefix}${provider.name}',
+      verified,
+    );
+  }
+
+  Future<bool> isProviderVerified(AIProvider provider) async {
+    return _prefs?.getBool(
+          '${AppConstants.keyProviderVerifiedPrefix}${provider.name}',
+        ) ??
+        false;
+  }
+
   // Conversations
 
   static Directory? _supportDir;

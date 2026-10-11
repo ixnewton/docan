@@ -9,7 +9,7 @@ class ModelSelector extends StatefulWidget {
   final ValueChanged<AIProvider> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final bool compact;
-  final Map<AIProvider, bool>? configuredProviders;
+  final Map<AIProvider, ProviderStatus>? providerStatuses;
   final Future<List<String>> Function(AIProvider)? fetchModels;
   final Future<Map<String, String>> Function(AIProvider)? fetchVendorIcons;
 
@@ -20,7 +20,7 @@ class ModelSelector extends StatefulWidget {
     required this.onProviderChanged,
     required this.onModelChanged,
     this.compact = false,
-    this.configuredProviders,
+    this.providerStatuses,
     this.fetchModels,
     this.fetchVendorIcons,
   });
@@ -55,9 +55,9 @@ class _ModelSelectorState extends State<ModelSelector> {
     return index > 0 ? modelId.substring(0, index) : null;
   }
 
-  bool _isProviderConfigured(AIProvider provider) {
-    if (widget.configuredProviders == null) return true;
-    return widget.configuredProviders![provider] ?? false;
+  ProviderStatus _statusOf(AIProvider provider) {
+    if (widget.providerStatuses == null) return ProviderStatus.available;
+    return widget.providerStatuses![provider] ?? ProviderStatus.notConfigured;
   }
 
   bool _isDesktop(BuildContext context) {
@@ -207,15 +207,40 @@ class _ModelSelectorState extends State<ModelSelector> {
         offset.dy + 4,
       ),
       items: AIProvider.values
-          .where((p) => _isProviderConfigured(p) || p == widget.selectedProvider)
+          .where((p) => _statusOf(p) != ProviderStatus.notConfigured)
           .map((provider) {
+        final stopped = _statusOf(provider) == ProviderStatus.stopped;
         return PopupMenuItem<AIProvider>(
           value: provider,
+          enabled: !stopped,
           child: Row(
             children: [
-              Icon(provider.icon, size: 20, color: provider.color),
+              Icon(
+                provider.icon,
+                size: 20,
+                color: stopped ? Colors.grey : provider.color,
+              ),
               const SizedBox(width: 12),
-              Expanded(child: Text(provider.displayName)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      provider.displayName,
+                      style: TextStyle(color: stopped ? Colors.grey : null),
+                    ),
+                    if (stopped)
+                      Text(
+                        'Not running',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
               if (provider == widget.selectedProvider)
                 Icon(
                   Icons.check,
@@ -267,17 +292,23 @@ class _ModelSelectorState extends State<ModelSelector> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: AIProvider.values
-                      .where(
-                        (p) =>
-                            _isProviderConfigured(p) ||
-                            p == widget.selectedProvider,
-                      )
+                      .where((p) => _statusOf(p) != ProviderStatus.notConfigured)
                       .map((provider) {
+                    final stopped =
+                        _statusOf(provider) == ProviderStatus.stopped;
                     return ListTile(
-                      leading: Icon(provider.icon, color: provider.color),
-                      title: Text(provider.displayName),
+                      leading: Icon(
+                        provider.icon,
+                        color: stopped ? Colors.grey : provider.color,
+                      ),
+                      title: Text(
+                        provider.displayName,
+                        style: TextStyle(color: stopped ? Colors.grey : null),
+                      ),
                       subtitle: Text(
-                        provider.description,
+                        stopped
+                            ? 'Not running - start the service'
+                            : provider.description,
                         style: TextStyle(
                           color: Colors.grey.shade500,
                           fontSize: 12,
@@ -289,6 +320,7 @@ class _ModelSelectorState extends State<ModelSelector> {
                               color: Theme.of(context).primaryColor,
                             )
                           : null,
+                      enabled: !stopped,
                       onTap: () {
                         _cachedModels = null;
                         _cachedProvider = null;

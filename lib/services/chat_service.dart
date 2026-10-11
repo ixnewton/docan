@@ -144,22 +144,6 @@ class ChatService extends ChangeNotifier {
     return _vendorIconsCache[provider] = {};
   }
 
-  /// Get map of configured providers (has API key or Ollama/LM Studio URL)
-  Future<Map<AIProvider, bool>> getConfiguredProviders() async {
-    final result = <AIProvider, bool>{};
-    for (final provider in AIProvider.values) {
-      if (provider == AIProvider.ollama || provider == AIProvider.lmstudio) {
-        // For Ollama and LM Studio, check if it's reachable
-        final isConnected = await testConnection(provider);
-        result[provider] = isConnected;
-      } else {
-        final hasKey = await _storage.hasApiKey(provider);
-        result[provider] = hasKey;
-      }
-    }
-    return result;
-  }
-
   /// Initialize the chat service
   Future<void> initialize() async {
     // Load conversations
@@ -1202,9 +1186,40 @@ Give a helpful response based on this data. Be concise and format nicely with ma
     await _storage.saveConversations(_conversations);
   }
 
-  /// Test connection for a provider
+  /// Test connection for a provider. A successful local-server test
+  /// (Ollama/LM Studio) marks the provider as verified, so it keeps
+  /// appearing in the provider menu (as "Not running" when unreachable).
   Future<bool> testConnection(AIProvider provider) async {
-    return await _services[provider]?.testConnection() ?? false;
+    final ok = await _services[provider]?.testConnection() ?? false;
+    if (ok &&
+        (provider == AIProvider.ollama || provider == AIProvider.lmstudio)) {
+      await _storage.setProviderVerified(provider, true);
+    }
+    return ok;
+  }
+
+  /// Availability status per provider for the selector menu
+  Future<Map<AIProvider, ProviderStatus>> getProviderStatuses() async {
+    final result = <AIProvider, ProviderStatus>{};
+    for (final provider in AIProvider.values) {
+      if (provider == AIProvider.ollama || provider == AIProvider.lmstudio) {
+        // Local servers: hidden until configured and tested successfully
+        // once; afterwards shown, as "Not running" when unreachable
+        if (!await _storage.isProviderVerified(provider)) {
+          result[provider] = ProviderStatus.notConfigured;
+          continue;
+        }
+        final isRunning = await testConnection(provider);
+        result[provider] = isRunning
+            ? ProviderStatus.available
+            : ProviderStatus.stopped;
+      } else {
+        result[provider] = await _storage.hasApiKey(provider)
+            ? ProviderStatus.available
+            : ProviderStatus.notConfigured;
+      }
+    }
+    return result;
   }
 
   /// Check if API key is set for a provider

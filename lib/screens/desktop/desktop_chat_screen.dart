@@ -30,7 +30,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
-  Map<AIProvider, bool> _configuredProviders = {};
+  Map<AIProvider, ProviderStatus> _providerStatuses = {};
   List<Attachment> _attachments = [];
   bool _shouldAutoScroll = true;
   bool _isDragging = false;
@@ -38,7 +38,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
   @override
   void initState() {
     super.initState();
-    _loadConfiguredProviders();
+    _loadProviderStatuses();
 
     // Listen to chat service updates for auto-scrolling during streaming
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,12 +66,12 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
     _shouldAutoScroll = (maxScroll - currentScroll) < 100;
   }
 
-  Future<void> _loadConfiguredProviders() async {
+  Future<void> _loadProviderStatuses() async {
     final chatService = context.read<ChatService>();
-    final configured = await chatService.getConfiguredProviders();
+    final statuses = await chatService.getProviderStatuses();
     if (mounted) {
       setState(() {
-        _configuredProviders = configured;
+        _providerStatuses = statuses;
       });
     }
   }
@@ -249,16 +249,17 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                               // Input
                               Builder(
                                 builder: (context) {
-                                  final hasApiKey =
-                                      _configuredProviders[chatService
+                                  final isAvailable =
+                                      (_providerStatuses[chatService
                                           .selectedProvider] ??
-                                      false;
+                                      ProviderStatus.notConfigured) ==
+                                  ProviderStatus.available;
                                   return ChatInput(
                                     controller: _inputController,
                                     focusNode: _inputFocusNode,
                                     isLoading: chatService.isLoading,
-                                    enabled: hasApiKey,
-                                    hintText: hasApiKey
+                                    enabled: isAvailable,
+                                    hintText: isAvailable
                                         ? 'Message...'
                                         : 'Add API key in settings to start chatting',
                                     attachments: _attachments,
@@ -458,7 +459,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             selectedModel: chatService.selectedModel,
             onProviderChanged: chatService.setProvider,
             onModelChanged: chatService.setModel,
-            configuredProviders: _configuredProviders,
+            providerStatuses: _providerStatuses,
             fetchModels: chatService.getAvailableModels,
             fetchVendorIcons: chatService.getVendorIcons,
           ),
@@ -604,7 +605,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
       builder: (context) => const DesktopSettingsScreen(),
     );
     // Refresh configured providers when settings dialog closes
-    _loadConfiguredProviders();
+    _loadProviderStatuses();
   }
 }
 

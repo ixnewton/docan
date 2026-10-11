@@ -30,7 +30,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  Map<AIProvider, bool> _configuredProviders = {};
+  Map<AIProvider, ProviderStatus> _providerStatuses = {};
   List<Attachment> _attachments = [];
   bool _shouldAutoScroll = true;
   bool _isDragging = false;
@@ -38,7 +38,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
   @override
   void initState() {
     super.initState();
-    _loadConfiguredProviders();
+    _loadProviderStatuses();
 
     // Listen to chat service updates for auto-scrolling during streaming
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,12 +66,12 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
     _shouldAutoScroll = (maxScroll - currentScroll) < 100;
   }
 
-  Future<void> _loadConfiguredProviders() async {
+  Future<void> _loadProviderStatuses() async {
     final chatService = context.read<ChatService>();
-    final configured = await chatService.getConfiguredProviders();
+    final statuses = await chatService.getProviderStatuses();
     if (mounted) {
       setState(() {
-        _configuredProviders = configured;
+        _providerStatuses = statuses;
       });
     }
   }
@@ -227,14 +227,16 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
                       // Input Field
                       Builder(
                         builder: (context) {
-                          final hasApiKey =
-                              _configuredProviders[chatService.selectedProvider] ??
-                              false;
+                          final isAvailable =
+                              (_providerStatuses[chatService
+                                  .selectedProvider] ??
+                              ProviderStatus.notConfigured) ==
+                          ProviderStatus.available;
                           return ChatInput(
                             controller: _inputController,
                             isLoading: chatService.isLoading,
-                            enabled: hasApiKey,
-                            hintText: hasApiKey
+                            enabled: isAvailable,
+                            hintText: isAvailable
                                 ? 'Message...'
                                 : 'Add API key in settings to start chatting',
                             attachments: _attachments,
@@ -307,7 +309,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
             onProviderChanged: chatService.setProvider,
             onModelChanged: chatService.setModel,
             compact: true,
-            configuredProviders: _configuredProviders,
+            providerStatuses: _providerStatuses,
             fetchModels: chatService.getAvailableModels,
             fetchVendorIcons: chatService.getVendorIcons,
           ),
@@ -547,7 +549,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
       MaterialPageRoute(builder: (context) => const MobileSettingsScreen()),
     );
     // Refresh configured providers when returning from settings
-    _loadConfiguredProviders();
+    _loadProviderStatuses();
   }
 }
 

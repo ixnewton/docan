@@ -91,22 +91,39 @@ void main() {
     expect(find.text('openai'), findsOneWidget); // vendor label updated
   });
 
-  testWidgets('model menu is filtered to the selected vendor', (tester) async {
-    await pumpSelector(
-      tester,
-      provider: AIProvider.openrouter,
-      model: 'anthropic/claude-sonnet-5.5',
-      onModelChanged: (_) {},
+  testWidgets('stopped local providers show as Not running, unconfigured hidden', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: ModelSelector(
+              selectedProvider: AIProvider.gemini,
+              selectedModel: 'gemini-3.8-flash',
+              onProviderChanged: (_) {},
+              onModelChanged: (_) {},
+              fetchModels: (_) async => ['gemini-3.8-flash'],
+              providerStatuses: {
+                AIProvider.gemini: ProviderStatus.available,
+                AIProvider.openrouter: ProviderStatus.available,
+                AIProvider.ollama: ProviderStatus.stopped,
+                AIProvider.deepseek: ProviderStatus.notConfigured,
+              },
+            ),
+          ),
+        ),
+      ),
     );
-
-    await tester.tap(find.byIcon(Icons.memory));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('anthropic/claude-sonnet-5.5'),
-      findsOneWidget,
-    ); // current model (full id in menu)
-    expect(find.text('openai/gpt-5.5'), findsNothing); // other vendor filtered
-    expect(find.text('google/gemini-3.8-flash'), findsNothing);
+    await tester.tap(find.byIcon(Icons.auto_awesome)); // provider button
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ollama'), findsOneWidget); // shown...
+    expect(find.text('Not running'), findsOneWidget); // ...as stopped
+    expect(find.text('DeepSeek'), findsNothing); // unconfigured hidden
+    expect(find.text('Gemini'), findsNWidgets(2)); // button label + menu item
+    expect(find.text('OpenRouter'), findsOneWidget);
   });
 }

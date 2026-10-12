@@ -103,10 +103,12 @@ class LMStudioService implements AIService {
       final url = Uri.parse('$_baseUrl/models');
       debugPrint('[LMStudio] Testing connection to: $url');
 
+      // A responsive local/LAN server answers immediately; a short timeout
+      // keeps startup and menu-open status checks snappy
       final response = await http
           .get(url, headers: _authHeaders)
           .timeout(
-            const Duration(seconds: 5),
+            const Duration(milliseconds: 300),
             onTimeout: () {
               throw TimeoutException('Connection timed out');
             },

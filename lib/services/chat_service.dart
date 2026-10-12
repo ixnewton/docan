@@ -865,6 +865,19 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Local servers: verify reachability first so a stopped service
+      // produces a clear error instead of a cryptic socket failure
+      if (_selectedProvider == AIProvider.ollama ||
+          _selectedProvider == AIProvider.lmstudio) {
+        final reachable = await testConnection(_selectedProvider);
+        if (!reachable) {
+          throw Exception(
+            '${currentService.providerName} is not running. '
+            'Start the service and try again.',
+          );
+        }
+      }
+
       // Get history excluding the placeholder AND the current user message
       // (current message is passed separately to sendMessageStream)
       final allMessages = _currentConversation!.messages

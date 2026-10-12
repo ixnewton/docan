@@ -26,7 +26,8 @@ class MobileChatScreen extends StatefulWidget {
   State<MobileChatScreen> createState() => _MobileChatScreenState();
 }
 
-class _MobileChatScreenState extends State<MobileChatScreen> {
+class _MobileChatScreenState extends State<MobileChatScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -38,6 +39,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadProviderStatuses();
 
     // Listen to chat service updates for auto-scrolling during streaming
@@ -66,6 +68,14 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
     _shouldAutoScroll = (maxScroll - currentScroll) < 100;
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Window focus regained: local servers may have started or stopped
+    if (state == AppLifecycleState.resumed) {
+      _loadProviderStatuses();
+    }
+  }
+
   Future<Map<AIProvider, ProviderStatus>> _loadProviderStatuses() async {
     final chatService = context.read<ChatService>();
     final statuses = await chatService.getProviderStatuses();
@@ -79,6 +89,7 @@ class _MobileChatScreenState extends State<MobileChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     context.read<ChatService>().removeListener(_onChatServiceUpdate);
     _scrollController.removeListener(_onScrollChanged);
     _inputController.dispose();

@@ -26,7 +26,7 @@ class DesktopChatScreen extends StatefulWidget {
   State<DesktopChatScreen> createState() => _DesktopChatScreenState();
 }
 
-class _DesktopChatScreenState extends State<DesktopChatScreen> {
+class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindingObserver {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
@@ -38,6 +38,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadProviderStatuses();
 
     // Listen to chat service updates for auto-scrolling during streaming
@@ -66,6 +67,14 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
     _shouldAutoScroll = (maxScroll - currentScroll) < 100;
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Window focus regained: local servers may have started or stopped
+    if (state == AppLifecycleState.resumed) {
+      _loadProviderStatuses();
+    }
+  }
+
   Future<Map<AIProvider, ProviderStatus>> _loadProviderStatuses() async {
     final chatService = context.read<ChatService>();
     final statuses = await chatService.getProviderStatuses();
@@ -79,6 +88,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     context.read<ChatService>().removeListener(_onChatServiceUpdate);
     _scrollController.removeListener(_onScrollChanged);
     _inputController.dispose();

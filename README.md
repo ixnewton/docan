@@ -12,6 +12,8 @@ A multi-provider AI chat client with a clean Material Design UI that follows you
 - **OpenRouter integration** — Browse all OpenRouter vendors and their models with brand icons, via a three-level selector (provider → vendor → model)
 - **Live model lists** — Model menus are populated from each provider's API, so only currently available models are listed; stale saved models self-heal automatically
 - **Per-provider memory** — Each provider remembers its last-used model across restarts
+- **Per-chat memory** — Each chat remembers the provider and model it used and restores them when reopened
+- **Smart startup selection** — If the saved provider is unavailable at launch, the menu falls back to the last provider that is
 - **Conversation history** — Save and organize your chats (stored in a dedicated file for fast saves)
 - **Attachments** — Drag-and-drop images and documents (txt, pdf, docx, md, json, csv and more)
 - **Playbooks** — Extend Docan with custom YAML-based API integrations
@@ -19,6 +21,9 @@ A multi-provider AI chat client with a clean Material Design UI that follows you
 - **Auto-retry** — Falls back to alternate models on rate limits
 - **Local storage** — API keys stay on your device (keyring on Linux)
 - **Markdown rendering** — Code blocks with syntax highlighting and LaTeX math
+- **Streaming display** — Replies render as they arrive: text feeds in line-by-line and completed tables insert as stable structures
+- **Prompt history** — Up/Down arrows recall previous prompts, terminal-style, for editing and resending
+- **Usage and cost** — Per-chat token usage and billed cost in the toolbar; per-model pricing rates and credit balance for OpenRouter
 - **Responsive layout** — Works on phones and desktops, with dark mode and configurable accent colors
 
 ## Supported Providers
@@ -207,7 +212,9 @@ lib/
 │   ├── mobile/
 │   └── desktop/
 ├── components/
-│   ├── chat_bubble.dart
+│   ├── chat_message_bubble.dart
+│   ├── streaming_markdown.dart
+│   ├── usage_chip.dart
 │   ├── chat_input.dart
 │   ├── conversation_list.dart
 │   ├── model_selector.dart
@@ -217,6 +224,7 @@ lib/
 │   └── themes.dart
 └── utils/
     ├── theme_provider.dart
+    ├── prompt_history.dart
     ├── file_processor.dart
     └── api_error_parser.dart
 ```

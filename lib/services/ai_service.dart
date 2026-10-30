@@ -1,5 +1,6 @@
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../models/usage_stats.dart';
 
 /// Abstract AI Service interface
 /// All AI providers implement this interface
@@ -44,6 +45,10 @@ abstract class AIService {
 
   /// Set the API key
   void setApiKey(String apiKey);
+
+  /// Token usage reported by the most recent stream (null when the
+  /// provider does not report usage)
+  TokenUsage? lastUsage;
 }
 
 /// Result class for AI responses

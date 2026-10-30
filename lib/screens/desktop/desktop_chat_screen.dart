@@ -12,8 +12,9 @@ import '../../components/chat_message_bubble.dart';
 import '../../components/chat_input.dart';
 import '../../components/conversation_list.dart';
 import '../../components/model_selector.dart';
+import '../../components/usage_chip.dart';
 import '../../utils/liquid_glass_effects.dart';
-import '../../utils/screen_size_helper.dart';
+import '../../utils/prompt_history.dart';
 import 'desktop_settings_screen.dart';
 import 'desktop_image_screen.dart';
 import 'desktop_playbooks_screen.dart';
@@ -34,11 +35,25 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
   List<Attachment> _attachments = [];
   bool _shouldAutoScroll = true;
   bool _isDragging = false;
+  late final PromptHistory _promptHistory;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _promptHistory = PromptHistory(
+      controller: _inputController,
+      promptsProvider: () {
+        final messages =
+            context.read<ChatService>().currentConversation?.messages;
+        if (messages == null) return const [];
+        return messages
+            .where((m) => m.isUser && m.content.trim().isNotEmpty)
+            .map((m) => m.content)
+            .toList();
+      },
+    );
+    _inputFocusNode.onKeyEvent = _promptHistory.handleKeyEvent;
     _loadProviderStatuses();
 
     // Listen to chat service updates for auto-scrolling during streaming
@@ -55,7 +70,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
     final chatService = context.read<ChatService>();
     // Auto-scroll when loading (streaming) and user hasn't scrolled up
     if (chatService.isLoading && _shouldAutoScroll) {
-      _scrollToBottom();
+      _followStreamBottom();
     }
   }
 
@@ -107,6 +122,15 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
         );
       });
     }
+  }
+
+  void _followStreamBottom() {
+    if (!_scrollController.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients && _shouldAutoScroll) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
   }
 
   /// Handle files dropped onto the app
@@ -287,6 +311,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
                                       if (message.isNotEmpty ||
                                           attachments.isNotEmpty) {
                                         _inputController.clear();
+                                        _promptHistory.reset();
                                         setState(() {
                                           _attachments = [];
                                           _shouldAutoScroll =
@@ -454,15 +479,15 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
       ),
       child: Row(
         children: [
-          // Title
-          Text(
-            chatService.currentConversation?.title ?? AppConstants.appName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-
           const Spacer(),
+
+          // Cumulative token usage for the current chat
+          UsageChip(
+            provider: chatService.selectedProvider,
+            label: 'This chat',
+            usage: chatService.currentConversation?.usage,
+          ),
+          const SizedBox(width: AppConstants.spacingS),
 
           // Model selector
           ModelSelector(
@@ -474,6 +499,16 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
             loadStatuses: _loadProviderStatuses,
             fetchModels: chatService.getAvailableModels,
             fetchVendorIcons: chatService.getVendorIcons,
+            fetchModelPricing: chatService.getModelPricing,
+          ),
+
+          const SizedBox(width: AppConstants.spacingS),
+
+          // Credit balance (OpenRouter) — near the model cost display
+          CreditChip(
+            provider: chatService.selectedProvider,
+            balance:
+                chatService.creditBalanceFor(chatService.selectedProvider),
           ),
 
           const SizedBox(width: AppConstants.spacingM),
@@ -499,26 +534,78 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
 
   Widget _buildChatArea(BuildContext context, ChatService chatService) {
     final conversation = chatService.currentConversation;
-    final maxBubbleWidth = ScreenSizeHelper.getMaxBubbleWidth(context);
 
     if (conversation == null || conversation.messages.isEmpty) {
       return _buildEmptyState(context, chatService);
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingL),
-      itemCount: conversation.messages.length,
-      itemBuilder: (context, index) {
-        final message = conversation.messages[index];
-        return ChatMessageBubble(
-          message: message,
-          maxWidth: maxBubbleWidth,
-          onRegenerate: message.isAssistant && !message.isStreaming
-              ? () => chatService.regenerateLastResponse()
-              : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bubbleWidth = constraints.maxWidth * 2 / 3;
+        return Stack(
+          children: [
+            ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingL),
+              itemCount: conversation.messages.length,
+              itemBuilder: (context, index) {
+                final message = conversation.messages[index];
+                return ChatMessageBubble(
+                  message: message,
+                  maxWidth: bubbleWidth,
+                  onRegenerate: message.isAssistant && !message.isStreaming
+                      ? () => chatService.regenerateLastResponse()
+                      : null,
+                );
+              },
+            ),
+            Positioned(
+              top: AppConstants.spacingS,
+              left: AppConstants.spacingM,
+              child: _buildFloatingTitle(
+                context,
+                chatService,
+                constraints.maxWidth,
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildFloatingTitle(
+    BuildContext context,
+    ChatService chatService,
+    double panelWidth,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final title = chatService.currentConversation?.title ?? AppConstants.appName;
+    return Container(
+      constraints: BoxConstraints(maxWidth: panelWidth * 0.6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppConstants.spacingM,
+        vertical: AppConstants.spacingS,
+      ),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.black.withValues(alpha: 0.35)
+            : Colors.white.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(AppConstants.radiusL),
+        border: Border.all(
+          color: theme.dividerColor.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Text(
+        title,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 

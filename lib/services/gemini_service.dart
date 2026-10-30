@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
+import '../models/usage_stats.dart';
 import '../models/ai_provider.dart';
 import '../utils/file_processor.dart';
 import '../utils/api_error_parser.dart';
@@ -11,6 +12,9 @@ import 'ai_service.dart';
 
 /// Google Gemini AI Service Implementation
 class GeminiService implements AIService {
+
+  @override
+  TokenUsage? lastUsage;
   String _apiKey = '';
   String _modelId = AppConstants.defaultGeminiModel;
 

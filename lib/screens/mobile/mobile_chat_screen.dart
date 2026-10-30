@@ -13,7 +13,6 @@ import '../../components/conversation_list.dart';
 import '../../components/model_selector.dart';
 
 import '../../utils/liquid_glass_effects.dart';
-import '../../utils/screen_size_helper.dart';
 import 'mobile_settings_screen.dart';
 import 'mobile_image_screen.dart';
 import 'mobile_playbooks_screen.dart';
@@ -56,7 +55,7 @@ class _MobileChatScreenState extends State<MobileChatScreen>
     final chatService = context.read<ChatService>();
     // Auto-scroll when loading (streaming) and user hasn't scrolled up
     if (chatService.isLoading && _shouldAutoScroll) {
-      _scrollToBottom();
+      _followStreamBottom();
     }
   }
 
@@ -107,6 +106,15 @@ class _MobileChatScreenState extends State<MobileChatScreen>
         );
       });
     }
+  }
+
+  void _followStreamBottom() {
+    if (!_scrollController.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients && _shouldAutoScroll) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
   }
 
   /// Handle files dropped onto the app
@@ -341,24 +349,28 @@ class _MobileChatScreenState extends State<MobileChatScreen>
 
   Widget _buildMessageList(BuildContext context, ChatService chatService) {
     final conversation = chatService.currentConversation;
-    final maxBubbleWidth = ScreenSizeHelper.getMaxBubbleWidth(context);
 
     if (conversation == null || conversation.messages.isEmpty) {
       return _buildEmptyState(context, chatService);
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingM),
-      itemCount: conversation.messages.length,
-      itemBuilder: (context, index) {
-        final message = conversation.messages[index];
-        return ChatMessageBubble(
-          message: message,
-          maxWidth: maxBubbleWidth,
-          onRegenerate: message.isAssistant && !message.isStreaming
-              ? () => chatService.regenerateLastResponse()
-              : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bubbleWidth = constraints.maxWidth * 2 / 3;
+        return ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingM),
+          itemCount: conversation.messages.length,
+          itemBuilder: (context, index) {
+            final message = conversation.messages[index];
+            return ChatMessageBubble(
+              message: message,
+              maxWidth: bubbleWidth,
+              onRegenerate: message.isAssistant && !message.isStreaming
+                  ? () => chatService.regenerateLastResponse()
+                  : null,
+            );
+          },
         );
       },
     );

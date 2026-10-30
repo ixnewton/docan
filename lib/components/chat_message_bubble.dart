@@ -1,15 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:flutter_math_fork/flutter_math.dart';
-import 'package:markdown/markdown.dart' as md;
-import 'package:url_launcher/url_launcher.dart';
 import '../config/constants.dart';
 import '../config/themes.dart';
 import '../models/chat_message.dart';
 import '../services/clipboard_service.dart';
+import 'streaming_markdown.dart';
 
 /// Standard Material Design message bubble
 class ChatMessageBubble extends StatefulWidget {
@@ -91,6 +87,12 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isUser = widget.message.isUser;
+
+    if (!isUser &&
+        widget.message.isStreaming &&
+        widget.message.content.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -213,17 +215,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                   widget.message.isStreaming)
                 Padding(
                   padding: const EdgeInsets.all(AppConstants.bubblePadding),
-                  child:
-                      widget.message.isStreaming &&
-                          widget.message.content.isEmpty
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : isUser
+                  child: isUser
                       ? SelectionArea(
                           child: SelectableText(
                             widget.message.content,
@@ -235,146 +227,20 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
                             },
                           ),
                         )
-                      : SelectionArea(
-                          child: MarkdownBody(
+                      : widget.message.content.trim().isEmpty
+                      ? const SizedBox.shrink()
+                      : widget.message.isStreaming
+                      ? StreamingMarkdown(
                           data: widget.message.content,
-                          selectable: true,
-                          builders: {
-                            'latex': LatexElementBuilder(
-                              textStyle: theme.textTheme.bodyLarge?.copyWith(
-                                color: textColor,
-                              ),
-                              textScaleFactor: 1.2,
-                            ),
-                          },
-                          extensionSet: md.ExtensionSet(
-                            [...md.ExtensionSet.gitHubFlavored.blockSyntaxes],
-                            [
-                              md.EmojiSyntax(),
-                              ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes,
-                              LatexSyntax(),
-                            ],
-                          ),
-                          onTapLink: (text, href, title) async {
-                            if (href != null) {
-                              final uri = Uri.tryParse(href);
-                              if (uri != null && await canLaunchUrl(uri)) {
-                                await launchUrl(
-                                  uri,
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              }
-                            }
-                          },
-                          imageBuilder: (uri, title, alt) {
-                            // Handle base64 data URLs for generated images
-                            if (uri.toString().startsWith('data:image/')) {
-                              try {
-                                final dataUri = uri.toString();
-                                final commaIndex = dataUri.indexOf(',');
-                                if (commaIndex != -1) {
-                                  final base64Data = dataUri.substring(
-                                    commaIndex + 1,
-                                  );
-                                  final bytes = base64Decode(base64Data);
-                                  return ClipRRect(
-                                    borderRadius: BorderRadius.circular(
-                                      AppConstants.radiusS,
-                                    ),
-                                    child: Image.memory(
-                                      bytes,
-                                      fit: BoxFit.contain,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                            return Container(
-                                              padding: const EdgeInsets.all(
-                                                AppConstants.spacingM,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.red.withValues(
-                                                  alpha: 0.1,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                      AppConstants.radiusS,
-                                                    ),
-                                              ),
-                                              child: const Text(
-                                                'Failed to load generated image',
-                                              ),
-                                            );
-                                          },
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                return Container(
-                                  padding: const EdgeInsets.all(
-                                    AppConstants.spacingM,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(
-                                      AppConstants.radiusS,
-                                    ),
-                                  ),
-                                  child: Text('Image error: $e'),
-                                );
-                              }
-                            }
-                            // For other images, show a placeholder
-                            return const SizedBox.shrink();
-                          },
-                          styleSheet: MarkdownStyleSheet(
-                            p: theme.textTheme.bodyLarge?.copyWith(
-                              color: textColor,
-                            ),
-                            h1: theme.textTheme.headlineLarge?.copyWith(
-                              color: textColor,
-                            ),
-                            h2: theme.textTheme.headlineMedium?.copyWith(
-                              color: textColor,
-                            ),
-                            h3: theme.textTheme.headlineSmall?.copyWith(
-                              color: textColor,
-                            ),
-                            code: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 14,
-                              backgroundColor: isDark
-                                  ? Colors.black26
-                                  : Colors.black.withValues(alpha: 0.05),
-                              color: textColor,
-                            ),
-                            codeblockDecoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.black38
-                                  : Colors.black.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            blockquoteDecoration: BoxDecoration(
-                              border: Border(
-                                left: BorderSide(
-                                  color: theme.primaryColor,
-                                  width: 3,
-                                ),
-                              ),
-                            ),
-                            listBullet: theme.textTheme.bodyLarge?.copyWith(
-                              color: textColor,
-                            ),
-                            a: TextStyle(
-                              color: isDark
-                                  ? Colors.lightBlueAccent
-                                  : Colors.blue,
-                              decoration: TextDecoration.underline,
-                              decorationColor: isDark
-                                  ? Colors.lightBlueAccent
-                                  : Colors.blue,
-                            ),
+                          textColor: textColor,
+                          selectable: false,
+                        )
+                      : SelectionArea(
+                          child: StreamingMarkdown(
+                            data: widget.message.content,
+                            textColor: textColor,
                           ),
                         ),
-                      ),
                 ),
             ],
           ),
@@ -625,56 +491,6 @@ class _ActionButton extends StatelessWidget {
           child: Icon(icon, size: 16, color: theme.textTheme.bodySmall?.color),
         ),
       ),
-    );
-  }
-}
-
-class LatexSyntax extends md.InlineSyntax {
-  LatexSyntax() : super(r'(\$\$[\s\S]*?\$\$)|(\$[^$]*\$)');
-
-  @override
-  bool onMatch(md.InlineParser parser, Match match) {
-    final input = match.input;
-    final matchStart = match.start;
-    final matchEnd = match.end;
-    final text = input.substring(matchStart, matchEnd);
-    final isBlock = text.startsWith('\$\$') && text.endsWith('\$\$');
-
-    final content = isBlock
-        ? text.substring(2, text.length - 2)
-        : text.substring(1, text.length - 1);
-
-    md.Element el = md.Element.text('latex', content);
-    el.attributes['displayMode'] = isBlock.toString();
-    parser.addNode(el);
-    return true;
-  }
-}
-
-class LatexElementBuilder extends MarkdownElementBuilder {
-  final TextStyle? textStyle;
-  final double textScaleFactor;
-
-  LatexElementBuilder({this.textStyle, this.textScaleFactor = 1.0});
-
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    final content = element.textContent;
-    final isBlock = element.attributes['displayMode'] == 'true';
-
-    return Math.tex(
-      content,
-      mathStyle: isBlock ? MathStyle.display : MathStyle.text,
-      textStyle: textStyle?.copyWith(
-        fontSize:
-            (textStyle?.fontSize ?? 14) * (isBlock ? textScaleFactor : 1.0),
-      ),
-      onErrorFallback: (err) {
-        return Text(
-          '\$$content\$',
-          style: textStyle?.copyWith(color: Colors.red),
-        );
-      },
     );
   }
 }

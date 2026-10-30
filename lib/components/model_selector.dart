@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
 import '../models/ai_provider.dart';
+import '../models/usage_stats.dart';
 
 /// Model and provider selector dropdown
 class ModelSelector extends StatefulWidget {
@@ -13,6 +14,8 @@ class ModelSelector extends StatefulWidget {
   final Future<Map<AIProvider, ProviderStatus>> Function()? loadStatuses;
   final Future<List<String>> Function(AIProvider)? fetchModels;
   final Future<Map<String, String>> Function(AIProvider)? fetchVendorIcons;
+  final Future<Map<String, ModelPricing>> Function(AIProvider)?
+      fetchModelPricing;
 
   const ModelSelector({
     super.key,
@@ -25,6 +28,7 @@ class ModelSelector extends StatefulWidget {
     this.loadStatuses,
     this.fetchModels,
     this.fetchVendorIcons,
+    this.fetchModelPricing,
   });
 
   @override
@@ -35,11 +39,13 @@ class _ModelSelectorState extends State<ModelSelector> {
   List<String>? _cachedModels;
   AIProvider? _cachedProvider;
   String? _vendor; // OpenRouter vendor ("provider") filter
+  Map<String, ModelPricing>? _modelPricing;
 
   @override
   void initState() {
     super.initState();
     _vendor = _modelVendor(widget.selectedModel);
+    _loadPricing();
   }
 
   @override
@@ -48,6 +54,25 @@ class _ModelSelectorState extends State<ModelSelector> {
     if (oldWidget.selectedProvider != widget.selectedProvider ||
         _modelVendor(widget.selectedModel) != _vendor) {
       _vendor = _modelVendor(widget.selectedModel);
+    }
+    if (oldWidget.selectedProvider != widget.selectedProvider) {
+      _modelPricing = null;
+      _loadPricing();
+    }
+  }
+
+  Future<void> _loadPricing() async {
+    if (widget.selectedProvider != AIProvider.openrouter ||
+        widget.fetchModelPricing == null) {
+      return;
+    }
+    try {
+      final pricing = await widget.fetchModelPricing!(widget.selectedProvider);
+      if (mounted && pricing.isNotEmpty) {
+        setState(() => _modelPricing = pricing);
+      }
+    } catch (_) {
+      if (mounted) _modelPricing = null;
     }
   }
 
@@ -159,11 +184,19 @@ class _ModelSelectorState extends State<ModelSelector> {
           label: widget.compact
               ? null
               : _getModelDisplayName(widget.selectedModel),
+          sublabel: widget.compact
+              ? null
+              : _selectedModelPricingLabel(),
           color: isDark ? Colors.white70 : Colors.black54,
           onTap: (buttonContext) => _showModelPicker(context, buttonContext),
         ),
       ],
     );
+  }
+
+  String? _selectedModelPricingLabel() {
+    final rate = _modelPricing?[widget.selectedModel];
+    return rate == null ? null : _pricingLabel(rate);
   }
 
   String _getModelDisplayName(String modelId) {
@@ -554,6 +587,8 @@ class _ModelSelectorState extends State<ModelSelector> {
     BuildContext context,
     BuildContext buttonContext,
   ) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final RenderBox button = buttonContext.findRenderObject() as RenderBox;
     final RenderBox overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
@@ -563,6 +598,11 @@ class _ModelSelectorState extends State<ModelSelector> {
     );
 
     final models = await _getVisibleModels();
+
+    if (_modelPricing == null) {
+      await _loadPricing();
+    }
+    final pricing = _modelPricing ?? const <String, ModelPricing>{};
 
     if (!context.mounted) return;
 
@@ -575,6 +615,7 @@ class _ModelSelectorState extends State<ModelSelector> {
         offset.dy + 4,
       ),
       items: models.map((model) {
+        final rate = pricing[model];
         return PopupMenuItem<String>(
           value: model,
           child: Row(
@@ -585,7 +626,25 @@ class _ModelSelectorState extends State<ModelSelector> {
                 color: widget.selectedProvider.color,
               ),
               const SizedBox(width: 12),
-              Expanded(child: Text(model)),
+              Expanded(
+                child: Text(
+                  model,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (rate != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  _pricingLabel(rate),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isDark ? Colors.white54 : Colors.black45,
+                  ),
+                ),
+              ],
               if (model == widget.selectedModel)
                 Icon(
                   Icons.check,
@@ -603,8 +662,21 @@ class _ModelSelectorState extends State<ModelSelector> {
     });
   }
 
+  String _pricingLabel(ModelPricing pricing) {
+    String fmt(double v) {
+      if (v >= 100) return '\$${v.toStringAsFixed(0)}';
+      return '\$${v.toStringAsFixed(2)}';
+    }
+    return '${fmt(pricing.promptPerMillion)}/M in · ${fmt(pricing.completionPerMillion)}/M out';
+  }
+
   void _showModelBottomSheet(BuildContext context) async {
     final models = await _getVisibleModels();
+
+    if (_modelPricing == null) {
+      await _loadPricing();
+    }
+    final modelPricing = _modelPricing ?? const <String, ModelPricing>{};
 
     if (!context.mounted) return;
 
@@ -640,12 +712,28 @@ class _ModelSelectorState extends State<ModelSelector> {
                   itemCount: models.length,
                   itemBuilder: (context, index) {
                     final model = models[index];
+                    final rate = modelPricing[model];
                     return ListTile(
                       leading: Icon(
                         Icons.memory,
                         color: widget.selectedProvider.color,
                       ),
                       title: Text(model),
+                      subtitle: rate != null
+                          ? Text(
+                              _pricingLabel(rate),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.color
+                                            ?.withValues(alpha: 0.7),
+                                  ),
+                            )
+                          : null,
                       trailing: model == widget.selectedModel
                           ? Icon(
                               Icons.check,
@@ -672,12 +760,14 @@ class _ModelSelectorState extends State<ModelSelector> {
 class _SelectorButton extends StatefulWidget {
   final IconData icon;
   final String? label;
+  final String? sublabel;
   final Color color;
   final void Function(BuildContext) onTap;
 
   const _SelectorButton({
     required this.icon,
     this.label,
+    this.sublabel,
     required this.color,
     required this.onTap,
   });
@@ -728,6 +818,16 @@ class _SelectorButtonState extends State<_SelectorButton> {
               if (widget.label != null) ...[
                 const SizedBox(width: AppConstants.spacingS),
                 Text(widget.label!, style: theme.textTheme.labelMedium),
+                if (widget.sublabel != null) ...[
+                  const SizedBox(width: AppConstants.spacingXS),
+                  Text(
+                    widget.sublabel!,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.textTheme.bodySmall?.color
+                          ?.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: AppConstants.spacingXS),
                 Icon(
                   Icons.keyboard_arrow_down,

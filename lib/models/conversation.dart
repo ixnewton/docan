@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import 'chat_message.dart';
 import 'ai_provider.dart';
+import 'usage_stats.dart';
 
 /// Represents a conversation/chat session
 class Conversation {
@@ -13,6 +14,7 @@ class Conversation {
   final String modelId;
   final bool isPinned;
   final bool isArchived;
+  final UsageStats? usage;
 
   Conversation({
     String? id,
@@ -24,6 +26,7 @@ class Conversation {
     String? modelId,
     this.isPinned = false,
     this.isArchived = false,
+    this.usage,
   })  : id = id ?? const Uuid().v4(),
         messages = messages ?? [],
         createdAt = createdAt ?? DateTime.now(),
@@ -145,6 +148,7 @@ class Conversation {
     String? modelId,
     bool? isPinned,
     bool? isArchived,
+    UsageStats? usage,
   }) {
     return Conversation(
       id: id ?? this.id,
@@ -156,6 +160,7 @@ class Conversation {
       modelId: modelId ?? this.modelId,
       isPinned: isPinned ?? this.isPinned,
       isArchived: isArchived ?? this.isArchived,
+      usage: usage ?? this.usage,
     );
   }
 
@@ -171,6 +176,7 @@ class Conversation {
       'modelId': modelId,
       'isPinned': isPinned,
       'isArchived': isArchived,
+      'usage': usage?.toJson(),
     };
   }
 
@@ -196,6 +202,9 @@ class Conversation {
       modelId: json['modelId'],
       isPinned: json['isPinned'] ?? false,
       isArchived: json['isArchived'] ?? false,
+      usage: json['usage'] is Map<String, dynamic>
+          ? UsageStats.fromJson(json['usage'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/ai_provider.dart';
+import '../models/usage_stats.dart';
 import 'openai_service.dart';
 
 /// OpenRouter Service Implementation
@@ -34,6 +35,14 @@ class OpenRouterService extends OpenAIService {
     'HTTP-Referer': 'https://github.com/CxOrg/openrouter-mcp',
     'X-Title': 'Docan',
   };
+
+  @override
+  Map<String, dynamic> get extraBodyParams => {
+    'usage': {'include': true},
+  };
+
+  Map<String, ModelPricing>? _pricing;
+  CreditBalance? _keyInfo;
 
   /// Well-known vendor domains used to fetch favicon icons for the vendor
   /// menu. Vendors missing from this map fall back to a generic icon.
@@ -130,6 +139,15 @@ class OpenRouterService extends OpenAIService {
           .toList()
         ..sort();
 
+      _pricing = {};
+      for (final m in models) {
+        final id = m['id'];
+        final pricing = parseModelPricing(m as Map<String, dynamic>);
+        if (id is String && id.isNotEmpty && pricing != null) {
+          _pricing![id] = pricing;
+        }
+      }
+
       debugPrint('[OpenRouter] Found ${availableModels.length} models');
       return availableModels.isEmpty
           ? AIProvider.openrouter.availableModels
@@ -138,5 +156,66 @@ class OpenRouterService extends OpenAIService {
       debugPrint('[OpenRouter] Error fetching models: $e');
       return AIProvider.openrouter.availableModels;
     }
+  }
+
+  /// Per-token pricing for every model, from the live /models response.
+  Future<Map<String, ModelPricing>> getModelPricing() async {
+    if (_pricing == null) {
+      await getAvailableModels();
+    }
+    return _pricing ?? const {};
+  }
+
+  void resetCaches() {
+    _pricing = null;
+    _keyInfo = null;
+    _vendorIcons = null;
+  }
+
+  /// Credit balance for the API key, from GET /key (OpenRouter).
+  /// Returns null when unavailable or when no spending limit is set.
+  Future<CreditBalance?> getKeyInfo() async {
+    if (_keyInfo != null) return _keyInfo;
+    if (apiKey.isEmpty) return null;
+    try {
+      final response =
+          await http.get(Uri.parse('$baseUrl/key'), headers: authHeaders);
+      if (response.statusCode != 200) {
+        debugPrint('[$logTag] Failed to fetch key info: ${response.statusCode}');
+        return null;
+      }
+      final body = jsonDecode(response.body);
+      final data = body['data'];
+      if (data is! Map<String, dynamic>) return null;
+      _keyInfo = parseKeyInfo(data);
+      return _keyInfo;
+    } catch (e) {
+      debugPrint('[OpenRouter] Error fetching key info: $e');
+      return null;
+    }
+  }
+
+  /// Parses a /key data payload into a CreditBalance.
+  static CreditBalance? parseKeyInfo(Map<String, dynamic> data) {
+    double? asDouble(dynamic v) =>
+        v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+    final used = asDouble(data['usage']);
+    if (used == null) return null;
+    final limit = asDouble(data['limit']);
+    return CreditBalance(used: used, limit: limit);
+  }
+
+  /// Parses a /models entry's pricing block (USD per token, as strings)
+  /// into per-million rates. Returns null when pricing is absent/invalid.
+  static ModelPricing? parseModelPricing(Map<String, dynamic> model) {
+    final pricing = model['pricing'];
+    if (pricing is! Map<String, dynamic>) return null;
+    final prompt = double.tryParse(pricing['prompt']?.toString() ?? '');
+    final completion = double.tryParse(pricing['completion']?.toString() ?? '');
+    if (prompt == null || completion == null) return null;
+    return ModelPricing(
+      promptPerMillion: prompt * 1000000,
+      completionPerMillion: completion * 1000000,
+    );
   }
 }

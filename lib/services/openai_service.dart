@@ -5,11 +5,15 @@ import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../models/ai_provider.dart';
+import '../models/usage_stats.dart';
 import '../utils/file_processor.dart';
 import 'ai_service.dart';
 
 /// OpenAI ChatGPT Service Implementation
 class OpenAIService implements AIService {
+
+  @override
+  TokenUsage? lastUsage;
   String _apiKey = '';
   String _modelId = AppConstants.defaultOpenAIModel;
 
@@ -36,6 +40,29 @@ class OpenAIService implements AIService {
   /// API key, exposed for subclasses
   @protected
   String get apiKey => _apiKey;
+
+  /// Extra body params merged into chat-completions requests (overridable
+  /// by subclasses, e.g. OpenRouter's usage reporting)
+  @protected
+  Map<String, dynamic> get extraBodyParams => const {};
+
+  /// Extracts the token usage object from a streaming chunk, if present.
+  /// OpenAI-compatible providers send usage either on a final chunk with
+  /// empty choices or attached to the last content chunk.
+  static TokenUsage? parseUsageChunk(Map<String, dynamic> data) {
+    final usage = data['usage'];
+    if (usage is! Map<String, dynamic>) return null;
+    final prompt = (usage['prompt_tokens'] as num?)?.toInt() ?? 0;
+    final completion = (usage['completion_tokens'] as num?)?.toInt() ?? 0;
+    final total = (usage['total_tokens'] as num?)?.toInt() ?? 0;
+    if (prompt == 0 && completion == 0 && total == 0) return null;
+    return TokenUsage(
+      promptTokens: prompt,
+      completionTokens: completion,
+      totalTokens: total,
+      costUsd: (usage['cost'] as num?)?.toDouble(),
+    );
+  }
 
   @override
   AIProvider get provider => AIProvider.openai;
@@ -197,6 +224,7 @@ class OpenAIService implements AIService {
       'temperature': temperature,
       'max_tokens': maxTokens,
       'stream': true,
+      ...extraBodyParams,
     });
 
     final request = http.Request('POST', url);
@@ -258,6 +286,10 @@ class OpenAIService implements AIService {
 
             try {
               final data = jsonDecode(jsonStr);
+              final usage = parseUsageChunk(data);
+              if (usage != null) {
+                lastUsage = usage;
+              }
               final choices = data['choices'] as List<dynamic>?;
               if (choices != null && choices.isNotEmpty) {
                 final delta = choices[0]['delta'];

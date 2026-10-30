@@ -5,6 +5,7 @@ import '../models/chat_message.dart';
 import '../models/conversation.dart';
 import '../models/ai_provider.dart';
 import '../models/playbook.dart';
+import '../models/usage_stats.dart';
 import 'ai_service.dart';
 import 'gemini_service.dart';
 import 'openai_service.dart';
@@ -39,6 +40,12 @@ class ChatService extends ChangeNotifier {
 
   // Cached vendor icon URLs (OpenRouter vendors -> favicon URLs)
   final Map<AIProvider, Map<String, String>> _vendorIconsCache = {};
+
+  // Accumulated token usage/cost per provider, per model
+  Map<String, Map<String, UsageStats>> _usageStats = {};
+
+  // Credit balance reported by the provider (OpenRouter only)
+  CreditBalance? _creditBalance;
 
   ChatService(this._storage) {
     _initServices();
@@ -123,12 +130,74 @@ class ChatService extends ChangeNotifier {
       }
       try {
         await getAvailableModels(provider);
-        if (provider == AIProvider.openrouter) await getVendorIcons(provider);
+        if (provider == AIProvider.openrouter) {
+          await getVendorIcons(provider);
+          final service = _services[provider];
+          if (service is OpenRouterService) {
+            final info = await service.getKeyInfo();
+            if (info != null) _creditBalance = info;
+          }
+        }
       } catch (_) {
         // Services fall back to default lists; nothing to do
       }
     }
     notifyListeners();
+    await _selectLastAvailableProvider();
+  }
+
+  /// After the startup availability tests, if the saved provider is not
+  /// currently available, switch to the most recently used provider that is.
+  /// The switch is in-memory only so the user's saved preference survives.
+  Future<void> _selectLastAvailableProvider() async {
+    final statuses = await getProviderStatuses();
+    if (statuses[_selectedProvider] == ProviderStatus.available) {
+      return;
+    }
+    final recency = await _storage.getProviderRecency();
+    for (final provider in recency) {
+      if (provider != _selectedProvider &&
+          statuses[provider] == ProviderStatus.available) {
+        await _switchProviderInMemory(provider);
+        return;
+      }
+    }
+    for (final provider in AIProvider.values) {
+      if (provider != _selectedProvider &&
+          statuses[provider] == ProviderStatus.available) {
+        await _switchProviderInMemory(provider);
+        return;
+      }
+    }
+  }
+
+  Future<void> _switchProviderInMemory(AIProvider provider) async {
+    debugPrint(
+      '[ChatService] ${_selectedProvider.displayName} unavailable at startup; '
+      'selecting ${provider.displayName}',
+    );
+    _selectedProvider = provider;
+    _selectedModel =
+        await _storage.getSelectedModelForProvider(provider) ??
+        provider.defaultModel;
+    final cached = _modelCache[provider];
+    if (cached != null) {
+      await _validateSelectedModel(provider, cached);
+    }
+    currentService.setModel(_selectedModel);
+    notifyListeners();
+  }
+
+  /// Per-model pricing (OpenRouter only; empty for other providers)
+  Future<Map<String, ModelPricing>> getModelPricing(
+    AIProvider provider,
+  ) async {
+    if (provider != AIProvider.openrouter) return const {};
+    final service = _services[provider];
+    if (service is OpenRouterService) {
+      return service.getModelPricing();
+    }
+    return const {};
   }
 
   /// Vendor icon URLs for the OpenRouter vendor menu (empty for others)
@@ -155,9 +224,11 @@ class ChatService extends ChangeNotifier {
         await _storage.getSelectedModelForProvider(_selectedProvider) ??
         await _storage.getSelectedModel() ??
         _selectedProvider.defaultModel;
+    await _touchProviderRecency(_selectedProvider);
     _temperature = await _storage.getTemperature();
     _maxTokens = await _storage.getMaxTokens();
     _systemPrompt = await _storage.getSystemPrompt();
+    _usageStats = usageStatsFromJson(await _storage.getUsageStats() ?? '');
 
     // Load API keys
     for (final provider in AIProvider.values) {
@@ -200,6 +271,21 @@ class ChatService extends ChangeNotifier {
   /// Set the selected provider
   Future<void> setProvider(AIProvider provider) async {
     _selectedProvider = provider;
+    if (provider == AIProvider.openrouter &&
+        _creditBalance == null &&
+        await _storage.hasApiKey(provider)) {
+      final service = _services[provider];
+      if (service is OpenRouterService) {
+        unawaited(
+          service.getKeyInfo().then((info) {
+            if (info != null) {
+              _creditBalance = info;
+              notifyListeners();
+            }
+          }),
+        );
+      }
+    }
     // Restore the last-used model for this provider (falls back to default)
     _selectedModel =
         await _storage.getSelectedModelForProvider(provider) ??
@@ -212,7 +298,15 @@ class ChatService extends ChangeNotifier {
     currentService.setModel(_selectedModel);
     await _storage.setSelectedProvider(provider);
     await _storage.setSelectedModel(_selectedModel);
+    await _touchProviderRecency(provider);
     notifyListeners();
+  }
+
+  Future<void> _touchProviderRecency(AIProvider provider) async {
+    final recency = await _storage.getProviderRecency();
+    recency.remove(provider);
+    recency.insert(0, provider);
+    await _storage.setProviderRecency(recency);
   }
 
   /// Set the selected model
@@ -231,6 +325,10 @@ class ChatService extends ChangeNotifier {
     // Key (or local server URL) changed — drop the cached model list
     _modelCache.remove(provider);
     _vendorIconsCache.remove(provider);
+    if (provider == AIProvider.openrouter) {
+      _creditBalance = null;
+      (_services[provider] as OpenRouterService?)?.resetCaches();
+    }
     notifyListeners();
   }
 
@@ -277,11 +375,59 @@ class ChatService extends ChangeNotifier {
   }
 
   /// Select a conversation
-  void selectConversation(Conversation conversation) {
+  Future<void> selectConversation(Conversation conversation) async {
     _currentConversation = conversation;
-    _selectedProvider = conversation.provider;
-    _selectedModel = conversation.modelId;
+    final providerChanged = conversation.provider != _selectedProvider;
+    final applyCombination = !providerChanged ||
+        await _isProviderConfigured(conversation.provider);
+    if (applyCombination) {
+      if (providerChanged) {
+        await _switchProviderInMemory(conversation.provider);
+      }
+      if (_selectedModel != conversation.modelId) {
+        _selectedModel = conversation.modelId;
+        currentService.setModel(_selectedModel);
+        final cached = _modelCache[conversation.provider];
+        if (cached != null) {
+          await _validateSelectedModel(conversation.provider, cached);
+        }
+      }
+    }
     notifyListeners();
+  }
+
+  Future<bool> _isProviderConfigured(AIProvider provider) async {
+    if (provider == AIProvider.ollama || provider == AIProvider.lmstudio) {
+      return _storage.isProviderVerified(provider);
+    }
+    return _storage.hasApiKey(provider);
+  }
+
+  void _recordUsage(AIProvider provider, String model, TokenUsage usage) {
+    final models = _usageStats.putIfAbsent(provider.name, () => {});
+    final stats = models.putIfAbsent(model, () => UsageStats());
+    stats.add(usage);
+    _storage.setUsageStats(usageStatsToJson(_usageStats));
+    if (provider == AIProvider.openrouter && usage.costUsd != null) {
+      _creditBalance = _creditBalance?.withSpent(usage.costUsd!);
+    }
+    notifyListeners();
+  }
+
+  /// Credit balance for a provider (OpenRouter only; null otherwise)
+  CreditBalance? creditBalanceFor(AIProvider provider) {
+    return provider == AIProvider.openrouter ? _creditBalance : null;
+  }
+
+  /// Aggregated token usage/cost for a provider across all its models
+  UsageStats? usageForProvider(AIProvider provider) {
+    final models = _usageStats[provider.name];
+    if (models == null || models.isEmpty) return null;
+    final total = UsageStats();
+    for (final stats in models.values) {
+      total.addAll(stats);
+    }
+    return total;
   }
 
   /// Delete a conversation
@@ -738,6 +884,40 @@ class ChatService extends ChangeNotifier {
     return null;
   }
 
+  Timer? _streamFlushTimer;
+  String _pendingStreamContent = '';
+
+  void _scheduleStreamFlush(
+    String content,
+    ChatMessage placeholder,
+    String modelId,
+  ) {
+    _pendingStreamContent = content;
+    _streamFlushTimer ??= Timer(const Duration(milliseconds: 40), () {
+      _streamFlushTimer = null;
+      _flushStreamingMessage(placeholder, modelId);
+    });
+  }
+
+  void _flushStreamingMessage(ChatMessage placeholder, String modelId) {
+    final updatedMessage = placeholder.copyWith(
+      content: _pendingStreamContent,
+      isStreaming: true,
+      modelId: modelId,
+    );
+    _currentConversation = _currentConversation!.updateMessage(
+      placeholder.id,
+      updatedMessage,
+    );
+    _updateConversationInList();
+    notifyListeners();
+  }
+
+  void _cancelStreamFlush() {
+    _streamFlushTimer?.cancel();
+    _streamFlushTimer = null;
+  }
+
   /// Send a message
   Future<void> sendMessage(
     String content, {
@@ -933,6 +1113,7 @@ class ChatService extends ChangeNotifier {
       String fullResponse = '';
       bool success = false;
       String? lastError;
+      String usedModel = _selectedModel;
 
       // Try current model first, then fallback models on 429
       final modelsToTry = [
@@ -944,6 +1125,7 @@ class ChatService extends ChangeNotifier {
         try {
           debugPrint('[ChatService] Trying model: $modelToTry');
           currentService.setModel(modelToTry);
+          currentService.lastUsage = null;
 
           // Use streaming
           final stream = currentService.sendMessageStream(
@@ -956,20 +1138,12 @@ class ChatService extends ChangeNotifier {
           );
 
           fullResponse = '';
+          _cancelStreamFlush();
           await for (final chunk in stream) {
             fullResponse += chunk;
-            final updatedMessage = placeholderMessage.copyWith(
-              content: fullResponse,
-              isStreaming: true,
-              modelId: modelToTry,
-            );
-            _currentConversation = _currentConversation!.updateMessage(
-              placeholderMessage.id,
-              updatedMessage,
-            );
-            _updateConversationInList();
-            notifyListeners();
+            _scheduleStreamFlush(fullResponse, placeholderMessage, modelToTry);
           }
+          _cancelStreamFlush();
 
           success = true;
           // Update selected model if we had to fallback
@@ -985,6 +1159,7 @@ class ChatService extends ChangeNotifier {
             );
             await _storage.setSelectedModel(modelToTry);
           }
+          usedModel = modelToTry;
           break; // Success, exit loop
         } catch (e) {
           lastError = e.toString();
@@ -1005,6 +1180,21 @@ class ChatService extends ChangeNotifier {
         throw Exception(
           lastError ??
               'All models failed due to rate limiting. Please try again later.',
+        );
+      }
+
+      // Remember the provider/model combination actually used for this chat
+      _currentConversation = _currentConversation!.copyWith(
+        provider: _selectedProvider,
+        modelId: usedModel,
+      );
+      final usage = currentService.lastUsage;
+      if (usage != null) {
+        _recordUsage(_selectedProvider, usedModel, usage);
+        final convUsage = _currentConversation!.usage ?? UsageStats();
+        convUsage.add(usage);
+        _currentConversation = _currentConversation!.copyWith(
+          usage: convUsage,
         );
       }
 
@@ -1097,19 +1287,29 @@ Give a helpful response based on this data. Be concise and format nicely with ma
                   maxTokens: _maxTokens,
                 );
 
+                _cancelStreamFlush();
                 await for (final chunk in interpretStream) {
                   interpretedResponse += chunk;
-                  final updatedMessage = placeholderMessage.copyWith(
-                    content: interpretedResponse,
-                    isStreaming: true,
-                    modelId: _selectedModel,
+                  _scheduleStreamFlush(
+                    interpretedResponse,
+                    placeholderMessage,
+                    _selectedModel,
                   );
-                  _currentConversation = _currentConversation!.updateMessage(
-                    placeholderMessage.id,
-                    updatedMessage,
+                }
+                _cancelStreamFlush();
+                final interpretUsage = currentService.lastUsage;
+                if (interpretUsage != null) {
+                  _recordUsage(
+                    _selectedProvider,
+                    _selectedModel,
+                    interpretUsage,
                   );
-                  _updateConversationInList();
-                  notifyListeners();
+                  final convUsage =
+                      _currentConversation!.usage ?? UsageStats();
+                  convUsage.add(interpretUsage);
+                  _currentConversation = _currentConversation!.copyWith(
+                    usage: convUsage,
+                  );
                 }
 
                 // Embed any image URLs in the AI's response
@@ -1153,6 +1353,7 @@ Give a helpful response based on this data. Be concise and format nicely with ma
         );
       }
     } catch (e, stackTrace) {
+      _cancelStreamFlush();
       debugPrint('[ChatService] ERROR: $e');
       debugPrint('[ChatService] Stack trace: $stackTrace');
       final errorMessage = placeholderMessage.copyWith(

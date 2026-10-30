@@ -327,6 +327,34 @@ class StorageService {
     );
   }
 
+  // Provider recency (most-recent-first) for startup fallback selection
+
+  Future<void> setProviderRecency(List<AIProvider> providers) async {
+    await _prefs?.setStringList(
+      AppConstants.keyProviderRecency,
+      providers.map((p) => p.name).toList(),
+    );
+  }
+
+  Future<List<AIProvider>> getProviderRecency() async {
+    final names = _prefs?.getStringList(AppConstants.keyProviderRecency) ?? [];
+    final known = AIProvider.values.map((e) => e.name).toSet();
+    return names
+        .where(known.contains)
+        .map((name) => AIProvider.values.firstWhere((e) => e.name == name))
+        .toList();
+  }
+
+  // Token usage / cost statistics (per provider, per model)
+
+  Future<String?> getUsageStats() async {
+    return _prefs?.getString(AppConstants.keyUsageStats);
+  }
+
+  Future<void> setUsageStats(String raw) async {
+    await _prefs?.setString(AppConstants.keyUsageStats, raw);
+  }
+
   // Provider verification (local servers remembered as configured once a
   // connection test has succeeded)
 

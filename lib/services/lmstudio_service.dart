@@ -4,12 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/chat_message.dart';
+import '../models/usage_stats.dart';
 import '../models/ai_provider.dart';
 import '../utils/file_processor.dart';
 import 'ai_service.dart';
 
 /// LM Studio Service Implementation (OpenAI-compatible API)
 class LMStudioService implements AIService {
+
+  @override
+  TokenUsage? lastUsage;
   String _baseUrl = AppConstants.lmStudioDefaultUrl;
   String _modelId = AppConstants.defaultLMStudioModel;
   String _token = '';

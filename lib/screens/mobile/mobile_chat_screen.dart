@@ -34,6 +34,7 @@ class _MobileChatScreenState extends State<MobileChatScreen>
   List<Attachment> _attachments = [];
   bool _shouldAutoScroll = true;
   bool _isDragging = false;
+  String? _lastConversationId;
 
   @override
   void initState() {
@@ -53,6 +54,12 @@ class _MobileChatScreenState extends State<MobileChatScreen>
 
   void _onChatServiceUpdate() {
     final chatService = context.read<ChatService>();
+    final conversationId = chatService.currentConversation?.id;
+    if (conversationId != null && conversationId != _lastConversationId) {
+      _lastConversationId = conversationId;
+      _shouldAutoScroll = true;
+      _jumpToBottom();
+    }
     // Auto-scroll when loading (streaming) and user hasn't scrolled up
     if (chatService.isLoading && _shouldAutoScroll) {
       _followStreamBottom();
@@ -114,6 +121,18 @@ class _MobileChatScreenState extends State<MobileChatScreen>
       if (_scrollController.hasClients && _shouldAutoScroll) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
+    });
+  }
+
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      });
     });
   }
 

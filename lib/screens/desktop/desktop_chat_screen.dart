@@ -35,6 +35,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
   List<Attachment> _attachments = [];
   bool _shouldAutoScroll = true;
   bool _isDragging = false;
+  String? _lastConversationId;
   late final PromptHistory _promptHistory;
 
   @override
@@ -68,6 +69,12 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
 
   void _onChatServiceUpdate() {
     final chatService = context.read<ChatService>();
+    final conversationId = chatService.currentConversation?.id;
+    if (conversationId != null && conversationId != _lastConversationId) {
+      _lastConversationId = conversationId;
+      _shouldAutoScroll = true;
+      _jumpToBottom();
+    }
     // Auto-scroll when loading (streaming) and user hasn't scrolled up
     if (chatService.isLoading && _shouldAutoScroll) {
       _followStreamBottom();
@@ -130,6 +137,18 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
       if (_scrollController.hasClients && _shouldAutoScroll) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
+    });
+  }
+
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      });
     });
   }
 
@@ -582,6 +601,9 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final title = chatService.currentConversation?.title ?? AppConstants.appName;
+    final style = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
     return Container(
       constraints: BoxConstraints(maxWidth: panelWidth * 0.6),
       padding: const EdgeInsets.symmetric(
@@ -590,23 +612,63 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
       ),
       decoration: BoxDecoration(
         color: isDark
-            ? Colors.black.withValues(alpha: 0.35)
-            : Colors.white.withValues(alpha: 0.65),
+            ? Colors.black.withValues(alpha: 0.9)
+            : Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(AppConstants.radiusL),
         border: Border.all(
           color: theme.dividerColor.withValues(alpha: 0.3),
         ),
       ),
-      child: Text(
-        title,
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final fitted = _fitTitleToWidth(
+            title,
+            constraints.maxWidth,
+            style ?? const TextStyle(),
+          );
+          return Text(
+            fitted ?? title,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          );
+        },
       ),
     );
+  }
+
+  /// Returns the largest whole-word prefix of [title] that fits [maxWidth]
+  /// with an ellipsis appended, or null when even the first word does not
+  /// fit (the caller then falls back to character-level ellipsis).
+  String? _fitTitleToWidth(String title, double maxWidth, TextStyle style) {
+    final painter = TextPainter(textDirection: TextDirection.ltr, maxLines: 1);
+    bool fits(String text) {
+      painter.text = TextSpan(text: text, style: style);
+      painter.layout(maxWidth: double.infinity);
+      return painter.width <= maxWidth;
+    }
+
+    String? best;
+    if (fits('$title…')) {
+      painter.dispose();
+      return title;
+    }
+    final words = title.split(' ');
+    var lo = 1;
+    var hi = words.length;
+    while (lo <= hi) {
+      final mid = (lo + hi) >> 1;
+      final candidate = '${words.take(mid).join(' ')}…';
+      if (fits(candidate)) {
+        best = candidate;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    painter.dispose();
+    return best;
   }
 
   Widget _buildEmptyState(BuildContext context, ChatService chatService) {

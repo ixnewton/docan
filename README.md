@@ -24,6 +24,9 @@ A multi-provider AI chat client with a clean Material Design UI that follows you
 - **Streaming display** — Replies render as they arrive: text feeds in line-by-line and completed tables insert as stable structures
 - **Prompt history** — Up/Down arrows recall previous prompts, terminal-style, for editing and resending
 - **Usage and cost** — Per-chat token usage and billed cost in the toolbar; per-model pricing rates and credit balance for OpenRouter
+- **Floating chat title** — The title sits in a translucent pill below the toolbar (90% opaque), sized to its text up to 60% of the panel width with word-boundary ellipsis; titles are the first sentence of the opening prompt, leaving the toolbar to the selectors
+- **Toolbar at a glance** — Right-aligned controls: this chat's token usage, the provider/vendor/model menus, the OpenRouter credit balance, and settings
+- **Resume position** — Reopening a previous chat lands at the end of the last response
 - **Responsive layout** — Works on phones and desktops, with dark mode and configurable accent colors
 
 ## Supported Providers

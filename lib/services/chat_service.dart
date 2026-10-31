@@ -1349,7 +1349,7 @@ Give a helpful response based on this data. Be concise and format nicely with ma
       // Update conversation title if it's the first exchange
       if (_currentConversation!.messages.length <= 3) {
         _currentConversation = _currentConversation!.copyWith(
-          title: _generateTitle(content),
+          title: generateTitle(content),
         );
       }
     } catch (e, stackTrace) {
@@ -1374,10 +1374,16 @@ Give a helpful response based on this data. Be concise and format nicely with ma
     notifyListeners();
   }
 
-  /// Generate a title from the first message
-  String _generateTitle(String firstMessage) {
-    final words = firstMessage.split(' ').take(5).join(' ');
-    return words.length > 30 ? '${words.substring(0, 30)}...' : words;
+  /// Generate a title from the first message: the first sentence, stored in
+  /// full (display truncation is the floating pill's job)
+  @visibleForTesting
+  static String generateTitle(String firstMessage) {
+    final trimmed = firstMessage.trim();
+    if (trimmed.isEmpty) return 'New Chat';
+    final match =
+        RegExp(r'^(.+?[.!?])(\s|$)', dotAll: true).firstMatch(trimmed);
+    final sentence = match?.group(1) ?? trimmed;
+    return sentence.trim().replaceAll('\n', ' ');
   }
 
   /// Check if error is a rate limit (429) error

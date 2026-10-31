@@ -13,7 +13,6 @@ import '../../components/chat_input.dart';
 import '../../components/conversation_list.dart';
 import '../../components/model_selector.dart';
 import '../../components/usage_chip.dart';
-import '../../utils/liquid_glass_effects.dart';
 import '../../utils/prompt_history.dart';
 import 'desktop_settings_screen.dart';
 import 'desktop_image_screen.dart';
@@ -125,7 +124,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
-          curve: LiquidGlassCurves.liquid,
+          curve: Curves.easeOutCubic,
         );
       });
     }
@@ -385,11 +384,14 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
           // Search bar (placeholder)
           Padding(
             padding: const EdgeInsets.all(AppConstants.spacingM),
-            child: LiquidGlassTextField(
-              hintText: 'Search conversations...',
-              prefixIcon: Icon(
-                Icons.search,
-                color: theme.textTheme.bodySmall?.color,
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search conversations...',
+                border: InputBorder.none,
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: theme.textTheme.bodySmall?.color,
+                ),
               ),
             ),
           ),
@@ -533,15 +535,15 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
           const SizedBox(width: AppConstants.spacingM),
 
           // Settings
-          LiquidGlassIconButton(
-            icon: Icons.settings,
+          IconButton(
+            icon: const Icon(Icons.settings),
             tooltip: 'Settings (⌘,)',
             onPressed: () => _openSettings(context),
           ),
 
           // More options
-          LiquidGlassIconButton(
-            icon: Icons.more_horiz,
+          IconButton(
+            icon: const Icon(Icons.more_horiz),
             onPressed: () {
               // TODO: Show more options menu
             },
@@ -603,6 +605,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
     final title = chatService.currentConversation?.title ?? AppConstants.appName;
     final style = theme.textTheme.titleMedium?.copyWith(
       fontWeight: FontWeight.w600,
+      color: Colors.black87,
     );
     return Container(
       constraints: BoxConstraints(maxWidth: panelWidth * 0.6),
@@ -612,8 +615,8 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
       ),
       decoration: BoxDecoration(
         color: isDark
-            ? Colors.black.withValues(alpha: 0.9)
-            : Colors.white.withValues(alpha: 0.9),
+            ? Colors.white.withValues(alpha: 0.95)
+            : Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(AppConstants.radiusL),
         border: Border.all(
           color: theme.dividerColor.withValues(alpha: 0.3),
@@ -627,7 +630,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
             style ?? const TextStyle(),
           );
           return Text(
-            fitted ?? title,
+            '"${fitted ?? title}"',
             maxLines: 1,
             softWrap: false,
             overflow: TextOverflow.ellipsis,
@@ -640,11 +643,13 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
 
   /// Returns the largest whole-word prefix of [title] that fits [maxWidth]
   /// with an ellipsis appended, or null when even the first word does not
-  /// fit (the caller then falls back to character-level ellipsis).
+  /// fit (the caller then falls back to character-level ellipsis). The
+  /// fit check measures the display-wrapped form (quoted).
   String? _fitTitleToWidth(String title, double maxWidth, TextStyle style) {
+    String wrap(String t) => '"$t"';
     final painter = TextPainter(textDirection: TextDirection.ltr, maxLines: 1);
     bool fits(String text) {
-      painter.text = TextSpan(text: text, style: style);
+      painter.text = TextSpan(text: wrap(text), style: style);
       painter.layout(maxWidth: double.infinity);
       return painter.width <= maxWidth;
     }

@@ -12,7 +12,6 @@ import '../../components/chat_input.dart';
 import '../../components/conversation_list.dart';
 import '../../components/model_selector.dart';
 
-import '../../utils/liquid_glass_effects.dart';
 import 'mobile_settings_screen.dart';
 import 'mobile_image_screen.dart';
 import 'mobile_playbooks_screen.dart';
@@ -109,7 +108,7 @@ class _MobileChatScreenState extends State<MobileChatScreen>
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
-          curve: LiquidGlassCurves.liquid,
+          curve: Curves.easeOutCubic,
         );
       });
     }
@@ -320,12 +319,23 @@ class _MobileChatScreenState extends State<MobileChatScreen>
   Widget _buildNavBar(BuildContext context, ChatService chatService) {
     final theme = Theme.of(context);
 
-    return LiquidGlassNavBar(
+    return Container(
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppConstants.spacingM,
+        vertical: AppConstants.spacingS,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingM),
+      height: AppConstants.navBarHeightFull,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
+        border: Border.all(color: theme.dividerColor),
+      ),
       child: Row(
         children: [
           // Menu button
-          LiquidGlassIconButton(
-            icon: Icons.menu,
+          IconButton(
+            icon: const Icon(Icons.menu),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
 
@@ -357,8 +367,8 @@ class _MobileChatScreenState extends State<MobileChatScreen>
           const SizedBox(width: AppConstants.spacingS),
 
           // Settings
-          LiquidGlassIconButton(
-            icon: Icons.settings,
+          IconButton(
+            icon: const Icon(Icons.settings),
             onPressed: () => _openSettings(context),
           ),
         ],
@@ -478,11 +488,8 @@ class _MobileChatScreenState extends State<MobileChatScreen>
     final theme = Theme.of(context);
 
     return Drawer(
-      backgroundColor: Colors.transparent,
-      child: LiquidGlassContainer(
-        borderRadius: 0,
-        margin: EdgeInsets.zero,
-        child: SafeArea(
+      backgroundColor: theme.colorScheme.surface,
+      child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -498,8 +505,8 @@ class _MobileChatScreenState extends State<MobileChatScreen>
                       ),
                     ),
                     const Spacer(),
-                    LiquidGlassIconButton(
-                      icon: Icons.close,
+                    IconButton(
+                      icon: const Icon(Icons.close),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -569,7 +576,6 @@ class _MobileChatScreenState extends State<MobileChatScreen>
             ],
           ),
         ),
-      ),
     );
   }
 

@@ -5,7 +5,6 @@ import '../../models/ai_provider.dart';
 import '../../services/chat_service.dart';
 import '../../services/storage_service.dart';
 import '../../components/settings_form.dart';
-import '../../utils/liquid_glass_effects.dart';
 import '../../utils/theme_provider.dart';
 
 /// Desktop settings screen as a dialog with macOS Tahoe Liquid Glass design

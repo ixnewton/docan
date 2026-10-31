@@ -7,7 +7,6 @@ import '../../config/constants.dart';
 import '../../components/comfyui_settings_panel.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/image_generation_service.dart';
-import '../../utils/liquid_glass_effects.dart';
 
 /// Desktop image generation screen
 class DesktopImageScreen extends StatefulWidget {
@@ -460,12 +459,9 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppConstants.spacingM),
-              LiquidGlassButton(
+              TextButton(
                 onPressed: service.clearError,
-                child: const Text(
-                  'Dismiss',
-                  style: TextStyle(color: Colors.white),
-                ),
+                child: const Text('Dismiss'),
               ),
             ],
           ),
@@ -522,32 +518,28 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
       child: Row(
         children: [
           Expanded(
-            child: LiquidGlassTextField(
+            child: TextField(
               controller: _promptController,
               focusNode: _promptFocusNode,
-              hintText: hasApiKey
-                  ? 'Describe the image you want to create...'
-                  : 'Add API key in settings to generate images',
               enabled: hasApiKey && !service.isGenerating,
               maxLines: 3,
               minLines: 1,
               onSubmitted: (_) => _generateImage(),
+              decoration: InputDecoration(
+                hintText: hasApiKey
+                    ? 'Describe the image you want to create...'
+                    : 'Add API key in settings to generate images',
+                border: const OutlineInputBorder(),
+              ),
             ),
           ),
           const SizedBox(width: AppConstants.spacingM),
-          LiquidGlassButton(
+          FilledButton.icon(
             onPressed: hasApiKey && !service.isGenerating
                 ? _generateImage
                 : null,
-            isLoading: service.isGenerating,
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                SizedBox(width: AppConstants.spacingS),
-                Text('Generate', style: TextStyle(color: Colors.white)),
-              ],
-            ),
+            icon: const Icon(Icons.auto_awesome, size: 20),
+            label: const Text('Generate'),
           ),
         ],
       ),
@@ -645,8 +637,13 @@ class _ImageViewer extends StatelessWidget {
           // Image
           Expanded(
             child: Center(
-              child: LiquidGlassContainer(
-                padding: const EdgeInsets.all(AppConstants.spacingS),
+              child: Container(
+                  padding: const EdgeInsets.all(AppConstants.spacingS),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                  ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppConstants.radiusS),
                   child: Image.memory(image.imageData, fit: BoxFit.contain),
@@ -658,8 +655,13 @@ class _ImageViewer extends StatelessWidget {
           const SizedBox(height: AppConstants.spacingM),
 
           // Info
-          LiquidGlassContainer(
-            padding: const EdgeInsets.all(AppConstants.spacingM),
+          Container(
+              padding: const EdgeInsets.all(AppConstants.spacingM),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+              ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -796,11 +798,16 @@ class _ImageProviderSelectorState extends State<_ImageProviderSelector> {
               );
             }).toList();
           },
-          child: LiquidGlassContainer(
-            padding: const EdgeInsets.symmetric(
+          child: Container(
+              padding: const EdgeInsets.symmetric(
               horizontal: AppConstants.spacingM,
               vertical: AppConstants.spacingS,
             ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+              ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -919,11 +926,16 @@ class _ModelDropdownButtonState extends State<_ModelDropdownButton> {
 
     return GestureDetector(
       onTap: () => _showModelMenu(context),
-      child: LiquidGlassContainer(
-        padding: const EdgeInsets.symmetric(
+      child: Container(
+          padding: const EdgeInsets.symmetric(
           horizontal: AppConstants.spacingM,
           vertical: AppConstants.spacingS,
         ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppConstants.radiusM),
+            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+          ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -956,6 +968,7 @@ class _SizeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return PopupMenuButton<ImageSize>(
       initialValue: selectedSize,
       onSelected: onChanged,
@@ -967,11 +980,16 @@ class _SizeSelector extends StatelessWidget {
           );
         }).toList();
       },
-      child: LiquidGlassContainer(
-        padding: const EdgeInsets.symmetric(
+      child: Container(
+          padding: const EdgeInsets.symmetric(
           horizontal: AppConstants.spacingM,
           vertical: AppConstants.spacingS,
         ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppConstants.radiusM),
+            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+          ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

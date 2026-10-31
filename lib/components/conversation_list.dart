@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
 import '../models/conversation.dart';
-import '../utils/liquid_glass_effects.dart';
 
 /// Conversation list for sidebar/drawer
 class ConversationList extends StatelessWidget {

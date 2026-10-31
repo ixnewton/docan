@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:yaml/yaml.dart';
 import '../../config/constants.dart';
 import '../../models/playbook.dart';
+import '../../services/chat_service.dart';
 import '../../services/playbook_service.dart';
-import '../../utils/liquid_glass_effects.dart';
+import '../../components/playbook_flowchart.dart';
+import '../../utils/playbook_generator.dart';
+import '../../utils/yaml_emitter.dart';
 
 /// Desktop screen for managing playbooks
 class DesktopPlaybooksScreen extends StatefulWidget {
@@ -63,39 +67,42 @@ class _DesktopPlaybooksScreenState extends State<DesktopPlaybooksScreen> {
 
           // Main content
           Expanded(
-            child: _selectedPlaybook != null
-                ? _showEditor
-                      ? _PlaybookEditor(
-                          playbook: _selectedPlaybook!,
-                          controller: _yamlController,
-                          onSave: _savePlaybook,
-                          onCancel: () {
-                            setState(() {
-                              _showEditor = false;
-                            });
-                          },
-                        )
-                      : _PlaybookDetail(
-                          playbook: _selectedPlaybook!,
-                          onEdit: () {
-                            _yamlController.text =
-                                _selectedPlaybook!.sourceYaml ??
-                                _selectedPlaybook!.toYaml();
-                            setState(() {
-                              _showEditor = true;
-                            });
-                          },
-                          onDelete: () => _deletePlaybook(_selectedPlaybook!),
-                          onExport: () => _exportPlaybook(_selectedPlaybook!),
-                          onToggleEnabled: (enabled) {
-                            service.setEnabled(_selectedPlaybook!.id, enabled);
-                          },
-                          onConfigure: () =>
-                              _showConfigDialog(_selectedPlaybook!),
-                        )
+            child: _showEditor
+                ? _PlaybookEditor(
+                    playbook: _selectedPlaybook,
+                    controller: _yamlController,
+                    onSave: _savePlaybook,
+                    onCancel: () {
+                      setState(() {
+                        _showEditor = false;
+                      });
+                    },
+                  )
+                : _selectedPlaybook != null
+                ? _PlaybookDetail(
+                    playbook: _selectedPlaybook!,
+                    onEdit: () {
+                      _yamlController.text =
+                          _selectedPlaybook!.sourceYaml ??
+                          _selectedPlaybook!.toYaml();
+                      setState(() {
+                        _showEditor = true;
+                      });
+                    },
+                    onDelete: () => _deletePlaybook(_selectedPlaybook!),
+                    onExport: () => _exportPlaybook(_selectedPlaybook!),
+                    onToggleEnabled: (enabled) {
+                      service.setEnabled(_selectedPlaybook!.id, enabled);
+                    },
+                    onConfigure: () =>
+                        _showConfigDialog(_selectedPlaybook!),
+                    onEditStep: (actionName, stepIndex) =>
+                        _editActionStep(_selectedPlaybook!, actionName, stepIndex),
+                  )
                 : _EmptyState(
                     onImport: _importPlaybook,
                     onNew: _createNewPlaybook,
+                    onNewWithAi: _createWithAi,
                   ),
           ),
         ],
@@ -130,6 +137,141 @@ class _DesktopPlaybooksScreenState extends State<DesktopPlaybooksScreen> {
       _selectedPlaybook = null;
       _showEditor = true;
     });
+  }
+
+  Future<void> _createWithAi() async {
+    final description = await showDialog<String>(
+      context: context,
+      builder: (context) => const _AiCreateDialog(),
+    );
+    if (description == null || description.trim().isEmpty) return;
+
+    try {
+      final chatService = context.read<ChatService>();
+      final yaml = await PlaybookGenerator.generateYaml(
+        chatService.currentService,
+        description,
+      );
+      if (mounted) {
+        _yamlController.text = yaml;
+        setState(() {
+          _selectedPlaybook = null;
+          _showEditor = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Generated — review the YAML, then Save',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI generation failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editActionStep(
+    Playbook playbook,
+    String actionName,
+    int stepIndex,
+  ) async {
+    final source = playbook.sourceYaml;
+    if (source == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This playbook has no editable YAML source'),
+        ),
+      );
+      return;
+    }
+
+    final doc = _toPlainMap(loadYaml(source));
+    final actions = doc['actions'] as Map<String, dynamic>?;
+    final steps = actions?[actionName]?['steps'] as List?;
+    if (steps == null || stepIndex < 0 || stepIndex >= steps.length) return;
+
+    final controller = TextEditingController(
+      text: emitYaml(steps[stepIndex]),
+    );
+    final edited = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit step'),
+        content: SizedBox(
+          width: 560,
+          child: TextField(
+            controller: controller,
+            maxLines: 16,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Step YAML',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, null),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              try {
+                loadYaml(controller.text);
+                Navigator.pop(dialogContext, controller.text);
+              } catch (e) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  SnackBar(content: Text('Invalid YAML: $e')),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (edited == null) return;
+
+    try {
+      final newStep = _toPlain(loadYaml(edited));
+      steps[stepIndex] = newStep;
+      final service = context.read<PlaybookService>();
+      final updated = await service.importFromYaml(emitYaml(doc));
+      if (mounted) {
+        setState(() => _selectedPlaybook = updated);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Step updated')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save step: $e')),
+        );
+      }
+    }
+  }
+
+  Map<String, dynamic> _toPlainMap(dynamic yaml) {
+    final plain = _toPlain(yaml);
+    if (plain is Map<String, dynamic>) return plain;
+    throw const FormatException('Playbook YAML root is not a map');
+  }
+
+  static dynamic _toPlain(dynamic value) {
+    if (value is Map) {
+      return value.map((k, v) => MapEntry(k.toString(), _toPlain(v)));
+    }
+    if (value is List) {
+      return value.map(_toPlain).toList();
+    }
+    return value;
   }
 
   Future<void> _savePlaybook() async {
@@ -519,6 +661,7 @@ class _PlaybookDetail extends StatelessWidget {
   final VoidCallback onExport;
   final ValueChanged<bool> onToggleEnabled;
   final VoidCallback onConfigure;
+  final void Function(String actionName, int stepIndex)? onEditStep;
 
   const _PlaybookDetail({
     required this.playbook,
@@ -527,6 +670,7 @@ class _PlaybookDetail extends StatelessWidget {
     required this.onExport,
     required this.onToggleEnabled,
     required this.onConfigure,
+    this.onEditStep,
   });
 
   @override
@@ -613,8 +757,15 @@ class _PlaybookDetail extends StatelessWidget {
           // Configuration warning
           if (!playbook.isConfigured) ...[
             const SizedBox(height: AppConstants.spacingM),
-            LiquidGlassContainer(
+            Container(
               padding: const EdgeInsets.all(AppConstants.spacingM),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                border: Border.all(
+                  color: theme.dividerColor.withValues(alpha: 0.3),
+                ),
+              ),
               child: Row(
                 children: [
                   Icon(Icons.warning_amber, color: Colors.orange.shade400),
@@ -636,7 +787,7 @@ class _PlaybookDetail extends StatelessWidget {
                       ],
                     ),
                   ),
-                  LiquidGlassButton(
+                  FilledButton(
                     onPressed: onConfigure,
                     child: const Text('Configure'),
                   ),
@@ -671,8 +822,16 @@ class _PlaybookDetail extends StatelessWidget {
                     padding: const EdgeInsets.only(
                       bottom: AppConstants.spacingS,
                     ),
-                    child: LiquidGlassContainer(
+                    child: Container(
                       padding: const EdgeInsets.all(AppConstants.spacingM),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius:
+                            BorderRadius.circular(AppConstants.radiusM),
+                        border: Border.all(
+                          color: theme.dividerColor.withValues(alpha: 0.3),
+                        ),
+                      ),
                       child: Row(
                         children: [
                           const Icon(Icons.bolt, size: 20),
@@ -722,6 +881,15 @@ class _PlaybookDetail extends StatelessWidget {
             ),
           ),
 
+          // Workflow flowchart (tap a step to edit its YAML block)
+          _Section(
+            title: 'Workflow',
+            child: PlaybookFlowchart(
+              playbook: playbook,
+              onEditStep: onEditStep,
+            ),
+          ),
+
           // Config fields
           if (playbook.config.isNotEmpty) ...[
             const SizedBox(height: AppConstants.spacingL),
@@ -733,8 +901,16 @@ class _PlaybookDetail extends StatelessWidget {
                     padding: const EdgeInsets.only(
                       bottom: AppConstants.spacingS,
                     ),
-                    child: LiquidGlassContainer(
+                    child: Container(
                       padding: const EdgeInsets.all(AppConstants.spacingM),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius:
+                            BorderRadius.circular(AppConstants.radiusM),
+                        border: Border.all(
+                          color: theme.dividerColor.withValues(alpha: 0.3),
+                        ),
+                      ),
                       child: Row(
                         children: [
                           Icon(
@@ -819,8 +995,13 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return LiquidGlassContainer(
+    return Container(
       padding: const EdgeInsets.all(AppConstants.spacingM),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppConstants.radiusM),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1234,9 +1415,13 @@ class _ConfigDialogState extends State<_ConfigDialog> {
 class _EmptyState extends StatelessWidget {
   final VoidCallback onImport;
   final VoidCallback onNew;
+  final VoidCallback onNewWithAi;
 
-  const _EmptyState({required this.onImport, required this.onNew});
-
+  const _EmptyState({
+    required this.onImport,
+    required this.onNew,
+    required this.onNewWithAi,
+  });
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1272,6 +1457,12 @@ class _EmptyState extends StatelessWidget {
                 icon: const Icon(Icons.add),
                 label: const Text('New Playbook'),
               ),
+              const SizedBox(width: AppConstants.spacingM),
+              OutlinedButton.icon(
+                onPressed: onNewWithAi,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('New with AI'),
+              ),
             ],
           ),
           const SizedBox(height: AppConstants.spacingM),
@@ -1282,6 +1473,71 @@ class _EmptyState extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Dialog collecting the natural-language description for AI-assisted
+/// playbook creation
+class _AiCreateDialog extends StatefulWidget {
+  const _AiCreateDialog();
+
+  @override
+  State<_AiCreateDialog> createState() => _AiCreateDialogState();
+}
+
+class _AiCreateDialogState extends State<_AiCreateDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create with AI'),
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Describe what the playbook should do: which API or service, '
+              'what to ask for in chat, and what data to return. Include the '
+              'service URL and auth details if you know them.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              maxLines: 6,
+              autofocus: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText:
+                    'e.g. Check the unpaid sales invoices in my ERPNext at '
+                    'https://erp.example.com using token auth; I want to ask '
+                    'about invoices over a certain amount',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('Generate'),
+        ),
+      ],
     );
   }
 }

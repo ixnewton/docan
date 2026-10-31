@@ -10,7 +10,6 @@ import 'package:mime/mime.dart';
 import '../config/constants.dart';
 import '../models/chat_message.dart';
 import '../utils/file_processor.dart';
-import '../utils/liquid_glass_effects.dart';
 
 /// Liquid Glass styled chat input field
 class ChatInput extends StatefulWidget {

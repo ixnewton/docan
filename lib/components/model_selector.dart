@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
 import '../models/ai_provider.dart';
@@ -606,6 +608,14 @@ class _ModelSelectorState extends State<ModelSelector> {
 
     if (!context.mounted) return;
 
+    // Let the menu grow rightward to fit its content (no ellipsis) until it
+    // approaches the panel's right margin
+    final overlaySize = overlay.size;
+    final maxMenuWidth = math.max(
+      112.0,
+      overlaySize.width - offset.dx - 16,
+    );
+
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -614,6 +624,7 @@ class _ModelSelectorState extends State<ModelSelector> {
         offset.dx + button.size.width,
         offset.dy + 4,
       ),
+      constraints: BoxConstraints(maxWidth: maxMenuWidth),
       items: models.map((model) {
         final rate = pricing[model];
         return PopupMenuItem<String>(

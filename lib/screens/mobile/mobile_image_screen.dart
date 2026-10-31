@@ -7,7 +7,6 @@ import '../../config/constants.dart';
 import '../../components/comfyui_settings_panel.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/image_generation_service.dart';
-import '../../utils/liquid_glass_effects.dart';
 
 /// Mobile image generation screen
 class MobileImageScreen extends StatefulWidget {
@@ -307,8 +306,13 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
       return Padding(
         padding: const EdgeInsets.all(AppConstants.spacingM),
         child: Center(
-          child: LiquidGlassContainer(
-            padding: const EdgeInsets.all(AppConstants.spacingL),
+          child: Container(
+              padding: const EdgeInsets.all(AppConstants.spacingL),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+              ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -327,12 +331,9 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppConstants.spacingM),
-                LiquidGlassButton(
+                FilledButton(
                   onPressed: service.clearError,
-                  child: const Text(
-                    'Try Again',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  child: const Text('Try Again'),
                 ),
               ],
             ),
@@ -416,28 +417,28 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: LiquidGlassTextField(
+                child: TextField(
                   controller: _promptController,
                   focusNode: _promptFocusNode,
-                  hintText: hasApiKey
-                      ? 'Describe your image...'
-                      : 'Add API key in settings first',
                   enabled: hasApiKey && !service.isGenerating,
                   maxLines: 4,
                   minLines: 1,
                   onSubmitted: (_) => _generateImage(),
+                  decoration: InputDecoration(
+                    hintText: hasApiKey
+                        ? 'Describe your image...'
+                        : 'Add API key in settings first',
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
               ),
               const SizedBox(width: AppConstants.spacingS),
-              LiquidGlassButton(
+              FilledButton(
                 onPressed: hasApiKey && !service.isGenerating
                     ? _generateImage
                     : null,
-                isLoading: service.isGenerating,
-                padding: const EdgeInsets.all(AppConstants.spacingM),
                 child: const Icon(
                   Icons.auto_awesome,
-                  color: Colors.white,
                   size: 24,
                 ),
               ),
@@ -482,11 +483,16 @@ class _ExamplePrompts extends StatelessWidget {
           children: _prompts.map((prompt) {
             return GestureDetector(
               onTap: () => onSelect(prompt),
-              child: LiquidGlassContainer(
-                padding: const EdgeInsets.symmetric(
+              child: Container(
+                  padding: const EdgeInsets.symmetric(
                   horizontal: AppConstants.spacingM,
                   vertical: AppConstants.spacingS,
                 ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                  ),
                 child: Text(prompt, style: theme.textTheme.bodySmall),
               ),
             );
@@ -518,8 +524,13 @@ class _MobileImageViewer extends StatelessWidget {
       child: Column(
         children: [
           // Image
-          LiquidGlassContainer(
-            padding: const EdgeInsets.all(AppConstants.spacingS),
+          Container(
+              padding: const EdgeInsets.all(AppConstants.spacingS),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+              ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusS),
               child: Image.memory(image.imageData, fit: BoxFit.contain),
@@ -532,34 +543,18 @@ class _MobileImageViewer extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: LiquidGlassButton(
+                child: FilledButton.icon(
                   onPressed: onSave,
-                  backgroundColor: theme.primaryColor,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.save_alt, color: Colors.white, size: 20),
-                      SizedBox(width: AppConstants.spacingS),
-                      Text('Save', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
+                  icon: const Icon(Icons.save_alt, size: 20),
+                  label: const Text('Save'),
                 ),
               ),
               const SizedBox(width: AppConstants.spacingM),
               Expanded(
-                child: LiquidGlassButton(
+                child: FilledButton.icon(
                   onPressed: onCopyPrompt,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.copy, color: Colors.white, size: 20),
-                      SizedBox(width: AppConstants.spacingS),
-                      Text(
-                        'Copy Prompt',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
+                  icon: const Icon(Icons.copy, size: 20),
+                  label: const Text('Copy Prompt'),
                 ),
               ),
             ],
@@ -568,8 +563,13 @@ class _MobileImageViewer extends StatelessWidget {
           const SizedBox(height: AppConstants.spacingM),
 
           // Info card
-          LiquidGlassContainer(
-            padding: const EdgeInsets.all(AppConstants.spacingM),
+          Container(
+              padding: const EdgeInsets.all(AppConstants.spacingM),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+              ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

@@ -5,7 +5,6 @@ import '../../models/ai_provider.dart';
 import '../../services/chat_service.dart';
 import '../../services/storage_service.dart';
 import '../../components/settings_form.dart';
-import '../../utils/liquid_glass_effects.dart';
 import '../../utils/theme_provider.dart';
 
 /// Mobile settings screen with iOS 26 Liquid Glass design
@@ -107,11 +106,24 @@ class _MobileSettingsScreenState extends State<MobileSettingsScreen> {
         child: Column(
           children: [
             // Nav bar
-            LiquidGlassNavBar(
+            Container(
+              margin: const EdgeInsets.symmetric(
+                horizontal: AppConstants.spacingM,
+                vertical: AppConstants.spacingS,
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppConstants.spacingM,
+              ),
+              height: AppConstants.navBarHeightFull,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(AppConstants.radiusNavBar),
+                border: Border.all(color: theme.dividerColor),
+              ),
               child: Row(
                 children: [
-                  LiquidGlassIconButton(
-                    icon: Icons.arrow_back,
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: AppConstants.spacingS),

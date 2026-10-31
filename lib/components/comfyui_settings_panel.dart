@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../config/constants.dart';
 import '../services/image_generation_service.dart';
-import '../utils/liquid_glass_effects.dart';
 
 /// ComfyUI settings panel for configuring generation parameters
 class ComfyUISettingsPanel extends StatefulWidget {
@@ -270,8 +269,13 @@ class _ComfyUISettingsPanelState extends State<ComfyUISettingsPanel> {
       children: [
         Text('Sampler', style: theme.textTheme.labelMedium),
         const SizedBox(height: AppConstants.spacingXS),
-        LiquidGlassContainer(
+        Container(
           padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingM),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppConstants.radiusM),
+            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+          ),
           child: DropdownButton<String>(
             value: widget.settings.sampler,
             isExpanded: true,
@@ -297,8 +301,13 @@ class _ComfyUISettingsPanelState extends State<ComfyUISettingsPanel> {
       children: [
         Text('Scheduler', style: theme.textTheme.labelMedium),
         const SizedBox(height: AppConstants.spacingXS),
-        LiquidGlassContainer(
+        Container(
           padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingM),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppConstants.radiusM),
+            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+          ),
           child: DropdownButton<String>(
             value: widget.settings.scheduler,
             isExpanded: true,
@@ -393,7 +402,7 @@ class _ComfyUISettingsPanelState extends State<ComfyUISettingsPanel> {
                 children: [
                   Text('Width', style: theme.textTheme.labelMedium),
                   const SizedBox(height: AppConstants.spacingXS),
-                  LiquidGlassTextField(
+                  TextField(
                     controller: _widthController,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -419,7 +428,7 @@ class _ComfyUISettingsPanelState extends State<ComfyUISettingsPanel> {
                 children: [
                   Text('Height', style: theme.textTheme.labelMedium),
                   const SizedBox(height: AppConstants.spacingXS),
-                  LiquidGlassTextField(
+                  TextField(
                     controller: _heightController,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -484,9 +493,9 @@ class _ComfyUISettingsPanelState extends State<ComfyUISettingsPanel> {
     return Row(
       children: [
         Expanded(
-          child: LiquidGlassTextField(
+          child: TextField(
             controller: _seedController,
-            hintText: 'Random (-1)',
+            decoration: const InputDecoration(hintText: 'Random (-1)'),
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: (value) {
@@ -496,8 +505,8 @@ class _ComfyUISettingsPanelState extends State<ComfyUISettingsPanel> {
           ),
         ),
         const SizedBox(width: AppConstants.spacingS),
-        LiquidGlassIconButton(
-          icon: Icons.casino,
+        IconButton(
+          icon: const Icon(Icons.casino),
           tooltip: 'Random seed',
           onPressed: _randomizeSeed,
         ),
@@ -506,9 +515,12 @@ class _ComfyUISettingsPanelState extends State<ComfyUISettingsPanel> {
   }
 
   Widget _buildNegativePromptField(ThemeData theme) {
-    return LiquidGlassTextField(
+    return TextField(
       controller: _negativePromptController,
-      hintText: 'Things to avoid in the image...',
+      decoration: const InputDecoration(
+        hintText: 'Things to avoid in the image...',
+        border: OutlineInputBorder(),
+      ),
       maxLines: 3,
       onChanged: (value) {
         _updateSettings(widget.settings.copyWith(negativePrompt: value));

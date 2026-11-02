@@ -1,16 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../config/constants.dart';
 import '../models/ai_provider.dart';
+import '../models/usage_stats.dart';
 import '../utils/api_error_parser.dart';
 import 'storage_service.dart';
 
 /// Image provider for image generation
-enum ImageGenProvider { gemini, openai, comfyui }
+enum ImageGenProvider { gemini, openai, comfyui, openrouter }
 
 /// Extension methods for ImageGenProvider
 extension ImageGenProviderExtension on ImageGenProvider {
@@ -22,6 +25,8 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return 'DALL-E';
       case ImageGenProvider.comfyui:
         return 'ComfyUI';
+      case ImageGenProvider.openrouter:
+        return 'OpenRouter';
     }
   }
 
@@ -33,6 +38,8 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return 'OpenAI DALL-E';
       case ImageGenProvider.comfyui:
         return 'ComfyUI Local Image Generation';
+      case ImageGenProvider.openrouter:
+        return 'OpenRouter image-capable models';
     }
   }
 
@@ -45,6 +52,11 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return ['dall-e-3', 'dall-e-2', 'gpt-image-1'];
       case ImageGenProvider.comfyui:
         return ['default'];
+      case ImageGenProvider.openrouter:
+        return [
+          'google/gemini-nano-banana-2.1',
+          'google/gemini-2.5-flash-image',
+        ];
     }
   }
 
@@ -56,6 +68,8 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return 'dall-e-3';
       case ImageGenProvider.comfyui:
         return 'default';
+      case ImageGenProvider.openrouter:
+        return 'google/gemini-nano-banana-2.1';
     }
   }
 
@@ -73,6 +87,8 @@ extension ImageGenProviderExtension on ImageGenProvider {
         return Icons.palette;
       case ImageGenProvider.comfyui:
         return Icons.brush;
+      case ImageGenProvider.openrouter:
+        return Icons.hub_outlined;
     }
   }
 }
@@ -233,6 +249,60 @@ extension ImageSizeExtension on ImageSize {
   }
 }
 
+/// A saved image recorded in the image history
+class SavedImageRecord {
+  final String fileName;
+  final String prompt;
+  final String provider;
+  final String model;
+  final DateTime savedAt;
+
+  const SavedImageRecord({
+    required this.fileName,
+    required this.prompt,
+    required this.provider,
+    required this.model,
+    required this.savedAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'fileName': fileName,
+    'prompt': prompt,
+    'provider': provider,
+    'model': model,
+    'savedAt': savedAt.millisecondsSinceEpoch,
+  };
+
+  factory SavedImageRecord.fromJson(Map<String, dynamic> json) {
+    return SavedImageRecord(
+      fileName: json['fileName']?.toString() ?? '',
+      prompt: json['prompt']?.toString() ?? '',
+      provider: json['provider']?.toString() ?? '',
+      model: json['model']?.toString() ?? '',
+      savedAt: DateTime.fromMillisecondsSinceEpoch(
+        (json['savedAt'] as num?)?.toInt() ?? 0,
+      ),
+    );
+  }
+
+  static List<SavedImageRecord> listFromJson(String raw) {
+    if (raw.isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map(SavedImageRecord.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static String listToJson(List<SavedImageRecord> records) {
+    return jsonEncode(records.map((r) => r.toJson()).toList());
+  }
+}
+
 /// Image generation service
 class ImageGenerationService extends ChangeNotifier {
   final StorageService _storage;
@@ -243,6 +313,12 @@ class ImageGenerationService extends ChangeNotifier {
   String? _error;
   final List<GeneratedImage> _generatedImages = [];
   ComfyUISettings _comfyUISettings = const ComfyUISettings();
+  Map<String, Map<String, UsageStats>> _imageUsage = {};
+  List<SavedImageRecord> _imageHistory = [];
+  String? _saveFolderOverride;
+
+  /// Billed cost of the most recent generation (null when not reported)
+  double? lastGenerationCost;
 
   ImageGenerationService(this._storage);
 
@@ -256,20 +332,46 @@ class ImageGenerationService extends ChangeNotifier {
 
   /// Initialize the service
   Future<void> initialize() async {
-    // Load any saved settings if needed
+    final savedName = await _storage.getImageProvider();
+    final savedProvider = ImageGenProvider.values
+        .where((p) => p.name == savedName)
+        .firstOrNull;
+    if (savedProvider != null) {
+      _selectedProvider = savedProvider;
+      _selectedModel =
+          await _storage.getImageModelForProvider(savedProvider.name) ??
+          savedProvider.defaultModel;
+    }
+    _imageUsage = usageStatsFromJson(
+      await _storage.getImageUsageStats() ?? '',
+    );
+    _imageHistory = List.of(
+      SavedImageRecord.listFromJson(
+        await _storage.getImageHistory() ?? '',
+      ),
+    );
+    _saveFolderOverride = await _storage.getImageSaveFolder();
+    final trimmed = _saveFolderOverride?.trim();
+    _saveFolderOverride =
+        (trimmed == null || trimmed.isEmpty) ? null : trimmed;
     notifyListeners();
   }
 
-  /// Set the selected provider
-  void setProvider(ImageGenProvider provider) {
+  /// Set the selected provider (remembers the provider's last-used model)
+  Future<void> setProvider(ImageGenProvider provider) async {
     _selectedProvider = provider;
-    _selectedModel = provider.defaultModel;
+    _selectedModel =
+        await _storage.getImageModelForProvider(provider.name) ??
+        provider.defaultModel;
+    await _storage.setImageProvider(provider.name);
+    await _storage.setImageModelForProvider(provider.name, _selectedModel);
     notifyListeners();
   }
 
-  /// Set the selected model
-  void setModel(String model) {
+  /// Set the selected model (persisted per provider)
+  Future<void> setModel(String model) async {
     _selectedModel = model;
+    await _storage.setImageModelForProvider(_selectedProvider.name, model);
     notifyListeners();
   }
 
@@ -277,6 +379,114 @@ class ImageGenerationService extends ChangeNotifier {
   void updateComfyUISettings(ComfyUISettings settings) {
     _comfyUISettings = settings;
     notifyListeners();
+  }
+
+  void _recordImageUsage(Map<String, dynamic> usage) {
+    final cost = (usage['cost'] as num?)?.toDouble();
+    lastGenerationCost = cost;
+    final tokenUsage = TokenUsage(
+      promptTokens: (usage['prompt_tokens'] as num?)?.toInt() ?? 0,
+      completionTokens: (usage['completion_tokens'] as num?)?.toInt() ?? 0,
+      totalTokens: (usage['total_tokens'] as num?)?.toInt() ?? 0,
+      costUsd: cost,
+    );
+    if (tokenUsage.totalTokens == 0 && cost == null) return;
+    final models = _imageUsage.putIfAbsent(_selectedProvider.name, () => {});
+    final stats = models.putIfAbsent(_selectedModel, () => UsageStats());
+    stats.add(tokenUsage);
+    _storage.setImageUsageStats(usageStatsToJson(_imageUsage));
+  }
+
+  /// Aggregated image-generation usage for a provider across its models
+  UsageStats? imageUsageForProvider(ImageGenProvider provider) {
+    final models = _imageUsage[provider.name];
+    if (models == null || models.isEmpty) return null;
+    final total = UsageStats();
+    for (final stats in models.values) {
+      total.addAll(stats);
+    }
+    return total;
+  }
+
+  // Saved-image history
+
+  /// Saved-image records in creation order (oldest first)
+  List<SavedImageRecord> get imageHistory =>
+      List.unmodifiable(_imageHistory);
+
+  /// The configured save folder override (null = default Documents/Docan)
+  String? get saveFolderOverride => _saveFolderOverride;
+
+  Future<void> setSaveFolderOverride(String? path) async {
+    _saveFolderOverride = (path != null && path.trim().isEmpty)
+        ? null
+        : path;
+    if (_saveFolderOverride != null) {
+      await _storage.setImageSaveFolder(_saveFolderOverride!);
+    } else {
+      await _storage.setImageSaveFolder('');
+    }
+    notifyListeners();
+  }
+
+  /// Resolves the save folder: the settings override when set, otherwise
+  /// ~/Documents/Docan (created when missing)
+  Future<String> resolveSaveFolder() async {
+    String base;
+    if (_saveFolderOverride != null) {
+      base = _saveFolderOverride!;
+    } else {
+      final docs = await getApplicationDocumentsDirectory();
+      base = '${docs.path}${Platform.pathSeparator}Docan';
+    }
+    final dir = Directory(base);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+    return base;
+  }
+
+  /// Saves an image into the resolved save folder and records it in the
+  /// history (file name + prompt, in creation order). Returns the path.
+  Future<String> saveImageToHistory(GeneratedImage image) async {
+    final folder = await resolveSaveFolder();
+    final fileName = 'docan_image_${DateTime.now().millisecondsSinceEpoch}.png';
+    final filePath = '$folder${Platform.pathSeparator}$fileName';
+    await File(filePath).writeAsBytes(image.imageData);
+
+    _imageHistory.add(
+      SavedImageRecord(
+        fileName: fileName,
+        prompt: image.prompt,
+        provider: image.provider.name,
+        model: image.model,
+        savedAt: DateTime.now(),
+      ),
+    );
+    await _storage.setImageHistory(
+      SavedImageRecord.listToJson(_imageHistory),
+    );
+    notifyListeners();
+    return filePath;
+  }
+
+  /// History records grouped by calendar day, newest day first. Records
+  /// whose file is missing from the save folder are dropped.
+  Future<Map<DateTime, List<SavedImageRecord>>> historyByDay({
+    String? folder,
+  }) async {
+    final resolvedFolder = folder ?? await resolveSaveFolder();
+    DateTime dayKey(DateTime d) => DateTime(d.year, d.month, d.day);
+    final groups = <DateTime, List<SavedImageRecord>>{};
+    for (final record in _imageHistory) {
+      if (!File('$resolvedFolder${Platform.pathSeparator}${record.fileName}')
+          .existsSync()) {
+        continue;
+      }
+      groups.putIfAbsent(dayKey(record.savedAt), () => []).add(record);
+    }
+    final sortedKeys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    return {for (final key in sortedKeys) key: groups[key]!};
   }
 
   /// Get configured providers (has API key)
@@ -287,9 +497,12 @@ class ImageGenerationService extends ChangeNotifier {
       if (provider == ImageGenProvider.comfyui) {
         hasKey = await _storage.hasComfyUIUrl();
       } else {
-        final aiProvider = provider == ImageGenProvider.gemini
-            ? AIProvider.gemini
-            : AIProvider.openai;
+        final aiProvider = switch (provider) {
+          ImageGenProvider.gemini => AIProvider.gemini,
+          ImageGenProvider.openai => AIProvider.openai,
+          ImageGenProvider.openrouter => AIProvider.openrouter,
+          _ => AIProvider.gemini,
+        };
         hasKey = await _storage.hasApiKey(aiProvider);
       }
       result[provider] = hasKey;
@@ -306,7 +519,100 @@ class ImageGenerationService extends ChangeNotifier {
         return _fetchOpenAIImageModels();
       case ImageGenProvider.comfyui:
         return _fetchComfyUIWorkflows();
+      case ImageGenProvider.openrouter:
+        return _fetchOpenRouterImageModels();
     }
+  }
+
+  /// Fetch OpenRouter image models. Primary: GET /images/models — the
+  /// authoritative list of models the Image API serves (the same set as
+  /// OpenRouter's image-models collection). Fallback: /models filtered to
+  /// image output modalities (chat-completions image models).
+  Future<List<String>> _fetchOpenRouterImageModels() async {
+    try {
+      final response = await http
+          .get(Uri.parse('${AppConstants.openRouterBaseUrl}/images/models'))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final models = data['data'] as List<dynamic>?;
+        if (models != null) {
+          final ids = models
+              .whereType<Map<String, dynamic>>()
+              .map((m) => m['id'])
+              .whereType<String>()
+              .where((id) => id.isNotEmpty)
+              .toList()
+            ..sort();
+          if (ids.isNotEmpty) return ids;
+        }
+      }
+      debugPrint(
+        '[ImageGen] /images/models unavailable (${response.statusCode}); '
+        'falling back to /models filtering',
+      );
+    } catch (e) {
+      debugPrint('[ImageGen] Error fetching /images/models: $e');
+    }
+
+    final apiKey = await _storage.getApiKey(AIProvider.openrouter);
+    if (apiKey == null || apiKey.isEmpty) {
+      return ImageGenProvider.openrouter.fallbackModels;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConstants.openRouterBaseUrl}/models'),
+        headers: {'Authorization': 'Bearer $apiKey'},
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          '[ImageGen] Failed to fetch OpenRouter models: ${response.statusCode}',
+        );
+        return ImageGenProvider.openrouter.fallbackModels;
+      }
+
+      final data = jsonDecode(response.body);
+      final models = data['data'] as List<dynamic>?;
+      if (models == null) {
+        return ImageGenProvider.openrouter.fallbackModels;
+      }
+
+      final imageModels = filterImageModels(models)..sort();
+      return imageModels.isEmpty
+          ? ImageGenProvider.openrouter.fallbackModels
+          : imageModels;
+    } catch (e) {
+      debugPrint('[ImageGen] Error fetching OpenRouter models: $e');
+      return ImageGenProvider.openrouter.fallbackModels;
+    }
+  }
+
+  /// Filters a /models payload to image-capable model ids
+  static List<String> filterImageModels(List<dynamic> models) {
+    return models
+        .whereType<Map<String, dynamic>>()
+        .where((m) {
+          final arch = m['architecture'];
+          final modalities =
+              arch is Map<String, dynamic> ? arch['output_modalities'] : null;
+          return modalities is List && modalities.contains('image');
+        })
+        .map((m) => m['id'])
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+  }
+
+  /// Extracts an inline base64 image from a model response that embeds it
+  /// as a markdown data URL. Returns (mimeType, base64) or null.
+  static (String, String)? extractImageData(String content) {
+    final match = RegExp(
+      r'!\[[^\]]*\]\(data:image/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)\)',
+    ).firstMatch(content);
+    if (match == null) return null;
+    return (match.group(1)!, match.group(2)!);
   }
 
   /// Fetch available Gemini image models from API
@@ -430,6 +736,9 @@ class ImageGenerationService extends ChangeNotifier {
           break;
         case ImageGenProvider.comfyui:
           image = await _generateWithComfyUI(prompt, size);
+          break;
+        case ImageGenProvider.openrouter:
+          image = await _generateWithOpenRouter(prompt, size);
           break;
       }
 
@@ -642,6 +951,190 @@ class ImageGenerationService extends ChangeNotifier {
       debugPrint('[ImageGen] Error fetching ComfyUI checkpoints: $e');
       return ImageGenProvider.comfyui.fallbackModels;
     }
+  }
+
+  /// Generate image via OpenRouter. Primary path: the dedicated /images
+  /// endpoint (returns b64_json plus billed cost). Fallback: chat
+  /// completions, which returns the image in message.images.
+  Future<GeneratedImage?> _generateWithOpenRouter(
+    String prompt,
+    ImageSize size,
+  ) async {
+    final apiKey = await _storage.getApiKey(AIProvider.openrouter);
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception('OpenRouter API key not set');
+    }
+
+    debugPrint('[ImageGen] OpenRouter generating with $_selectedModel...');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $apiKey',
+      'HTTP-Referer': 'https://github.com/CxOrg/openrouter-mcp',
+      'X-Title': 'Docan',
+    };
+
+    http.Response response = await http
+        .post(
+          Uri.parse('${AppConstants.openRouterBaseUrl}/images'),
+          headers: headers,
+          body: jsonEncode({
+            'model': _selectedModel,
+            'prompt': prompt,
+            'aspect_ratio': size == ImageSize.hd ? '16:9' : '1:1',
+          }),
+        )
+        .timeout(const Duration(minutes: 3));
+
+    // Some models are not routed through /images — fall back to chat
+    // completions, which returns the image in message.images
+    if (response.statusCode == 404 || response.statusCode == 400) {
+      debugPrint(
+        '[ImageGen] /images unsupported (${response.statusCode}); '
+        'trying chat completions',
+      );
+      response = await http
+          .post(
+            Uri.parse('${AppConstants.openRouterBaseUrl}/chat/completions'),
+            headers: headers,
+            body: jsonEncode({
+              'model': _selectedModel,
+              'messages': [
+                {'role': 'user', 'content': prompt},
+              ],
+              'modalities': ['image', 'text'],
+              'usage': {'include': true},
+            }),
+          )
+          .timeout(const Duration(minutes: 3));
+    }
+
+    debugPrint('[ImageGen] OpenRouter response status: ${response.statusCode}');
+    if (response.statusCode != 200) {
+      String errorMessage = 'OpenRouter API error';
+      try {
+        final error = jsonDecode(response.body);
+        errorMessage = error['error']?['message'] ?? errorMessage;
+      } catch (_) {}
+      throw Exception(
+        ApiErrorParser.parse(errorMessage, response.statusCode),
+      );
+    }
+
+    final data = jsonDecode(response.body);
+    final (mimeType, base64Data) = extractOpenRouterImage(data);
+    if (base64Data == null || base64Data.isEmpty) {
+      throw Exception('The model did not return an image');
+    }
+
+    final usage = data['usage'];
+    if (usage is Map<String, dynamic>) {
+      _recordImageUsage(usage);
+    }
+
+    return GeneratedImage(
+      prompt: prompt,
+      imageData: base64Decode(base64Data),
+      mimeType: mimeType,
+      provider: ImageGenProvider.openrouter,
+      model: _selectedModel,
+    );
+  }
+
+  /// Extracts (mimeType, base64) from an OpenRouter image response:
+  /// /images returns data[0].b64_json; chat completions returns the image
+  /// in message.images (image_url data URLs) or inline in the content.
+  static (String, String?) extractOpenRouterImage(Map<String, dynamic> data) {
+    final dataList = data['data'];
+    if (dataList is List && dataList.isNotEmpty) {
+      final first = dataList[0];
+      final b64 = first is Map<String, dynamic>
+          ? first['b64_json']?.toString()
+          : null;
+      if (b64 != null && b64.isNotEmpty) {
+        return (detectImageMime(base64Decode(b64)), b64);
+      }
+    }
+
+    dynamic message;
+    if (data['choices'] is List && (data['choices'] as List).isNotEmpty) {
+      final choice = (data['choices'] as List)[0];
+      if (choice is Map<String, dynamic>) message = choice['message'];
+    }
+    if (message is Map<String, dynamic>) {
+      final images = message['images'];
+      if (images is List) {
+        for (final image in images) {
+          final url = image is Map<String, dynamic>
+              ? (image['image_url'] is Map<String, dynamic>
+                  ? image['image_url']['url']?.toString()
+                  : null)
+              : image?.toString();
+          if (url != null && url.startsWith('data:image/')) {
+            final parsed = parseDataUrl(url);
+            if (parsed != null) return parsed;
+          }
+        }
+      }
+      final content = message['content'];
+      if (content is String) {
+        final extracted = extractImageData(content);
+        if (extracted != null) return ('image/${extracted.$1}', extracted.$2);
+      } else if (content is List) {
+        for (final part in content) {
+          if (part is! Map<String, dynamic>) continue;
+          final url = part['image_url'] is Map<String, dynamic>
+              ? part['image_url']['url']?.toString()
+              : null;
+          if (url != null && url.startsWith('data:image/')) {
+            final parsed = parseDataUrl(url);
+            if (parsed != null) return parsed;
+          }
+        }
+      }
+    }
+    return ('image/png', null);
+  }
+
+  /// Parses a data URL into (full mime type, base64)
+  static (String, String)? parseDataUrl(String url) {
+    final match = RegExp(
+      r'^data:image/([a-zA-Z0-9.+-]+);base64,(.+)$',
+      dotAll: true,
+    ).firstMatch(url);
+    if (match == null) return null;
+    return ('image/${match.group(1)!}', match.group(2)!);
+  }
+
+  /// Detects the image mime type from magic bytes
+  static String detectImageMime(Uint8List bytes) {
+    if (bytes.length >= 4 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'image/png';
+    }
+    if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
+      return 'image/jpeg';
+    }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'image/webp';
+    }
+    if (bytes.length >= 6 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46) {
+      return 'image/gif';
+    }
+    return 'image/png';
   }
 
   /// Generate image with ComfyUI

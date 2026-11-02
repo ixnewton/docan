@@ -355,6 +355,61 @@ class StorageService {
     await _prefs?.setString(AppConstants.keyUsageStats, raw);
   }
 
+  // Image generation provider/model memory (stored as names to avoid a
+  // dependency cycle with the image service)
+
+  Future<void> setImageProvider(String providerName) async {
+    await _prefs?.setString(AppConstants.keyImageProvider, providerName);
+  }
+
+  Future<String?> getImageProvider() async {
+    return _prefs?.getString(AppConstants.keyImageProvider);
+  }
+
+  Future<void> setImageModelForProvider(
+    String providerName,
+    String modelId,
+  ) async {
+    await _prefs?.setString(
+      '${AppConstants.keyImageModelPrefix}$providerName',
+      modelId,
+    );
+  }
+
+  Future<String?> getImageModelForProvider(String providerName) async {
+    return _prefs?.getString(
+      '${AppConstants.keyImageModelPrefix}$providerName',
+    );
+  }
+
+  // Image generation usage/cost statistics
+
+  Future<String?> getImageUsageStats() async {
+    return _prefs?.getString(AppConstants.keyImageUsageStats);
+  }
+
+  Future<void> setImageUsageStats(String raw) async {
+    await _prefs?.setString(AppConstants.keyImageUsageStats, raw);
+  }
+
+  // Saved-image history and save folder
+
+  Future<String?> getImageHistory() async {
+    return _prefs?.getString(AppConstants.keyImageHistory);
+  }
+
+  Future<void> setImageHistory(String raw) async {
+    await _prefs?.setString(AppConstants.keyImageHistory, raw);
+  }
+
+  Future<String?> getImageSaveFolder() async {
+    return _prefs?.getString(AppConstants.keyImageSaveFolder);
+  }
+
+  Future<void> setImageSaveFolder(String path) async {
+    await _prefs?.setString(AppConstants.keyImageSaveFolder, path);
+  }
+
   // Provider verification (local servers remembered as configured once a
   // connection test has succeeded)
 

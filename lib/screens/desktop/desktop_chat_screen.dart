@@ -362,6 +362,22 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
     );
   }
 
+  AIProvider _aiProvider(String id) =>
+      AIProvider.values.firstWhere((p) => p.name == id);
+
+  List<SelectorProviderInfo> _providerDescriptors({
+    Map<AIProvider, ProviderStatus>? statuses,
+  }) {
+    final effective = statuses ?? _providerStatuses;
+    return AIProvider.values
+        .map(
+          (p) => p.toDescriptor(
+            effective[p] ?? ProviderStatus.notConfigured,
+          ),
+        )
+        .toList();
+  }
+
   Widget _buildSidebar(BuildContext context, ChatService chatService) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -512,15 +528,23 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> with WidgetsBindi
 
           // Model selector
           ModelSelector(
-            selectedProvider: chatService.selectedProvider,
+            providers: _providerDescriptors(),
+            selectedProviderId: chatService.selectedProvider.name,
             selectedModel: chatService.selectedModel,
-            onProviderChanged: chatService.setProvider,
+            onProviderChanged: (id) =>
+                chatService.setProvider(_aiProvider(id)),
             onModelChanged: chatService.setModel,
-            providerStatuses: _providerStatuses,
-            loadStatuses: _loadProviderStatuses,
-            fetchModels: chatService.getAvailableModels,
-            fetchVendorIcons: chatService.getVendorIcons,
-            fetchModelPricing: chatService.getModelPricing,
+            loadProviders: () async {
+              final statuses = await _loadProviderStatuses();
+              return _providerDescriptors(statuses: statuses);
+            },
+            fetchModels: (id) =>
+                chatService.getAvailableModels(_aiProvider(id)),
+            fetchVendorIcons: (id) =>
+                chatService.getVendorIcons(_aiProvider(id)),
+            fetchModelPricing: (id) =>
+                chatService.getModelPricing(_aiProvider(id)),
+            showVendorFilter: true,
           ),
 
           const SizedBox(width: AppConstants.spacingS),

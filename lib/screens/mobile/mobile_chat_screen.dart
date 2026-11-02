@@ -316,6 +316,22 @@ class _MobileChatScreenState extends State<MobileChatScreen>
     );
   }
 
+  AIProvider _aiProvider(String id) =>
+      AIProvider.values.firstWhere((p) => p.name == id);
+
+  List<SelectorProviderInfo> _providerDescriptors({
+    Map<AIProvider, ProviderStatus>? statuses,
+  }) {
+    final effective = statuses ?? _providerStatuses;
+    return AIProvider.values
+        .map(
+          (p) => p.toDescriptor(
+            effective[p] ?? ProviderStatus.notConfigured,
+          ),
+        )
+        .toList();
+  }
+
   Widget _buildNavBar(BuildContext context, ChatService chatService) {
     final theme = Theme.of(context);
 
@@ -353,15 +369,22 @@ class _MobileChatScreenState extends State<MobileChatScreen>
 
           // Model selector (compact)
           ModelSelector(
-            selectedProvider: chatService.selectedProvider,
+            providers: _providerDescriptors(),
+            selectedProviderId: chatService.selectedProvider.name,
             selectedModel: chatService.selectedModel,
-            onProviderChanged: chatService.setProvider,
+            onProviderChanged: (id) =>
+                chatService.setProvider(_aiProvider(id)),
             onModelChanged: chatService.setModel,
             compact: true,
-            providerStatuses: _providerStatuses,
-            loadStatuses: _loadProviderStatuses,
-            fetchModels: chatService.getAvailableModels,
-            fetchVendorIcons: chatService.getVendorIcons,
+            loadProviders: () async {
+              final statuses = await _loadProviderStatuses();
+              return _providerDescriptors(statuses: statuses);
+            },
+            fetchModels: (id) =>
+                chatService.getAvailableModels(_aiProvider(id)),
+            fetchVendorIcons: (id) =>
+                chatService.getVendorIcons(_aiProvider(id)),
+            showVendorFilter: true,
           ),
 
           const SizedBox(width: AppConstants.spacingS),

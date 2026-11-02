@@ -99,5 +99,10 @@ class AppConstants {
   static const String keyProviderVerifiedPrefix = 'provider_verified_';
   static const String keyProviderRecency = 'provider_recency';
   static const String keyUsageStats = 'usage_stats';
+  static const String keyImageProvider = 'image_provider';
+  static const String keyImageModelPrefix = 'image_model_';
+  static const String keyImageUsageStats = 'image_usage_stats';
+  static const String keyImageHistory = 'image_history';
+  static const String keyImageSaveFolder = 'image_save_folder';
   static const String keyConversations = 'conversations';
 }

@@ -12,7 +12,6 @@ void main() {
     late Attachment testImageAttachment;
     late Attachment testLargeAttachment;
     late Attachment testEmptyAttachment;
-    late Attachment testInvalidBase64Attachment;
 
     setUpAll(() {
       // Clear cache before each test
@@ -61,13 +60,6 @@ void main() {
         mimeType: 'text/plain',
         type: AttachmentType.file,
         bytes: Uint8List(0),
-      );
-
-      testInvalidBase64Attachment = Attachment(
-        name: 'invalid.txt',
-        mimeType: 'text/plain',
-        type: AttachmentType.file,
-        bytes: utf8.encode('test content'),
       );
     });
 

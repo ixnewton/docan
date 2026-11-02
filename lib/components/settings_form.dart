@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/constants.dart';
 import '../config/themes.dart';
 import '../models/ai_provider.dart';
+import '../services/image_generation_service.dart';
 
 /// Settings form for API keys and configuration
 class SettingsForm extends StatefulWidget {
@@ -67,6 +69,8 @@ class _SettingsFormState extends State<SettingsForm> {
   final TextEditingController _lmStudioTokenController = TextEditingController();
   final TextEditingController _comfyUIController = TextEditingController();
   final TextEditingController _systemPromptController = TextEditingController();
+  final TextEditingController _imageSaveFolderController =
+      TextEditingController();
   String _appVersion = '';
 
   @override
@@ -82,6 +86,8 @@ class _SettingsFormState extends State<SettingsForm> {
     _lmStudioTokenController.text = widget.lmStudioToken;
     _comfyUIController.text = widget.comfyUIUrl;
     _systemPromptController.text = widget.systemPrompt;
+    _imageSaveFolderController.text =
+        context.read<ImageGenerationService>().saveFolderOverride ?? '';
     _loadVersion();
   }
 
@@ -104,6 +110,7 @@ class _SettingsFormState extends State<SettingsForm> {
     _lmStudioTokenController.dispose();
     _comfyUIController.dispose();
     _systemPromptController.dispose();
+    _imageSaveFolderController.dispose();
     super.dispose();
   }
 
@@ -157,6 +164,16 @@ class _SettingsFormState extends State<SettingsForm> {
             const SizedBox(height: AppConstants.spacingM),
             _buildSystemPromptField(),
           ],
+        ),
+
+        const SizedBox(height: AppConstants.spacingL),
+
+        // Image Generation Section
+        _buildSection(
+          context,
+          title: 'Image Generation',
+          icon: Icons.image_outlined,
+          children: [_buildImageSaveFolderField()],
         ),
 
         const SizedBox(height: AppConstants.spacingL),
@@ -399,6 +416,52 @@ class _SettingsFormState extends State<SettingsForm> {
             ),
           ),
           onChanged: widget.onLMStudioTokenChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageSaveFolderField() {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.folder_outlined, size: 20),
+            const SizedBox(width: AppConstants.spacingM),
+            Text(
+              'Image save folder',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.spacingS),
+        TextField(
+          controller: _imageSaveFolderController,
+          decoration: InputDecoration(
+            hintText: 'Default: ~/Documents/Docan',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppConstants.radiusM),
+            ),
+            isDense: true,
+          ),
+          onChanged: (value) {
+            context.read<ImageGenerationService>().setSaveFolderOverride(
+                  value,
+                );
+          },
+        ),
+        const SizedBox(height: AppConstants.spacingXS),
+        Text(
+          'Saved images are recorded here with the prompt that created them. '
+          'Leave empty to use the default folder.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+          ),
         ),
       ],
     );

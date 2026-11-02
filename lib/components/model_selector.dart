@@ -5,32 +5,71 @@ import '../config/constants.dart';
 import '../models/ai_provider.dart';
 import '../models/usage_stats.dart';
 
+/// Provider descriptor for the selector, decoupling it from any specific
+/// provider enum so the same component serves chat (AIProvider) and image
+/// (ImageGenProvider) contexts.
+class SelectorProviderInfo {
+  final String id;
+  final String displayName;
+  final String? description;
+  final IconData icon;
+  final Color color;
+  final ProviderStatus status;
+  final List<String>? models;
+
+  const SelectorProviderInfo({
+    required this.id,
+    required this.displayName,
+    required this.icon,
+    required this.color,
+    this.description,
+    this.status = ProviderStatus.available,
+    this.models,
+  });
+}
+
+extension AIProviderDescriptor on AIProvider {
+  SelectorProviderInfo toDescriptor(ProviderStatus status) {
+    return SelectorProviderInfo(
+      id: name,
+      displayName: displayName,
+      description: description,
+      icon: icon,
+      color: color,
+      status: status,
+    );
+  }
+}
+
 /// Model and provider selector dropdown
 class ModelSelector extends StatefulWidget {
-  final AIProvider selectedProvider;
+  final List<SelectorProviderInfo> providers;
+  final String selectedProviderId;
   final String selectedModel;
-  final ValueChanged<AIProvider> onProviderChanged;
+  final ValueChanged<String> onProviderChanged;
   final ValueChanged<String> onModelChanged;
   final bool compact;
-  final Map<AIProvider, ProviderStatus>? providerStatuses;
-  final Future<Map<AIProvider, ProviderStatus>> Function()? loadStatuses;
-  final Future<List<String>> Function(AIProvider)? fetchModels;
-  final Future<Map<String, String>> Function(AIProvider)? fetchVendorIcons;
-  final Future<Map<String, ModelPricing>> Function(AIProvider)?
+  final Future<List<SelectorProviderInfo>> Function()? loadProviders;
+  final Future<List<String>> Function(String providerId)? fetchModels;
+  final Future<Map<String, String>> Function(String providerId)?
+      fetchVendorIcons;
+  final Future<Map<String, ModelPricing>> Function(String providerId)?
       fetchModelPricing;
+  final bool showVendorFilter;
 
   const ModelSelector({
     super.key,
-    required this.selectedProvider,
+    required this.providers,
+    required this.selectedProviderId,
     required this.selectedModel,
     required this.onProviderChanged,
     required this.onModelChanged,
     this.compact = false,
-    this.providerStatuses,
-    this.loadStatuses,
+    this.loadProviders,
     this.fetchModels,
     this.fetchVendorIcons,
     this.fetchModelPricing,
+    this.showVendorFilter = false,
   });
 
   @override
@@ -39,9 +78,24 @@ class ModelSelector extends StatefulWidget {
 
 class _ModelSelectorState extends State<ModelSelector> {
   List<String>? _cachedModels;
-  AIProvider? _cachedProvider;
+  String? _cachedProviderId;
   String? _vendor; // OpenRouter vendor ("provider") filter
   Map<String, ModelPricing>? _modelPricing;
+
+  SelectorProviderInfo get _selectedDescriptor {
+    return widget.providers.firstWhere(
+      (p) => p.id == widget.selectedProviderId,
+      orElse: () => SelectorProviderInfo(
+        id: widget.selectedProviderId,
+        displayName: widget.selectedProviderId,
+        icon: Icons.extension,
+        color: Colors.grey,
+      ),
+    );
+  }
+
+  bool get _vendorFilterActive =>
+      widget.showVendorFilter && widget.selectedProviderId == 'openrouter';
 
   @override
   void initState() {
@@ -53,23 +107,23 @@ class _ModelSelectorState extends State<ModelSelector> {
   @override
   void didUpdateWidget(ModelSelector oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedProvider != widget.selectedProvider ||
+    if (oldWidget.selectedProviderId != widget.selectedProviderId ||
         _modelVendor(widget.selectedModel) != _vendor) {
       _vendor = _modelVendor(widget.selectedModel);
     }
-    if (oldWidget.selectedProvider != widget.selectedProvider) {
+    if (oldWidget.selectedProviderId != widget.selectedProviderId) {
       _modelPricing = null;
       _loadPricing();
     }
   }
 
   Future<void> _loadPricing() async {
-    if (widget.selectedProvider != AIProvider.openrouter ||
-        widget.fetchModelPricing == null) {
+    if (!_vendorFilterActive || widget.fetchModelPricing == null) {
       return;
     }
     try {
-      final pricing = await widget.fetchModelPricing!(widget.selectedProvider);
+      final pricing =
+          await widget.fetchModelPricing!(widget.selectedProviderId);
       if (mounted && pricing.isNotEmpty) {
         setState(() => _modelPricing = pricing);
       }
@@ -84,42 +138,30 @@ class _ModelSelectorState extends State<ModelSelector> {
     return index > 0 ? modelId.substring(0, index) : null;
   }
 
-  ProviderStatus _statusOf(AIProvider provider) {
-    return _statusFor(widget.providerStatuses, provider);
-  }
-
-  static ProviderStatus _statusFor(
-    Map<AIProvider, ProviderStatus>? statuses,
-    AIProvider provider,
-  ) {
-    if (statuses == null) return ProviderStatus.available;
-    return statuses[provider] ?? ProviderStatus.notConfigured;
-  }
-
   bool _isDesktop(BuildContext context) {
     return MediaQuery.of(context).size.width >= 600;
   }
 
   Future<List<String>> _getModels() async {
     // Return cached if same provider
-    if (_cachedModels != null && _cachedProvider == widget.selectedProvider) {
+    if (_cachedModels != null && _cachedProviderId == widget.selectedProviderId) {
       return _cachedModels!;
     }
 
     if (widget.fetchModels != null) {
-      final models = await widget.fetchModels!(widget.selectedProvider);
+      final models = await widget.fetchModels!(widget.selectedProviderId);
       _cachedModels = models;
-      _cachedProvider = widget.selectedProvider;
+      _cachedProviderId = widget.selectedProviderId;
       return models;
     }
 
-    return widget.selectedProvider.availableModels;
+    return _selectedDescriptor.models ?? const [];
   }
 
   /// Models visible in the model picker (filtered to the OpenRouter vendor)
   Future<List<String>> _getVisibleModels() async {
     final models = await _getModels();
-    if (widget.selectedProvider == AIProvider.openrouter && _vendor != null) {
+    if (_vendorFilterActive && _vendor != null) {
       return models.where((m) => _modelVendor(m) == _vendor).toList();
     }
     return models;
@@ -148,7 +190,7 @@ class _ModelSelectorState extends State<ModelSelector> {
   Future<Map<String, String>> _getVendorIcons() async {
     if (widget.fetchVendorIcons == null) return const {};
     try {
-      return await widget.fetchVendorIcons!(widget.selectedProvider);
+      return await widget.fetchVendorIcons!(widget.selectedProviderId);
     } catch (_) {
       return const {};
     }
@@ -158,21 +200,22 @@ class _ModelSelectorState extends State<ModelSelector> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final selected = _selectedDescriptor;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         // Provider selector
-        _SelectorButton(
-          icon: widget.selectedProvider.icon,
-          label: widget.compact ? null : widget.selectedProvider.displayName,
-          color: widget.selectedProvider.color,
+        SelectorButton(
+          icon: selected.icon,
+          label: widget.compact ? null : selected.displayName,
+          color: selected.color,
           onTap: (buttonContext) => _showProviderPicker(context, buttonContext),
         ),
-        // OpenRouter vendor ("provider") selector — only when OpenRouter is active
-        if (widget.selectedProvider == AIProvider.openrouter) ...[
+        // OpenRouter vendor ("provider") selector — only when active
+        if (_vendorFilterActive) ...[
           const SizedBox(width: AppConstants.spacingS),
-          _SelectorButton(
+          SelectorButton(
             icon: Icons.category,
             label: widget.compact ? null : (_vendor ?? 'Provider'),
             color: isDark ? Colors.white70 : Colors.black54,
@@ -181,7 +224,7 @@ class _ModelSelectorState extends State<ModelSelector> {
         ],
         const SizedBox(width: AppConstants.spacingS),
         // Model selector
-        _SelectorButton(
+        SelectorButton(
           icon: Icons.memory,
           label: widget.compact
               ? null
@@ -229,16 +272,16 @@ class _ModelSelectorState extends State<ModelSelector> {
     _openProviderMenu(context, buttonContext);
   }
 
-  /// Refresh provider statuses before opening the menu so local-server
+  /// Refresh the provider list before opening the menu so local-server
   /// state (running / not running) is current
   Future<void> _openProviderMenu(
     BuildContext context,
     BuildContext buttonContext,
   ) async {
-    Map<AIProvider, ProviderStatus>? fresh;
-    if (widget.loadStatuses != null) {
+    List<SelectorProviderInfo>? fresh;
+    if (widget.loadProviders != null) {
       try {
-        fresh = await widget.loadStatuses!();
+        fresh = await widget.loadProviders!();
       } catch (_) {
         fresh = null;
       }
@@ -254,7 +297,7 @@ class _ModelSelectorState extends State<ModelSelector> {
   void _showProviderDropdown(
     BuildContext context,
     BuildContext buttonContext,
-    Map<AIProvider, ProviderStatus>? statuses,
+    List<SelectorProviderInfo>? fresh,
   ) {
     final RenderBox button = buttonContext.findRenderObject() as RenderBox;
     final RenderBox overlay =
@@ -263,9 +306,9 @@ class _ModelSelectorState extends State<ModelSelector> {
       Offset(0, button.size.height),
       ancestor: overlay,
     );
-    final effective = statuses ?? widget.providerStatuses;
+    final effective = fresh ?? widget.providers;
 
-    showMenu<AIProvider>(
+    showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         offset.dx,
@@ -273,16 +316,12 @@ class _ModelSelectorState extends State<ModelSelector> {
         offset.dx + button.size.width,
         offset.dy + 4,
       ),
-      items: AIProvider.values
-          .where(
-            (p) =>
-                _statusFor(effective, p) != ProviderStatus.notConfigured,
-          )
+      items: effective
+          .where((p) => p.status != ProviderStatus.notConfigured)
           .map((provider) {
-        final stopped =
-            _statusFor(effective, provider) == ProviderStatus.stopped;
-        return PopupMenuItem<AIProvider>(
-          value: provider,
+        final stopped = provider.status == ProviderStatus.stopped;
+        return PopupMenuItem<String>(
+          value: provider.id,
           enabled: !stopped,
           child: Row(
             children: [
@@ -312,7 +351,7 @@ class _ModelSelectorState extends State<ModelSelector> {
                   ],
                 ),
               ),
-              if (provider == widget.selectedProvider)
+              if (provider.id == widget.selectedProviderId)
                 Icon(
                   Icons.check,
                   size: 18,
@@ -322,21 +361,21 @@ class _ModelSelectorState extends State<ModelSelector> {
           ),
         );
       }).toList(),
-    ).then((provider) {
-      if (provider != null) {
+    ).then((providerId) {
+      if (providerId != null) {
         _cachedModels = null; // Clear cache when provider changes
-        _cachedProvider = null;
+        _cachedProviderId = null;
         _vendor = _modelVendor(widget.selectedModel);
-        widget.onProviderChanged(provider);
+        widget.onProviderChanged(providerId);
       }
     });
   }
 
   void _showProviderBottomSheet(
     BuildContext context,
-    Map<AIProvider, ProviderStatus>? statuses,
+    List<SelectorProviderInfo>? fresh,
   ) {
-    final effective = statuses ?? widget.providerStatuses;
+    final effective = fresh ?? widget.providers;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -366,15 +405,13 @@ class _ModelSelectorState extends State<ModelSelector> {
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: AIProvider.values
+                  children: effective
                       .where(
-                        (p) => _statusFor(effective, p) !=
-                            ProviderStatus.notConfigured,
+                        (p) => p.status != ProviderStatus.notConfigured,
                       )
                       .map((provider) {
                     final stopped =
-                        _statusFor(effective, provider) ==
-                        ProviderStatus.stopped;
+                        provider.status == ProviderStatus.stopped;
                     return ListTile(
                       leading: Icon(
                         provider.icon,
@@ -387,13 +424,13 @@ class _ModelSelectorState extends State<ModelSelector> {
                       subtitle: Text(
                         stopped
                             ? 'Not running - start the service'
-                            : provider.description,
+                            : (provider.description ?? ''),
                         style: TextStyle(
                           color: Colors.grey.shade500,
                           fontSize: 12,
                         ),
                       ),
-                      trailing: provider == widget.selectedProvider
+                      trailing: provider.id == widget.selectedProviderId
                           ? Icon(
                               Icons.check,
                               color: Theme.of(context).primaryColor,
@@ -402,9 +439,9 @@ class _ModelSelectorState extends State<ModelSelector> {
                       enabled: !stopped,
                       onTap: () {
                         _cachedModels = null;
-                        _cachedProvider = null;
+                        _cachedProviderId = null;
                         _vendor = _modelVendor(widget.selectedModel);
-                        widget.onProviderChanged(provider);
+                        widget.onProviderChanged(provider.id);
                         Navigator.pop(context);
                       },
                     );
@@ -473,7 +510,7 @@ class _ModelSelectorState extends State<ModelSelector> {
           value: vendor,
           child: Row(
             children: [
-              _vendorIcon(vendor, icons, widget.selectedProvider.color),
+              _vendorIcon(vendor, icons, _selectedDescriptor.color),
               const SizedBox(width: 12),
               Expanded(child: Text(vendor)),
               if (vendor == _vendor)
@@ -551,7 +588,7 @@ class _ModelSelectorState extends State<ModelSelector> {
                       leading: _vendorIcon(
                         vendor,
                         icons,
-                        widget.selectedProvider.color,
+                        _selectedDescriptor.color,
                       ),
                       title: Text(vendor),
                       trailing: vendor == _vendor
@@ -561,17 +598,15 @@ class _ModelSelectorState extends State<ModelSelector> {
                             )
                           : null,
                       onTap: () {
-                        Navigator.pop(context);
-                        if (vendor != _vendor) {
-                          setState(() => _vendor = vendor);
-                          final candidates = models
-                              .where((m) => _modelVendor(m) == vendor)
-                              .toList();
-                          if (candidates.isNotEmpty &&
-                              _modelVendor(widget.selectedModel) != vendor) {
-                            widget.onModelChanged(candidates.first);
-                          }
+                        setState(() => _vendor = vendor);
+                        final candidates = models
+                            .where((m) => _modelVendor(m) == vendor)
+                            .toList();
+                        if (candidates.isNotEmpty &&
+                            _modelVendor(widget.selectedModel) != vendor) {
+                          widget.onModelChanged(candidates.first);
                         }
+                        Navigator.pop(context);
                       },
                     );
                   },
@@ -601,8 +636,13 @@ class _ModelSelectorState extends State<ModelSelector> {
 
     final models = await _getVisibleModels();
 
-    if (_modelPricing == null) {
-      await _loadPricing();
+    if (_modelPricing == null && widget.fetchModelPricing != null) {
+      try {
+        _modelPricing =
+            await widget.fetchModelPricing!(widget.selectedProviderId);
+      } catch (_) {
+        _modelPricing = const {};
+      }
     }
     final pricing = _modelPricing ?? const <String, ModelPricing>{};
 
@@ -634,7 +674,9 @@ class _ModelSelectorState extends State<ModelSelector> {
               Icon(
                 Icons.memory,
                 size: 18,
-                color: widget.selectedProvider.color,
+                color: widget.selectedProviderId == 'openrouter'
+                    ? _selectedDescriptor.color
+                    : theme.colorScheme.primary,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -684,8 +726,13 @@ class _ModelSelectorState extends State<ModelSelector> {
   void _showModelBottomSheet(BuildContext context) async {
     final models = await _getVisibleModels();
 
-    if (_modelPricing == null) {
-      await _loadPricing();
+    if (_modelPricing == null && widget.fetchModelPricing != null) {
+      try {
+        _modelPricing =
+            await widget.fetchModelPricing!(widget.selectedProviderId);
+      } catch (_) {
+        _modelPricing = const {};
+      }
     }
     final modelPricing = _modelPricing ?? const <String, ModelPricing>{};
 
@@ -727,7 +774,9 @@ class _ModelSelectorState extends State<ModelSelector> {
                     return ListTile(
                       leading: Icon(
                         Icons.memory,
-                        color: widget.selectedProvider.color,
+                        color: widget.selectedProviderId == 'openrouter'
+                            ? _selectedDescriptor.color
+                            : Theme.of(context).colorScheme.primary,
                       ),
                       title: Text(model),
                       subtitle: rate != null
@@ -768,14 +817,15 @@ class _ModelSelectorState extends State<ModelSelector> {
   }
 }
 
-class _SelectorButton extends StatefulWidget {
+class SelectorButton extends StatefulWidget {
   final IconData icon;
   final String? label;
   final String? sublabel;
   final Color color;
   final void Function(BuildContext) onTap;
 
-  const _SelectorButton({
+  const SelectorButton({
+    super.key,
     required this.icon,
     this.label,
     this.sublabel,
@@ -784,10 +834,10 @@ class _SelectorButton extends StatefulWidget {
   });
 
   @override
-  State<_SelectorButton> createState() => _SelectorButtonState();
+  State<SelectorButton> createState() => _SelectorButtonState();
 }
 
-class _SelectorButtonState extends State<_SelectorButton> {
+class _SelectorButtonState extends State<SelectorButton> {
   bool _isHovered = false;
 
   @override

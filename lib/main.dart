@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'config/themes.dart';
 import 'services/storage_service.dart';
 import 'services/chat_service.dart';
 import 'services/image_generation_service.dart';

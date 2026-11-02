@@ -2,11 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../config/constants.dart';
+import '../../models/ai_provider.dart';
 import '../../components/comfyui_settings_panel.dart';
+import '../../components/model_selector.dart';
 import '../../services/clipboard_service.dart';
+import '../../services/chat_service.dart';
 import '../../services/image_generation_service.dart';
+import '../../components/usage_chip.dart';
 
 /// Desktop image generation screen
 class DesktopImageScreen extends StatefulWidget {
@@ -23,11 +26,27 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
   ImageSize _selectedSize = ImageSize.large;
   GeneratedImage? _selectedImage;
   bool _showComfyUISettings = false;
+  Map<DateTime, List<SavedImageRecord>>? _historyByDay;
+  String? _historyFolder;
+  DateTime? _expandedDay;
 
   @override
   void initState() {
     super.initState();
     _loadConfiguredProviders();
+    _refreshHistory();
+  }
+
+  Future<void> _refreshHistory() async {
+    final service = context.read<ImageGenerationService>();
+    final folder = await service.resolveSaveFolder();
+    final byDay = await service.historyByDay(folder: folder);
+    if (mounted) {
+      setState(() {
+        _historyFolder = folder;
+        _historyByDay = byDay;
+      });
+    }
   }
 
   Future<void> _loadConfiguredProviders() async {
@@ -47,6 +66,28 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
     super.dispose();
   }
 
+  List<SelectorProviderInfo> _imageProviderDescriptors(
+    BuildContext context,
+    ImageGenerationService service, [
+    Map<ImageGenProvider, bool>? configured,
+  ]) {
+    final effective = configured ?? _configuredProviders;
+    final color = Theme.of(context).colorScheme.primary;
+    return ImageGenProvider.values.map((p) {
+      final isConfigured = effective[p] ?? false;
+      return SelectorProviderInfo(
+        id: p.name,
+        displayName: p.displayName,
+        description: p.description,
+        icon: p.icon,
+        color: color,
+        status: isConfigured
+            ? ProviderStatus.available
+            : ProviderStatus.notConfigured,
+      );
+    }).toList();
+  }
+
   Future<void> _generateImage() async {
     final service = context.read<ImageGenerationService>();
     final prompt = _promptController.text.trim();
@@ -54,6 +95,10 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
     final image = await service.generateImage(prompt, size: _selectedSize);
     if (image != null && mounted) {
+      final cost = service.lastGenerationCost;
+      if (cost != null) {
+        context.read<ChatService>().spendCredits(AIProvider.openrouter, cost);
+      }
       setState(() {
         _selectedImage = image;
       });
@@ -62,16 +107,9 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
   Future<void> _saveImage(GeneratedImage image) async {
     try {
-      final directory =
-          await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final fileName =
-          'docan_image_${DateTime.now().millisecondsSinceEpoch}.png';
-      final filePath = '${directory.path}/$fileName';
-
-      final file = File(filePath);
-      await file.writeAsBytes(image.imageData);
-
+      final service = context.read<ImageGenerationService>();
+      final filePath = await service.saveImageToHistory(image);
+      await _refreshHistory();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -91,6 +129,71 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
         );
       }
     }
+  }
+
+  /// Opens a saved history image in the main display
+  Future<void> _openHistoryImage(SavedImageRecord record) async {
+    if (_historyFolder == null) return;
+    try {
+      final bytes = await File(
+        '$_historyFolder/${record.fileName}',
+      ).readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _selectedImage = GeneratedImage(
+          prompt: record.prompt,
+          imageData: bytes,
+          provider: ImageGenProvider.values.firstWhere(
+            (p) => p.name == record.provider,
+            orElse: () => ImageGenProvider.gemini,
+          ),
+          model: record.model,
+          timestamp: record.savedAt,
+        );
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open image: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Exit confirmation when unsaved session images exist.
+  /// Returns true when the user chose to exit.
+  Future<bool> _confirmExit() async {
+    final service = context.read<ImageGenerationService>();
+    if (service.generatedImages.isEmpty) return true;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Unsaved images'),
+        content: const Text('Save/download images or Exit?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'exit'),
+            child: const Text('Exit'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, 'save'),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == 'save') {
+      for (final image in List.of(service.generatedImages)) {
+        await service.saveImageToHistory(image);
+      }
+      await _refreshHistory();
+      return false;
+    }
+    return result == 'exit';
   }
 
   Future<void> _copyImageToClipboard(GeneratedImage image) async {
@@ -122,38 +225,51 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
-          body: Row(
-            children: [
-              // Sidebar with generated images
-              _buildSidebar(context, service, isDark),
+          body: PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) async {
+              if (didPop) return;
+              if (await _confirmExit() && context.mounted) {
+                Navigator.pop(context);
+              }
+            },
+            child: Row(
+              children: [
+                // Sidebar with generated images
+                _buildSidebar(context, service, isDark),
 
-              // Main content
-              Expanded(
-                child: Column(
-                  children: [
-                    // Toolbar
-                    _buildToolbar(context, service),
+                // Main content
+                Expanded(
+                  child: Column(
+                    children: [
+                      // Toolbar
+                      _buildToolbar(context, service),
 
-                    // Image display area
-                    Expanded(
-                      child: Row(
-                        children: [
-                          // Image area
-                          Expanded(child: _buildImageArea(context, service)),
-                          
-                          // ComfyUI Settings Panel (only when ComfyUI is selected)
-                          if (isComfyUI && _showComfyUISettings)
-                            _buildComfyUISettingsPanel(context, service, isDark),
-                        ],
+                      // Image display area
+                      Expanded(
+                        child: Row(
+                          children: [
+                            // Image area
+                            Expanded(child: _buildImageArea(context, service)),
+
+                            // ComfyUI Settings Panel (only when ComfyUI is selected)
+                            if (isComfyUI && _showComfyUISettings)
+                              _buildComfyUISettingsPanel(
+                                context,
+                                service,
+                                isDark,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // Prompt input
-                    _buildPromptInput(context, service, hasApiKey),
-                  ],
+                      // Prompt input
+                      _buildPromptInput(context, service, hasApiKey),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -166,7 +282,7 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
     bool isDark,
   ) {
     final theme = Theme.of(context);
-    
+
     return Container(
       width: 300,
       decoration: BoxDecoration(
@@ -252,7 +368,11 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
                   tooltip: 'Back to Chat',
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () async {
+                    if (await _confirmExit() && context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
                 ),
                 Icon(Icons.image, color: theme.primaryColor),
                 const SizedBox(width: AppConstants.spacingS),
@@ -268,9 +388,12 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
 
           const Divider(height: 1),
 
-          // Image gallery
+          // Image gallery: unsaved session images on top, then the saved
+          // history grouped by day
           Expanded(
-            child: service.generatedImages.isEmpty
+            child:
+                (service.generatedImages.isEmpty &&
+                    (_historyByDay == null || _historyByDay!.isEmpty))
                 ? Center(
                     child: Text(
                       'No images yet',
@@ -281,39 +404,44 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
                       ),
                     ),
                   )
-                : ListView.builder(
+                : ListView(
                     padding: const EdgeInsets.all(AppConstants.spacingS),
-                    itemCount: service.generatedImages.length,
-                    itemBuilder: (context, index) {
-                      final image = service.generatedImages[index];
-                      final isSelected = _selectedImage?.id == image.id;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppConstants.spacingS,
-                        ),
-                        child: _ImageThumbnail(
-                          image: image,
-                          isSelected: isSelected,
-                          onTap: () {
-                            setState(() {
-                              _selectedImage = image;
-                            });
-                          },
-                          onDelete: () {
-                            service.deleteImage(image.id);
-                            if (_selectedImage?.id == image.id) {
-                              setState(() {
-                                _selectedImage =
-                                    service.generatedImages.isNotEmpty
-                                    ? service.generatedImages.first
-                                    : null;
-                              });
-                            }
-                          },
-                        ),
-                      );
-                    },
+                    children: [
+                      if (service.generatedImages.isNotEmpty) ...[
+                        _sidebarSectionLabel(context, 'This session'),
+                        ...service.generatedImages.map((image) {
+                          final isSelected = _selectedImage?.id == image.id;
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppConstants.spacingS,
+                            ),
+                            child: _ImageThumbnail(
+                              image: image,
+                              isSelected: isSelected,
+                              onTap: () {
+                                setState(() {
+                                  _selectedImage = image;
+                                });
+                              },
+                              onDelete: () {
+                                service.deleteImage(image.id);
+                                if (_selectedImage?.id == image.id) {
+                                  setState(() {
+                                    _selectedImage =
+                                        service.generatedImages.isNotEmpty
+                                        ? service.generatedImages.first
+                                        : null;
+                                  });
+                                }
+                              },
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: AppConstants.spacingM),
+                      ],
+                      if (_historyByDay != null)
+                        ..._buildHistorySections(context),
+                    ],
                   ),
           ),
 
@@ -338,6 +466,46 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
     );
   }
 
+  Widget _sidebarSectionLabel(BuildContext context, String label) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: AppConstants.spacingS),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
+
+  /// Day/date sections for the saved history. By default only the newest
+  /// day's thumbnails are shown; selecting a day label shows just that
+  /// day's thumbnails (labels always remain).
+  List<Widget> _buildHistorySections(BuildContext context) {
+    final days = _historyByDay!.keys.toList();
+    final newest = days.isNotEmpty ? days.first : null;
+    final effectiveDay = _expandedDay ?? newest;
+
+    return [
+      _sidebarSectionLabel(context, 'Saved'),
+      for (final day in days)
+        _DaySection(
+          day: day,
+          records: _historyByDay![day]!,
+          folder: _historyFolder ?? '',
+          expanded: day == effectiveDay,
+          onToggle: () {
+            setState(() {
+              _expandedDay = (day == _expandedDay) ? null : day;
+            });
+          },
+          onOpen: _openHistoryImage,
+        ),
+    ];
+  }
+
   Widget _buildToolbar(BuildContext context, ImageGenerationService service) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -355,22 +523,55 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
       ),
       child: Row(
         children: [
-          // Provider selector
-          _ImageProviderSelector(
-            selectedProvider: service.selectedProvider,
+          // Provider and model selector (image-capable providers only)
+          ModelSelector(
+            providers: _imageProviderDescriptors(context, service),
+            selectedProviderId: service.selectedProvider.name,
             selectedModel: service.selectedModel,
-            onProviderChanged: service.setProvider,
+            onProviderChanged: (id) => service.setProvider(
+              ImageGenProvider.values.firstWhere((p) => p.name == id),
+            ),
             onModelChanged: service.setModel,
-            configuredProviders: _configuredProviders,
-            fetchModels: service.getAvailableModels,
+            loadProviders: () async {
+              final configured = await service.getConfiguredProviders();
+              return _imageProviderDescriptors(context, service, configured);
+            },
+            fetchModels: (id) => service.getAvailableModels(
+              ImageGenProvider.values.firstWhere((p) => p.name == id),
+            ),
+            fetchModelPricing: (id) => id == 'openrouter'
+                ? context.read<ChatService>().getModelPricing(
+                    AIProvider.openrouter,
+                  )
+                : Future.value(const {}),
+            showVendorFilter: true,
           ),
 
           const Spacer(),
 
+          // Image generation spend for this provider
+          UsageChip(
+            provider: AIProvider.openrouter,
+            label: 'Image spend',
+            usage: service.imageUsageForProvider(service.selectedProvider),
+          ),
+          const SizedBox(width: AppConstants.spacingS),
+
+          // Credit balance (OpenRouter)
+          CreditChip(
+            provider: AIProvider.openrouter,
+            balance: context.read<ChatService>().creditBalanceFor(
+              AIProvider.openrouter,
+            ),
+          ),
+          const SizedBox(width: AppConstants.spacingS),
+
           // ComfyUI Settings toggle (only when ComfyUI is selected)
           if (service.selectedProvider == ImageGenProvider.comfyui) ...[
             IconButton(
-              icon: Icon(_showComfyUISettings ? Icons.tune : Icons.tune_outlined),
+              icon: Icon(
+                _showComfyUISettings ? Icons.tune : Icons.tune_outlined,
+              ),
               tooltip: 'ComfyUI Settings',
               onPressed: () {
                 setState(() {
@@ -638,12 +839,14 @@ class _ImageViewer extends StatelessWidget {
           Expanded(
             child: Center(
               child: Container(
-                  padding: const EdgeInsets.all(AppConstants.spacingS),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                padding: const EdgeInsets.all(AppConstants.spacingS),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                  border: Border.all(
+                    color: theme.dividerColor.withValues(alpha: 0.3),
                   ),
+                ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppConstants.radiusS),
                   child: Image.memory(image.imageData, fit: BoxFit.contain),
@@ -656,12 +859,14 @@ class _ImageViewer extends StatelessWidget {
 
           // Info
           Container(
-              padding: const EdgeInsets.all(AppConstants.spacingM),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+            padding: const EdgeInsets.all(AppConstants.spacingM),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppConstants.radiusM),
+              border: Border.all(
+                color: theme.dividerColor.withValues(alpha: 0.3),
               ),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -712,253 +917,6 @@ class _ImageViewer extends StatelessWidget {
   }
 }
 
-/// Image provider selector
-class _ImageProviderSelector extends StatefulWidget {
-  final ImageGenProvider selectedProvider;
-  final String selectedModel;
-  final ValueChanged<ImageGenProvider> onProviderChanged;
-  final ValueChanged<String> onModelChanged;
-  final Map<ImageGenProvider, bool> configuredProviders;
-  final Future<List<String>> Function(ImageGenProvider) fetchModels;
-
-  const _ImageProviderSelector({
-    required this.selectedProvider,
-    required this.selectedModel,
-    required this.onProviderChanged,
-    required this.onModelChanged,
-    required this.configuredProviders,
-    required this.fetchModels,
-  });
-
-  @override
-  State<_ImageProviderSelector> createState() => _ImageProviderSelectorState();
-}
-
-class _ImageProviderSelectorState extends State<_ImageProviderSelector> {
-  List<String>? _cachedModels;
-  ImageGenProvider? _cachedProvider;
-  final bool _isLoadingModels = false;
-
-  Future<List<String>> _getModels() async {
-    // Return cached if same provider
-    if (_cachedModels != null && _cachedProvider == widget.selectedProvider) {
-      return _cachedModels!;
-    }
-
-    final models = await widget.fetchModels(widget.selectedProvider);
-    _cachedModels = models;
-    _cachedProvider = widget.selectedProvider;
-    return models;
-  }
-
-  void _clearCache() {
-    _cachedModels = null;
-    _cachedProvider = null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      children: [
-        // Provider dropdown
-        PopupMenuButton<ImageGenProvider>(
-          initialValue: widget.selectedProvider,
-          onSelected: (provider) {
-            _clearCache();
-            widget.onProviderChanged(provider);
-          },
-          itemBuilder: (context) {
-            return ImageGenProvider.values.map((provider) {
-              final isConfigured = widget.configuredProviders[provider] ?? false;
-              return PopupMenuItem<ImageGenProvider>(
-                value: provider,
-                enabled: isConfigured,
-                child: Row(
-                  children: [
-                    Icon(
-                      provider.icon,
-                      size: 18,
-                    ),
-                    const SizedBox(width: AppConstants.spacingS),
-                    Text(provider.displayName),
-                    if (!isConfigured) ...[
-                      const Spacer(),
-                      Icon(
-                        Icons.key_off,
-                        size: 16,
-                        color: theme.textTheme.bodySmall?.color?.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            }).toList();
-          },
-          child: Container(
-              padding: const EdgeInsets.symmetric(
-              horizontal: AppConstants.spacingM,
-              vertical: AppConstants.spacingS,
-            ),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
-              ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  widget.selectedProvider.icon,
-                  size: 18,
-                ),
-                const SizedBox(width: AppConstants.spacingS),
-                Text(widget.selectedProvider.displayName),
-                const SizedBox(width: AppConstants.spacingS),
-                const Icon(Icons.arrow_drop_down, size: 18),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(width: AppConstants.spacingS),
-
-        // Model dropdown - loads models asynchronously
-        _ModelDropdownButton(
-          selectedModel: widget.selectedModel,
-          onModelChanged: widget.onModelChanged,
-          fetchModels: _getModels,
-          isLoading: _isLoadingModels,
-        ),
-      ],
-    );
-  }
-}
-
-/// Async model dropdown button
-class _ModelDropdownButton extends StatefulWidget {
-  final String selectedModel;
-  final ValueChanged<String> onModelChanged;
-  final Future<List<String>> Function() fetchModels;
-  final bool isLoading;
-
-  const _ModelDropdownButton({
-    required this.selectedModel,
-    required this.onModelChanged,
-    required this.fetchModels,
-    required this.isLoading,
-  });
-
-  @override
-  State<_ModelDropdownButton> createState() => _ModelDropdownButtonState();
-}
-
-class _ModelDropdownButtonState extends State<_ModelDropdownButton> {
-  List<String>? _models;
-  bool _isLoading = false;
-
-  Future<void> _loadModels() async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
-    try {
-      final models = await widget.fetchModels();
-      if (mounted) {
-        setState(() {
-          _models = models;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _showModelMenu(BuildContext context) async {
-    if (_models == null || _models!.isEmpty) {
-      await _loadModels();
-    }
-
-    if (!mounted || _models == null || _models!.isEmpty) return;
-
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay =
-        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
-    final Offset offset = button.localToGlobal(
-      Offset(0, button.size.height),
-      ancestor: overlay,
-    );
-
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        offset.dx,
-        offset.dy + 4,
-        offset.dx + button.size.width,
-        offset.dy + 4,
-      ),
-      items: _models!.map((model) {
-        return PopupMenuItem<String>(value: model, child: Text(model));
-      }).toList(),
-    );
-
-    if (selected != null) {
-      widget.onModelChanged(selected);
-    }
-  }
-
-  @override
-  void didUpdateWidget(_ModelDropdownButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Clear cache if the fetch function changes (provider changed)
-    if (oldWidget.fetchModels != widget.fetchModels) {
-      _models = null;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return GestureDetector(
-      onTap: () => _showModelMenu(context),
-      child: Container(
-          padding: const EdgeInsets.symmetric(
-          horizontal: AppConstants.spacingM,
-          vertical: AppConstants.spacingS,
-        ),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(AppConstants.radiusM),
-            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
-          ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_isLoading)
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: theme.textTheme.bodySmall?.color,
-                ),
-              )
-            else
-              Text(widget.selectedModel, style: theme.textTheme.bodySmall),
-            const SizedBox(width: AppConstants.spacingS),
-            const Icon(Icons.arrow_drop_down, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Size selector
 class _SizeSelector extends StatelessWidget {
   final ImageSize selectedSize;
@@ -981,15 +939,15 @@ class _SizeSelector extends StatelessWidget {
         }).toList();
       },
       child: Container(
-          padding: const EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: AppConstants.spacingM,
           vertical: AppConstants.spacingS,
         ),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(AppConstants.radiusM),
-            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
-          ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppConstants.radiusM),
+          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -998,6 +956,181 @@ class _SizeSelector extends StatelessWidget {
             Text(selectedSize.displayName),
             const SizedBox(width: AppConstants.spacingS),
             const Icon(Icons.arrow_drop_down, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A saved-history day section: the day/date label (always visible) with
+/// the day's image thumbnails below it when expanded
+class _DaySection extends StatelessWidget {
+  final DateTime day;
+  final List<SavedImageRecord> records;
+  final String folder;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final ValueChanged<SavedImageRecord> onOpen;
+
+  const _DaySection({
+    required this.day,
+    required this.records,
+    required this.folder,
+    required this.expanded,
+    required this.onToggle,
+    required this.onOpen,
+  });
+
+  String get _label {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(day.year, day.month, day.day);
+    final diff = today.difference(target).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    return '${target.day} ${_month(target)} ${target.year}';
+  }
+
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  static String _month(DateTime d) => _months[d.month - 1];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(AppConstants.radiusS),
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: AppConstants.spacingS,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 16,
+                  color: theme.textTheme.bodySmall?.color,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    _label,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${records.length}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.textTheme.bodySmall?.color?.withValues(
+                      alpha: 0.6,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Column(
+              children: [
+                for (final record in records)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: AppConstants.spacingS,
+                    ),
+                    child: _SavedImageThumbnail(
+                      record: record,
+                      folder: folder,
+                      onTap: () => onOpen(record),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Thumbnail for a saved history image, loaded from the save folder
+class _SavedImageThumbnail extends StatelessWidget {
+  final SavedImageRecord record;
+  final String folder;
+  final VoidCallback onTap;
+
+  const _SavedImageThumbnail({
+    required this.record,
+    required this.folder,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final file = File('$folder/${record.fileName}');
+
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppConstants.radiusS),
+        child: Stack(
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: Image.file(
+                file,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  color: theme.colorScheme.surface,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: theme.disabledColor,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                color: Colors.black.withValues(alpha: 0.55),
+                child: Text(
+                  record.prompt,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

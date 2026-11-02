@@ -269,7 +269,7 @@ class PlaybookService extends ChangeNotifier {
         yaml = await File(path).readAsString();
       }
 
-      return importFromYaml(yaml);
+      return await importFromYaml(yaml);
     } catch (e) {
       throw Exception('Failed to import playbook: $e');
     }

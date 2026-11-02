@@ -1,8 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../config/constants.dart';
 import '../../components/comfyui_settings_panel.dart';
 import '../../services/clipboard_service.dart';
@@ -62,21 +60,46 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
     }
   }
 
+  /// Exit confirmation when unsaved session images exist.
+  /// Returns true when the user chose to exit.
+  Future<bool> _confirmExit() async {
+    final service = context.read<ImageGenerationService>();
+    if (service.generatedImages.isEmpty) return true;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Unsaved images'),
+        content: const Text('Save/download images or Exit?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'exit'),
+            child: const Text('Exit'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, 'save'),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == 'save') {
+      for (final image in List.of(service.generatedImages)) {
+        await service.saveImageToHistory(image);
+      }
+      return false;
+    }
+    return result == 'exit';
+  }
+
   Future<void> _saveImage(GeneratedImage image) async {
     try {
-      final directory =
-          await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final fileName =
-          'docan_image_${DateTime.now().millisecondsSinceEpoch}.png';
-      final filePath = '${directory.path}/$fileName';
-
-      final file = File(filePath);
-      await file.writeAsBytes(image.imageData);
+      final service = context.read<ImageGenerationService>();
+      await service.saveImageToHistory(image);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Image saved'),
             behavior: SnackBarBehavior.floating,
           ),
@@ -186,20 +209,29 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
         final hasApiKey =
             _configuredProviders[service.selectedProvider] ?? false;
 
-        return Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Nav bar
-                _buildNavBar(context, service),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+            if (await _confirmExit() && context.mounted) {
+              Navigator.pop(context);
+            }
+          },
+          child: Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  // Nav bar
+                  _buildNavBar(context, service),
 
-                // Main content
-                Expanded(child: _buildContent(context, service)),
+                  // Main content
+                  Expanded(child: _buildContent(context, service)),
 
-                // Prompt input
-                _buildPromptInput(context, service, hasApiKey),
-              ],
+                  // Prompt input
+                  _buildPromptInput(context, service, hasApiKey),
+                ],
+              ),
             ),
           ),
         );
@@ -307,12 +339,14 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
         padding: const EdgeInsets.all(AppConstants.spacingM),
         child: Center(
           child: Container(
-              padding: const EdgeInsets.all(AppConstants.spacingL),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+            padding: const EdgeInsets.all(AppConstants.spacingL),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppConstants.radiusM),
+              border: Border.all(
+                color: theme.dividerColor.withValues(alpha: 0.3),
               ),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -437,10 +471,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
                 onPressed: hasApiKey && !service.isGenerating
                     ? _generateImage
                     : null,
-                child: const Icon(
-                  Icons.auto_awesome,
-                  size: 24,
-                ),
+                child: const Icon(Icons.auto_awesome, size: 24),
               ),
             ],
           ),
@@ -484,15 +515,17 @@ class _ExamplePrompts extends StatelessWidget {
             return GestureDetector(
               onTap: () => onSelect(prompt),
               child: Container(
-                  padding: const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                   horizontal: AppConstants.spacingM,
                   vertical: AppConstants.spacingS,
                 ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                  border: Border.all(
+                    color: theme.dividerColor.withValues(alpha: 0.3),
                   ),
+                ),
                 child: Text(prompt, style: theme.textTheme.bodySmall),
               ),
             );
@@ -525,12 +558,14 @@ class _MobileImageViewer extends StatelessWidget {
         children: [
           // Image
           Container(
-              padding: const EdgeInsets.all(AppConstants.spacingS),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+            padding: const EdgeInsets.all(AppConstants.spacingS),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppConstants.radiusM),
+              border: Border.all(
+                color: theme.dividerColor.withValues(alpha: 0.3),
               ),
+            ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppConstants.radiusS),
               child: Image.memory(image.imageData, fit: BoxFit.contain),
@@ -564,12 +599,14 @@ class _MobileImageViewer extends StatelessWidget {
 
           // Info card
           Container(
-              padding: const EdgeInsets.all(AppConstants.spacingM),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(AppConstants.radiusM),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+            padding: const EdgeInsets.all(AppConstants.spacingM),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppConstants.radiusM),
+              border: Border.all(
+                color: theme.dividerColor.withValues(alpha: 0.3),
               ),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -778,7 +815,6 @@ class _SettingsBottomSheet extends StatefulWidget {
 }
 
 class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -900,9 +936,7 @@ class _SettingsBottomSheetState extends State<_SettingsBottomSheet> {
         items: ImageGenProvider.values,
         selectedItem: widget.selectedProvider,
         itemBuilder: (provider) => ListTile(
-          leading: Icon(
-            provider.icon,
-          ),
+          leading: Icon(provider.icon),
           title: Text(provider.displayName),
           subtitle: Text(provider.description),
           trailing: widget.selectedProvider == provider

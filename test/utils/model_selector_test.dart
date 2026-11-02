@@ -17,17 +17,27 @@ void main() {
     required AIProvider provider,
     required String model,
     required ValueChanged<String> onModelChanged,
+    Map<AIProvider, ProviderStatus>? statuses,
   }) async {
+    final effective = statuses ?? {provider: ProviderStatus.available};
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: Center(
             child: ModelSelector(
-              selectedProvider: provider,
+              providers: AIProvider.values
+                  .map(
+                    (p) => p.toDescriptor(
+                      effective[p] ?? ProviderStatus.notConfigured,
+                    ),
+                  )
+                  .toList(),
+              selectedProviderId: provider.name,
               selectedModel: model,
               onProviderChanged: (_) {},
               onModelChanged: onModelChanged,
               fetchModels: (_) async => models,
+              showVendorFilter: true,
             ),
           ),
         ),
@@ -99,17 +109,25 @@ void main() {
         home: Scaffold(
           body: Center(
             child: ModelSelector(
-              selectedProvider: AIProvider.gemini,
+              providers: AIProvider.values
+                  .map(
+                    (p) => p.toDescriptor(
+                      {
+                        AIProvider.gemini: ProviderStatus.available,
+                        AIProvider.openrouter: ProviderStatus.available,
+                        AIProvider.ollama: ProviderStatus.stopped,
+                        AIProvider.deepseek: ProviderStatus.notConfigured,
+                      }[p] ??
+                          ProviderStatus.notConfigured,
+                    ),
+                  )
+                  .toList(),
+              selectedProviderId: AIProvider.gemini.name,
               selectedModel: 'gemini-3.8-flash',
               onProviderChanged: (_) {},
               onModelChanged: (_) {},
               fetchModels: (_) async => ['gemini-3.8-flash'],
-              providerStatuses: {
-                AIProvider.gemini: ProviderStatus.available,
-                AIProvider.openrouter: ProviderStatus.available,
-                AIProvider.ollama: ProviderStatus.stopped,
-                AIProvider.deepseek: ProviderStatus.notConfigured,
-              },
+              showVendorFilter: true,
             ),
           ),
         ),

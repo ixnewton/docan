@@ -419,6 +419,13 @@ class ChatService extends ChangeNotifier {
     return provider == AIProvider.openrouter ? _creditBalance : null;
   }
 
+  /// Records spend from outside the chat flow (e.g. image generation)
+  void spendCredits(AIProvider provider, double cost) {
+    if (provider != AIProvider.openrouter || cost <= 0) return;
+    _creditBalance = _creditBalance?.withSpent(cost);
+    notifyListeners();
+  }
+
   /// Aggregated token usage/cost for a provider across all its models
   UsageStats? usageForProvider(AIProvider provider) {
     final models = _usageStats[provider.name];

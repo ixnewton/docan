@@ -5,6 +5,7 @@ import '../../config/constants.dart';
 import '../../components/comfyui_settings_panel.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/image_generation_service.dart';
+import '../../utils/image_exit_guard.dart';
 
 /// Mobile image generation screen
 class MobileImageScreen extends StatefulWidget {
@@ -20,11 +21,13 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
   Map<ImageGenProvider, bool> _configuredProviders = {};
   ImageSize _selectedSize = ImageSize.large;
   GeneratedImage? _selectedImage;
+  final Set<String> _savedImageIds = <String>{};
 
   @override
   void initState() {
     super.initState();
     _loadConfiguredProviders();
+    ImageExitGuard.register(_confirmExit);
   }
 
   Future<void> _loadConfiguredProviders() async {
@@ -39,6 +42,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
 
   @override
   void dispose() {
+    ImageExitGuard.unregister();
     _promptController.dispose();
     _promptFocusNode.dispose();
     super.dispose();
@@ -60,35 +64,33 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
     }
   }
 
-  /// Exit confirmation when unsaved session images exist.
-  /// Returns true when the user chose to exit.
+  /// Exit confirmation when unsaved session images exist. Returns true
+  /// when the user chose to exit; "Select and save" simply closes the
+  /// alert so the user can select and save images in the creator.
   Future<bool> _confirmExit() async {
     final service = context.read<ImageGenerationService>();
-    if (service.generatedImages.isEmpty) return true;
+    final unsaved = service.generatedImages
+        .where((image) => !_savedImageIds.contains(image.id))
+        .toList();
+    if (unsaved.isEmpty) return true;
 
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Unsaved images'),
-        content: const Text('Save/download images or Exit?'),
+        content: const Text('Select and save images or Exit'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, 'exit'),
             child: const Text('Exit'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, 'save'),
-            child: const Text('Save'),
+            onPressed: () => Navigator.pop(dialogContext, 'stay'),
+            child: const Text('Select and save'),
           ),
         ],
       ),
     );
-    if (result == 'save') {
-      for (final image in List.of(service.generatedImages)) {
-        await service.saveImageToHistory(image);
-      }
-      return false;
-    }
     return result == 'exit';
   }
 
@@ -96,6 +98,7 @@ class _MobileImageScreenState extends State<MobileImageScreen> {
     try {
       final service = context.read<ImageGenerationService>();
       await service.saveImageToHistory(image);
+      _savedImageIds.add(image.id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

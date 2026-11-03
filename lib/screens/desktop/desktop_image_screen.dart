@@ -10,6 +10,8 @@ import '../../services/clipboard_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/image_generation_service.dart';
 import '../../components/usage_chip.dart';
+import '../../utils/image_exit_guard.dart';
+import '../../utils/prompt_history.dart';
 
 /// Desktop image generation screen
 class DesktopImageScreen extends StatefulWidget {
@@ -26,15 +28,44 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
   ImageSize _selectedSize = ImageSize.large;
   GeneratedImage? _selectedImage;
   bool _showComfyUISettings = false;
+  late final PromptHistory _promptHistory;
   Map<DateTime, List<SavedImageRecord>>? _historyByDay;
   String? _historyFolder;
   DateTime? _expandedDay;
+  SavedImageRecord? _selectedHistoryRecord;
+  final Set<String> _savedImageIds = <String>{};
 
   @override
   void initState() {
     super.initState();
+    _promptHistory = PromptHistory(
+      controller: _promptController,
+      promptsProvider: () {
+        final service = context.read<ImageGenerationService>();
+        // Oldest first: the saved history, then this session's images
+        final prompts = [
+          ...service.imageHistory.map((r) => r.prompt),
+          ...service.generatedImages.reversed.map((i) => i.prompt),
+        ];
+        final seen = <String>{};
+        return [
+          for (final prompt in prompts)
+            if (prompt.trim().isNotEmpty && seen.add(prompt)) prompt,
+        ];
+      },
+    );
+    _promptFocusNode.onKeyEvent = _promptHistory.handleKeyEvent;
     _loadConfiguredProviders();
     _refreshHistory();
+    ImageExitGuard.register(_confirmExit);
+  }
+
+  @override
+  void dispose() {
+    ImageExitGuard.unregister();
+    _promptController.dispose();
+    _promptFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshHistory() async {
@@ -57,13 +88,6 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
         _configuredProviders = configured;
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _promptController.dispose();
-    _promptFocusNode.dispose();
-    super.dispose();
   }
 
   List<SelectorProviderInfo> _imageProviderDescriptors(
@@ -99,8 +123,10 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
       if (cost != null) {
         context.read<ChatService>().spendCredits(AIProvider.openrouter, cost);
       }
+      _promptHistory.reset();
       setState(() {
         _selectedImage = image;
+        _selectedHistoryRecord = null;
       });
     }
   }
@@ -109,6 +135,7 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
     try {
       final service = context.read<ImageGenerationService>();
       final filePath = await service.saveImageToHistory(image);
+      _savedImageIds.add(image.id);
       await _refreshHistory();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -150,6 +177,7 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
           model: record.model,
           timestamp: record.savedAt,
         );
+        _selectedHistoryRecord = record;
       });
     } catch (e) {
       if (mounted) {
@@ -163,36 +191,58 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
     }
   }
 
-  /// Exit confirmation when unsaved session images exist.
-  /// Returns true when the user chose to exit.
+  /// Deletes the currently displayed image: a history image loses its file
+  /// and history record; a session image is removed from the session list
+  Future<void> _deleteSelectedImage() async {
+    final service = context.read<ImageGenerationService>();
+    final record = _selectedHistoryRecord;
+    if (record != null) {
+      try {
+        File('$_historyFolder/${record.fileName}').deleteSync();
+      } catch (_) {}
+      await service.deleteHistoryRecord(record);
+      await _refreshHistory();
+    } else {
+      final image = _selectedImage;
+      if (image != null) {
+        service.deleteImage(image.id);
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _selectedImage = null;
+        _selectedHistoryRecord = null;
+      });
+    }
+  }
+
+  /// Exit confirmation when unsaved session images exist. Returns true
+  /// when the user chose to exit; "Select and save" simply closes the
+  /// alert so the user can select and save images in the creator.
   Future<bool> _confirmExit() async {
     final service = context.read<ImageGenerationService>();
-    if (service.generatedImages.isEmpty) return true;
+    final unsaved = service.generatedImages
+        .where((image) => !_savedImageIds.contains(image.id))
+        .toList();
+    if (unsaved.isEmpty) return true;
 
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Unsaved images'),
-        content: const Text('Save/download images or Exit?'),
+        content: const Text('Select and save images or Exit'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, 'exit'),
             child: const Text('Exit'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, 'save'),
-            child: const Text('Save'),
+            onPressed: () => Navigator.pop(dialogContext, 'stay'),
+            child: const Text('Select and save'),
           ),
         ],
       ),
     );
-    if (result == 'save') {
-      for (final image in List.of(service.generatedImages)) {
-        await service.saveImageToHistory(image);
-      }
-      await _refreshHistory();
-      return false;
-    }
     return result == 'exit';
   }
 
@@ -421,16 +471,19 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
                               onTap: () {
                                 setState(() {
                                   _selectedImage = image;
+                                  _selectedHistoryRecord = null;
                                 });
                               },
                               onDelete: () {
                                 service.deleteImage(image.id);
+                                _savedImageIds.remove(image.id);
                                 if (_selectedImage?.id == image.id) {
                                   setState(() {
                                     _selectedImage =
                                         service.generatedImages.isNotEmpty
                                         ? service.generatedImages.first
                                         : null;
+                                    _selectedHistoryRecord = null;
                                   });
                                 }
                               },
@@ -607,6 +660,12 @@ class _DesktopImageScreenState extends State<DesktopImageScreen> {
               icon: const Icon(Icons.copy),
               tooltip: 'Copy Prompt',
               onPressed: () => _copyImageToClipboard(_selectedImage!),
+            ),
+            const SizedBox(width: AppConstants.spacingS),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete displayed image',
+              onPressed: _deleteSelectedImage,
             ),
           ],
         ],

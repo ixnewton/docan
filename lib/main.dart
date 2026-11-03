@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:window_manager/window_manager.dart';
 import 'services/storage_service.dart';
 import 'services/chat_service.dart';
 import 'services/image_generation_service.dart';
 import 'services/playbook_service.dart';
+import 'utils/image_exit_guard.dart';
 import 'utils/theme_provider.dart';
 import 'utils/screen_size_helper.dart';
 import 'screens/mobile/mobile_chat_screen.dart';
@@ -12,6 +14,8 @@ import 'screens/desktop/desktop_chat_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await windowManager.ensureInitialized();
 
   // Initialize Hive for local storage
   await Hive.initFlutter();
@@ -43,7 +47,7 @@ void main() async {
   );
 }
 
-class DocanApp extends StatelessWidget {
+class DocanApp extends StatefulWidget {
   final StorageService storageService;
   final bool initialDarkMode;
   final ChatService chatService;
@@ -60,20 +64,48 @@ class DocanApp extends StatelessWidget {
   });
 
   @override
+  State<DocanApp> createState() => _DocanAppState();
+}
+
+class _DocanAppState extends State<DocanApp> with WindowListener {
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    // Intercept window close so unsaved images in the Image Creator can
+    // prompt before the application exits
+    windowManager.setPreventClose(true);
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  void onWindowClose() async {
+    final allowed = await ImageExitGuard.confirmExit();
+    if (allowed) {
+      await windowManager.destroy();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         // Theme provider
         ChangeNotifierProvider(
-          create: (_) =>
-              ThemeProvider()..loadFromPreferences(isDarkMode: initialDarkMode),
+          create: (_) => ThemeProvider()
+            ..loadFromPreferences(isDarkMode: widget.initialDarkMode),
         ),
         // Playbook service (created first)
-        ChangeNotifierProvider.value(value: playbookService),
+        ChangeNotifierProvider.value(value: widget.playbookService),
         // Chat service (with playbook service connected)
-        ChangeNotifierProvider.value(value: chatService),
+        ChangeNotifierProvider.value(value: widget.chatService),
         // Image generation service
-        ChangeNotifierProvider.value(value: imageService),
+        ChangeNotifierProvider.value(value: widget.imageService),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

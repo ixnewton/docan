@@ -470,6 +470,18 @@ class ImageGenerationService extends ChangeNotifier {
     return filePath;
   }
 
+  /// Removes a record from the saved-image history (the file itself is
+  /// deleted by the caller)
+  Future<void> deleteHistoryRecord(SavedImageRecord record) async {
+    _imageHistory.removeWhere(
+      (r) => r.fileName == record.fileName && r.savedAt == record.savedAt,
+    );
+    await _storage.setImageHistory(
+      SavedImageRecord.listToJson(_imageHistory),
+    );
+    notifyListeners();
+  }
+
   /// History records grouped by calendar day, newest day first. Records
   /// whose file is missing from the save folder are dropped.
   Future<Map<DateTime, List<SavedImageRecord>>> historyByDay({
